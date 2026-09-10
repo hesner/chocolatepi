@@ -80,7 +80,9 @@ Methodology: M-VAVE connected via USB directly to the Raspberry Pi, live capture
 
 This matches a piece of text from the app itself (Advanced device control) that had been dismissed earlier as an ambiguous translation: *"A total of 8 groups of 32 timbre"* — the correct reading is **8 groups, 32 total PC values used** (8×4=32), not "32 groups." The PC range actually used by this mode is **0-31**, never 32-127, no matter how many times E/F is pressed.
 
-**Impact on maximum capacity:** with D reserved for STOP in every group (already-approved decision, section 4.5), the real capacity is `8 groups × 3 real songs (A,B,C) = 24 songs maximum`, not 96 as previously calculated. This is not enough for the band's real repertoire (~25-30 songs) — it reopens the strategy discussion, see the follow-up discussion in the chat with the user.
+**Impact on maximum capacity:** with D reserved for STOP in every group (already-approved decision, section 4.5), the real capacity is `8 groups × 3 real songs (A,B,C) = 24 songs maximum`, not 96 as previously calculated. This is not enough for the band's full real repertoire (~25-30 songs).
+
+**Decided (accepted, not a blocker):** 24 songs per active `Set` collection is this specific controller's real ceiling — not a bug to work around. This project's layered architecture (section 3 of `MASTER_SPECIFICATION.md`) already exists specifically so a future MIDI controller with more banks/groups can raise this ceiling by adding a new `Adapter` alone, with zero changes to the `Mapper` or `Core` (see the "Future-proofing" row, section 2). Until then, 24 is the accepted limit for this hardware.
 
 *Process note: during this test, a brief episode of erratic MIDI messages was observed (a burst of Control Change on controllers 2/3, and channel-reset messages 124-127) coinciding with a dropped ALSA connection between the M-VAVE and the listener process on the Raspberry Pi — initially interpreted as a possible invalid firmware state, but after a clean reconnection the behavior was deterministic and reproducible (confirmed twice). This is attributed to a USB/MIDI reconnection hiccup, not to the pedal's group logic.*
 
