@@ -1,5 +1,7 @@
 # Troubleshooting
 
+*[Leer en español](docs/es/TROUBLESHOOTING.md)*
+
 Symptom-first reference. Find what you're seeing, jump straight there.
 Every entry here is a real failure this project hit once during its own
 development or testing -- not a hypothetical.

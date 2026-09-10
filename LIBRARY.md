@@ -1,5 +1,7 @@
 # Library USB — folder and file naming
 
+*[Leer en español](docs/es/LIBRARY.md)*
+
 How to organize the library USB drive so `Library.resolve()`
 (`src/core/library.py`) actually finds what you put on it. This isn't
 enforced by any tool -- get a name wrong and the track is silently

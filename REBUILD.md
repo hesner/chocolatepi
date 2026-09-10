@@ -1,5 +1,7 @@
 # Rebuild runbook (for an AI coding agent)
 
+*[Leer en español](docs/es/REBUILD.md)*
+
 A cold-start, execution-order runbook for reproducing this project's
 full working state -- source checkout, a Raspberry Pi flashed and
 configured, the pedal running as an auto-booting appliance -- on a new

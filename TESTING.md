@@ -1,5 +1,7 @@
 # TESTING.md — Test log
 
+*[Leer en español](docs/es/TESTING.md)*
+
 ## Test 4.0 — Validating simultaneous audio + video on the real Raspberry Pi
 
 **Date:** 2026-09-04 / 2026-09-05

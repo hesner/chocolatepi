@@ -1,5 +1,7 @@
 # MAVAVE_ANALYSIS.md — M-VAVE controller analysis (PD41 model)
 
+*[Leer en español](docs/es/MAVAVE_ANALYSIS.md)*
+
 **Status: full recommendation ready for review and approval (section 6) — not implemented yet.**
 
 ---

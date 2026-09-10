@@ -1,5 +1,7 @@
 # MASTER SPECIFICATION — "Chocolate Pi" Project
 
+*[Leer en español](docs/es/MASTER_SPECIFICATION.md)*
+
 **This document is Claude's contract with this project.** It defines what must be built, which decisions are already approved and must not be questioned without evidence, which decisions are pending investigation, what the workflow between us and the agent must look like, and how decisions are reviewed as real evidence appears (section 9).
 
 Do not implement anything until you have read this entire document and confirmed that you understood it.

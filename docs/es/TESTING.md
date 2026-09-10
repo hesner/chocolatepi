@@ -1,5 +1,7 @@
 # TESTING.md — Registro de pruebas
 
+*[Read in English](../../TESTING.md)*
+
 ## Prueba 4.0 — Validación de audio + video simultáneo en la Raspberry Pi real
 
 **Fecha:** 2026-09-04 / 2026-09-05

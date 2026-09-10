@@ -1,5 +1,7 @@
 # Contributing
 
+*[Leer en español](docs/es/CONTRIBUTING.md)*
+
 ## Language
 
 Everything in this repository -- code, comments, commit messages,

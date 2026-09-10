@@ -1,5 +1,7 @@
 # MASTER SPECIFICATION — Proyecto "Chocolate Pi"
 
+*[Read in English](../../MASTER_SPECIFICATION.md)*
+
 **Este documento es el contrato de Claude con este proyecto.** Define qué se debe construir, qué decisiones ya están aprobadas y no se deben cuestionar sin evidencia, qué decisiones están pendientes de investigación, cómo debe ser el flujo de trabajo entre nosotros y el agente, y cómo se revisan las decisiones a medida que aparece evidencia real (sección 9).
 
 No implementes nada hasta haber leído este documento completo y confirmado que lo entendiste.

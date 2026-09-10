@@ -1,5 +1,7 @@
 # Changelog
 
+*[Leer en español](docs/es/CHANGELOG.md)*
+
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project doesn't use version numbers yet -- it's a single dedicated
 appliance build, not a versioned library -- so entries are grouped by
