@@ -68,7 +68,9 @@ controller analysis behind the current mapping.
 
 Hardware: a Raspberry Pi (developed against a Pi 2, Raspberry Pi OS
 Lite), a USB audio interface, a MIDI foot controller that can send
-standard Program Change, and a USB drive for the song/video library.
+standard Program Change, a USB drive for the song/video library, and a
+**5V/2.5A-minimum power supply** -- an underpowered one causes real
+freezes under load (see `TESTING.md`), not just a warning.
 
 Software: `python3` (standard library only -- no third-party Python
 packages, nothing to `pip install`), plus `mpv`, `ffmpeg`, and `ntfs-3g`
@@ -83,10 +85,14 @@ python3 -m unittest discover -s tests -v   # no hardware needed for this part
 The full step-by-step install -- library USB, the `systemd` service for
 automatic boot, and the read-only root filesystem -- is in
 [`systemd/README.md`](systemd/README.md), starting from prerequisites
-through to a locked-down appliance. Once it's running, see
-[`LIBRARY.md`](LIBRARY.md) before organizing songs/videos on the library
-USB -- one easy-to-make filename mistake there fails completely
-silently.
+through to a locked-down appliance (it also has a chapter reviewing
+whether a non-programmer can actually follow it end to end). Once it's
+running, see [`LIBRARY.md`](LIBRARY.md) before organizing songs/videos
+on the library USB -- one easy-to-make filename mistake there fails
+completely silently. Something not behaving as documented? Check
+[`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) first. Setting this up on new
+hardware from scratch (including with an AI coding agent doing the
+work) -- see [`REBUILD.md`](REBUILD.md).
 
 ## Project layout
 

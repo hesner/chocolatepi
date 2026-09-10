@@ -9,6 +9,27 @@ fecha hasta que eso cambie.
 
 ## [Sin publicar]
 
+- Se agregó `REBUILD.md` (en/es): guía ordenada por ejecución para
+  reproducir este proyecto en un PC nuevo + una Raspberry Pi nueva,
+  escrita para un agente de IA trabajando en frío, sin historial de
+  conversación.
+- Se agregó `TROUBLESHOOTING.md` (en/es): referencia organizada por
+  síntoma de cada falla real que este proyecto tuvo durante su
+  desarrollo/pruebas.
+- `systemd/README.md` (en/es): se agregó un capítulo de revisión
+  "¿puede una persona hacer esto sola?" (se recorrió la guía como lo
+  haría un músico sin programación), que encontró y corrigió varios
+  huecos reales — nunca se mencionaba `git`/clonar el repo en la Pi,
+  sin guía de cliente SSH, sin instrucciones de editor de texto
+  (`nano`) para los dos archivos que necesitan edición manual, y el
+  requisito de fuente de poder solo estaba documentado de forma
+  reactiva (después del hecho, en `TESTING.md`) en vez de como
+  requisito previo (ahora también en la lista de hardware de
+  `README.md`).
+- Se arregló un hueco de contenido real entre EN/ES en `TESTING.md`: a
+  la versión en español le faltaba la sección que cierra la prueba 4.0
+  (el seguimiento de la prueba en TV real), dejando a un lector solo en
+  español pensando que seguía abierta cuando ya se había resuelto.
 - **Arreglado**: arrancar sin el USB de biblioteca caía en systemd
   emergency mode (sin SSH, irrecuperable en un appliance sin pantalla)
   en vez del standby de respaldo local. Causa: el `recurse=1` por

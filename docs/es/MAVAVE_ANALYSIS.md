@@ -8,6 +8,12 @@
 
 El dispositivo se configura desde una **app de teléfono del fabricante, por Bluetooth** — no hay ninguna indicación de que esto se pueda hacer desde la Raspberry Pi. Dato importante confirmado por el usuario: **la configuración por Bluetooth funciona simultáneamente mientras el USB sigue conectado a la Raspberry Pi** — no hace falta desconectarlo para reconfigurar en vivo.
 
+`PD41-Software-Instructions.pdf` es el manual propio del fabricante y
+no se redistribuye en este repo (ver `.gitignore`) — consigue la app y
+sus instrucciones directamente de M-VAVE
+(https://www.m-vave.com/products) o del empaque/listado propio del
+producto si estás configurando este controlador exacto por primera vez.
+
 Hardware físico real (confirmado con foto, no coincide 1:1 con los diagramas del manual): **4 pedales (A, B, C, D)**. "E" y "F" no son pedales separados — son etiquetas impresas entre A-B y entre C-D, correspondientes a presionar esos dos pedales **simultáneamente**.
 
 12 modos de operación, seleccionables solo desde la app:

@@ -8,6 +8,12 @@
 
 The device is configured from a **manufacturer's phone app, over Bluetooth** — there's no indication this can be done from the Raspberry Pi. Important fact confirmed by the user: **Bluetooth configuration works simultaneously while the USB stays connected to the Raspberry Pi** — no need to disconnect it to reconfigure live.
 
+`PD41-Software-Instructions.pdf` is the manufacturer's own manual and
+is not redistributed in this repo (see `.gitignore`) -- get the app and
+its instructions directly from M-VAVE (https://www.m-vave.com/products)
+or the product's own packaging/listing if setting up this exact
+controller for the first time.
+
 Real physical hardware (confirmed with a photo, doesn't match the manual's diagrams 1:1): **4 footswitches (A, B, C, D)**. "E" and "F" are not separate footswitches — they are labels printed between A-B and between C-D, corresponding to pressing those two footswitches **simultaneously**.
 
 12 operating modes, selectable only from the app:

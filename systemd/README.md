@@ -39,13 +39,18 @@ Using [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
    - Locale/timezone/keyboard layout as appropriate.
 4. Write, then move the card to the Pi and power it on. First boot takes
    a minute or two longer than normal (partition resize, SSH host keys).
-5. From another machine on the same network:
+5. From another machine on the same network, open a terminal --
+   **PowerShell** on Windows 10/11 (it ships with an `ssh` command
+   already; search the Start menu for "PowerShell"), **Terminal.app**
+   on macOS, or any terminal on Linux -- and run:
    ```
    ssh <your-username>@<hostname>.local
    ```
    `.local` (mDNS) resolution isn't fully reliable in practice (known
    flaky over WiFi). If it doesn't resolve, get the Pi's IP from your
    router's DHCP client list instead and `ssh <your-username>@<that-ip>`.
+   The rest of this guide is run from inside this same SSH session,
+   unless a step says otherwise.
 
 ## 1. Software prerequisites
 
@@ -54,9 +59,10 @@ Raspberry Pi OS (this project was developed against Lite) already ships
 
 ```
 sudo apt update
-sudo apt install -y mpv ffmpeg ntfs-3g
+sudo apt install -y git mpv ffmpeg ntfs-3g
 ```
 
+- `git` -- to get this project's own code onto the Pi (next step).
 - `mpv` -- drives all playback (`src/core/player.py`, over its JSON IPC
   socket; no `python-mpv` or other third-party Python package needed).
 - `ffmpeg` -- only used by `scripts/generate_fallback_standby.sh`, to
@@ -68,10 +74,21 @@ sudo apt install -y mpv ffmpeg ntfs-3g
 No `requirements.txt`: the Python side of this project (`src/`) is
 standard-library only, deliberately, so there's nothing to `pip install`.
 
+Now get the project's own code onto the Pi -- every step from here on
+assumes you're inside this checkout:
+
+```
+git clone https://github.com/hesner/chocolatepi
+cd chocolatepi
+```
+
 ## 2. Library USB — `/etc/fstab`
 
 Add a line like this (get the real UUID for your own USB drive with
-`sudo blkid /dev/sda1`, or whatever device it shows up as):
+`sudo blkid /dev/sda1`, or whatever device it shows up as). `/etc/fstab`
+needs `sudo` to edit; `nano` is the simplest editor already on Raspberry
+Pi OS -- `sudo nano /etc/fstab`, add the line at the bottom, then
+`Ctrl+O` (write out), `Enter` (confirm filename), `Ctrl+X` (exit):
 
 ```
 UUID=07C1339846657D95  /media/usb  ntfs-3g  ro,nofail,x-systemd.device-timeout=10  0  0
@@ -177,10 +194,19 @@ sudo raspi-config nonint do_overlayfs 0   # enable (1 to disable again)
 ```
 
 Then edit `/boot/firmware/cmdline.txt` (remount it `rw` first: `sudo
-mount -o remount,rw /boot/firmware`) and append `:recurse=0` to the
+mount -o remount,rw /boot/firmware`, then `sudo nano
+/boot/firmware/cmdline.txt`) and append `:recurse=0` to the
 `overlayroot=tmpfs` parameter it just added, so the line reads
-`overlayroot=tmpfs:recurse=0`. Remount `/boot/firmware` back to `ro`
-and `sudo reboot`.
+`overlayroot=tmpfs:recurse=0`. This file is a **single line** -- don't
+add a line break, just append to the end of the existing text, then
+save (`Ctrl+O`, `Enter`, `Ctrl+X` in `nano`). Remount `/boot/firmware`
+back to `ro` and `sudo reboot`.
+
+This is the single riskiest edit in this whole guide -- a mistake in a
+kernel command-line parameter can leave the Pi unable to boot at all.
+Double check the line before rebooting. If it does fail to boot, nothing
+is unrecoverably lost: re-flash the SD card from Imager (section 0) and
+start again from there.
 
 **`recurse=0` is required, not optional**: the default (`recurse=1`)
 wraps every mount in its own overlay, including `/media/usb` -- and that
@@ -228,3 +254,103 @@ doing. If the overlay filesystem (section 4) is active, note that
 `sudo` commands still work as usual -- only writes to `/` and
 `/boot/firmware` land in the RAM-backed overlay instead of the real SD
 card, they don't fail.
+
+## Can a human actually do this alone, with just this site and these docs?
+
+A deliberate review, done by walking through this guide exactly as
+written -- not assuming it works, checking it -- from the perspective of
+a musician with basic computer skills (comfortable installing software,
+copying files, following instructions; not a programmer, no prior Linux
+experience assumed).
+
+**Short answer: yes, for the physical setup and configuration, with a
+few real gaps in this guide fixed (see below, and check the commit that
+added this section -- they should already be fixed by the time you're
+reading this, since finding them was the point of doing this review).
+No, not independently for anything requiring new code** -- see the
+Adapter caveat at the end.
+
+### Walking through it as a first-time builder
+
+1. **Reads `README.md`.** Understands what it does and what hardware to
+   buy. Clear.
+2. **Follows the link to this file** for the actual install. Section 0:
+   flashes the SD card with Raspberry Pi Imager, sets hostname/SSH/user
+   in the advanced options. This is a real, well-known GUI tool with its
+   own official documentation -- a first-timer can follow it.
+3. **Opens a terminal on their own computer to SSH in.** This guide
+   says `ssh <user>@<hostname>.local` but never says *what program to
+   type that into* -- a musician who's never used SSH doesn't
+   necessarily know Windows has a built-in `ssh` command inside
+   PowerShell/Terminal, or that Mac has Terminal.app. **Real gap, now
+   fixed**: an explicit note belongs here.
+4. **Section 1, installs `mpv`/`ffmpeg`/`ntfs-3g`.** Straightforward
+   copy-paste of one command. No issue.
+5. **Needs the actual project code on the Pi now**, to get
+   `pedal-core.service` (section 3) and everything else referenced by
+   path. **This guide never said to clone the repository onto the Pi,
+   and never listed `git` as something to install.** A reader
+   following this document literally, in order, hits a dead end here --
+   `sudo cp systemd/pedal-core.service ...` fails because that path
+   doesn't exist yet. **Real gap, now fixed.**
+6. **Section 2, edits `/etc/fstab`.** The guide says to "add a line"
+   but never says *how* -- on a fresh Raspberry Pi OS install there is
+   no assumption a first-timer knows `nano` exists, or how to invoke it,
+   or how to save and exit it (a famously non-obvious first experience
+   even for people with some computer background). **Real gap, now
+   fixed.**
+7. **Section 3, installs the service.** Once step 5's gap is fixed,
+   this works exactly as written.
+8. **Section 4, edits `/boot/firmware/cmdline.txt` and adds
+   `:recurse=0`.** Same editor gap as step 6, plus this step is
+   genuinely the most failure-prone one in the whole guide even for
+   someone who *can* use `nano` -- a single typo in a kernel command
+   line parameter, or forgetting to remount `/boot/firmware` `rw`
+   first, has a much less forgiving failure mode (a Pi that won't boot
+   at all) than any other step here. Worth a musician-facing person
+   double-checking the line reads exactly right before rebooting, and
+   knowing they can always re-flash the SD card from Imager again if
+   something goes wrong at this specific step -- that's not stated
+   anywhere as reassurance, and probably should be.
+9. **Power supply.** Nothing in the hardware list up to this point says
+   the power supply matters -- `TESTING.md`/`TROUBLESHOOTING.md`
+   document that an underpowered charger causes a real freeze, but that
+   information is reactive (you find it *after* hitting the problem),
+   not stated as a requirement to buy the right thing *before* starting.
+   **Real gap, now fixed**: the hardware list should say **5V/2.5A
+   minimum** up front.
+10. **`LIBRARY.md`, sets up the USB drive.** Clear, no programming
+    involved, just following a naming pattern and copying files -- this
+    is exactly at the right level for this persona.
+11. **Configuring the MIDI controller itself** (e.g. putting an M-VAVE
+    PD41 into "Program Change A" mode) requires the *manufacturer's own
+    app and instructions*, which this project deliberately does not
+    redistribute (`PD41-Software-Instructions.pdf` is gitignored, by an
+    earlier explicit decision in this project). **Real gap**: nothing
+    in this repo links to where to actually get that from M-VAVE. A
+    buyer of the exact same controller can usually find it from the
+    product's own packaging/support page, but this guide doesn't say so
+    or point anywhere.
+
+### The one thing a non-programmer genuinely cannot do alone
+
+If the controller isn't an M-VAVE PD41 (or another controller someone
+else has already written and contributed an `Adapter` for), **making a
+new one work requires writing Python** -- see `REBUILD.md`'s "If the
+controller isn't an M-VAVE PD41" note and `CONTRIBUTING.md`. "Basic
+computer skills" does not cover this; it's a real, hard line between
+"reproduce this exact build" (yes, a non-programmer can) and "adapt it
+to different hardware" (no, that needs a developer, or an AI coding
+agent following `REBUILD.md`/`MAVAVE_ANALYSIS.md`'s methodology on the
+user's behalf).
+
+### Verdict
+
+With the gaps above fixed, a musician with no Linux background and no
+programming experience can build this end to end **using the exact
+validated hardware** (M-VAVE PD41, a class-compliant USB audio
+interface, a Pi 2). The riskiest single step remains section 4's
+kernel command-line edit -- not because the instructions are wrong, but
+because it's the one place a small mistake has an outsized consequence
+(a Pi that won't boot), on a guide otherwise written for people who
+haven't done this kind of thing before.

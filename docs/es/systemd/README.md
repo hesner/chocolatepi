@@ -41,14 +41,18 @@ Usando [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
 4. Escribe, mueve la tarjeta a la Pi y enciéndela. El primer arranque
    tarda un minuto o dos más de lo normal (redimensión de partición,
    llaves SSH del host).
-5. Desde otra máquina en la misma red:
+5. Desde otra máquina en la misma red, abre una terminal —
+   **PowerShell** en Windows 10/11 (ya trae el comando `ssh`; búscalo
+   en el menú de inicio como "PowerShell"), **Terminal.app** en macOS,
+   o cualquier terminal en Linux — y corre:
    ```
    ssh <tu-usuario>@<hostname>.local
    ```
    La resolución `.local` (mDNS) no es totalmente confiable en la
    práctica (conocida por fallar por WiFi). Si no resuelve, saca la IP
    de la Pi de la lista de clientes DHCP de tu router y usa `ssh
-   <tu-usuario>@<esa-ip>`.
+   <tu-usuario>@<esa-ip>`. El resto de esta guía se corre dentro de esta
+   misma sesión SSH, salvo que un paso diga lo contrario.
 
 ## 1. Prerequisitos de software
 
@@ -57,9 +61,11 @@ Raspberry Pi OS (este proyecto se desarrolló contra Lite) ya trae
 
 ```
 sudo apt update
-sudo apt install -y mpv ffmpeg ntfs-3g
+sudo apt install -y git mpv ffmpeg ntfs-3g
 ```
 
+- `git` — para traer el código de este proyecto a la Pi (siguiente
+  paso).
 - `mpv` — maneja toda la reproducción (`src/core/player.py`, sobre su
   socket IPC en JSON; no hace falta `python-mpv` ni ningún otro paquete
   de Python de terceros).
@@ -74,10 +80,22 @@ Sin `requirements.txt`: el lado Python de este proyecto (`src/`) es solo
 librería estándar, deliberadamente, así que no hay nada que instalar con
 `pip`.
 
+Ahora trae el código del proyecto a la Pi — cada paso de acá en
+adelante asume que estás dentro de este checkout:
+
+```
+git clone https://github.com/hesner/chocolatepi
+cd chocolatepi
+```
+
 ## 2. USB de biblioteca — `/etc/fstab`
 
 Agrega una línea como esta (obtén el UUID real de tu propio USB con
-`sudo blkid /dev/sda1`, o el dispositivo que corresponda):
+`sudo blkid /dev/sda1`, o el dispositivo que corresponda). Editar
+`/etc/fstab` necesita `sudo`; `nano` es el editor más simple que ya
+viene en Raspberry Pi OS — `sudo nano /etc/fstab`, agrega la línea al
+final, luego `Ctrl+O` (guardar), `Enter` (confirmar el nombre),
+`Ctrl+X` (salir):
 
 ```
 UUID=07C1339846657D95  /media/usb  ntfs-3g  ro,nofail,x-systemd.device-timeout=10  0  0
@@ -187,10 +205,19 @@ sudo raspi-config nonint do_overlayfs 0   # habilitar (1 para deshabilitar de nu
 ```
 
 Luego edita `/boot/firmware/cmdline.txt` (remóntalo `rw` primero: `sudo
-mount -o remount,rw /boot/firmware`) y agrega `:recurse=0` al parámetro
+mount -o remount,rw /boot/firmware`, luego `sudo nano
+/boot/firmware/cmdline.txt`) y agrega `:recurse=0` al parámetro
 `overlayroot=tmpfs` que se acaba de agregar, para que la línea quede
-`overlayroot=tmpfs:recurse=0`. Vuelve a montar `/boot/firmware` como
-`ro` y `sudo reboot`.
+`overlayroot=tmpfs:recurse=0`. Este archivo es **una sola línea** — no
+agregues un salto de línea, solo agrega texto al final del que ya está,
+y guarda (`Ctrl+O`, `Enter`, `Ctrl+X` en `nano`). Vuelve a montar
+`/boot/firmware` como `ro` y `sudo reboot`.
+
+Esta es la edición más riesgosa de toda esta guía — un error en un
+parámetro de la línea de comandos del kernel puede dejar la Pi sin
+poder arrancar. Revisa dos veces la línea antes de reiniciar. Si de
+verdad no arranca, nada se pierde de forma irrecuperable: reflashea la
+tarjeta SD desde Imager (sección 0) y empieza de nuevo desde ahí.
 
 **`recurse=0` es obligatorio, no opcional**: el valor por defecto
 (`recurse=1`) envuelve todos los mounts en su propio overlay, incluido
@@ -241,3 +268,106 @@ haciendo el servicio. Si el sistema de archivos overlay (sección 4) está
 activo, ten en cuenta que los comandos `sudo` siguen funcionando
 normalmente — solo las escrituras a `/` y `/boot/firmware` caen en el
 overlay respaldado por RAM en vez de la SD real, no fallan.
+
+## ¿Puede una persona hacer esto sola, solo con este sitio y estos documentos?
+
+Una revisión deliberada, hecha siguiendo esta guía exactamente como está
+escrita — no asumiendo que funciona, comprobándolo — desde la
+perspectiva de un músico con conocimientos básicos de computación
+(cómodo instalando software, copiando archivos, siguiendo
+instrucciones; no un programador, sin experiencia previa en Linux
+asumida).
+
+**Respuesta corta: sí, para el montaje físico y la configuración, con
+algunos huecos reales de esta guía ya corregidos (ver abajo, y revisa
+el commit que agregó esta sección — deberían estar corregidos para
+cuando leas esto, ya que encontrarlos fue el propósito de hacer esta
+revisión). No, no de forma independiente para nada que requiera código
+nuevo** — ver la salvedad del Adapter al final.
+
+### Recorriéndolo como alguien que lo arma por primera vez
+
+1. **Lee `README.md`.** Entiende qué hace y qué hardware comprar. Claro.
+2. **Sigue el link a este archivo** para la instalación real. Sección
+   0: flashea la tarjeta SD con Raspberry Pi Imager, configura
+   hostname/SSH/usuario en las opciones avanzadas. Es una herramienta
+   gráfica real y conocida, con su propia documentación oficial — alguien
+   sin experiencia previa puede seguirla.
+3. **Abre una terminal en su propia computadora para conectarse por
+   SSH.** Esta guía decía `ssh <usuario>@<hostname>.local` pero nunca
+   decía *en qué programa escribir eso* — un músico que nunca usó SSH
+   no necesariamente sabe que Windows trae un comando `ssh` integrado
+   dentro de PowerShell/Terminal, o que Mac tiene Terminal.app. **Hueco
+   real, ya corregido**: acá va una nota explícita.
+4. **Sección 1, instala `mpv`/`ffmpeg`/`ntfs-3g`.** Copiar y pegar un
+   comando, directo. Sin problema.
+5. **Necesita el código real del proyecto en la Pi ahora**, para tener
+   `pedal-core.service` (sección 3) y todo lo demás referenciado por
+   ruta. **Esta guía nunca decía que había que clonar el repositorio en
+   la Pi, y nunca listaba `git` como algo que instalar.** Alguien
+   siguiendo este documento literalmente, en orden, llega a un callejón
+   sin salida acá — `sudo cp systemd/pedal-core.service ...` falla
+   porque esa ruta todavía no existe. **Hueco real, ya corregido.**
+6. **Sección 2, edita `/etc/fstab`.** La guía decía "agrega una línea"
+   pero nunca decía *cómo* — en una instalación fresca de Raspberry Pi
+   OS no hay ninguna razón para asumir que alguien sin experiencia
+   sepa que `nano` existe, cómo invocarlo, o cómo guardar y salir (una
+   primera experiencia famosamente poco obvia incluso para gente con
+   algo de trasfondo en computación). **Hueco real, ya corregido.**
+7. **Sección 3, instala el servicio.** Una vez corregido el hueco del
+   paso 5, esto funciona exactamente como está escrito.
+8. **Sección 4, edita `/boot/firmware/cmdline.txt` y agrega
+   `:recurse=0`.** Mismo hueco del editor que el paso 6, más el hecho de
+   que este paso es genuinamente el más propenso a fallar de toda la
+   guía incluso para alguien que *sí* sabe usar `nano` — un solo error
+   de tipeo en un parámetro de la línea de comandos del kernel, o
+   olvidar remontar `/boot/firmware` en `rw` primero, tiene un modo de
+   falla mucho menos perdonador (una Pi que no arranca en absoluto) que
+   cualquier otro paso acá. Vale la pena que alguien sin trasfondo
+   técnico revise dos veces que la línea quedó exactamente bien antes
+   de reiniciar, y sepa que siempre puede reflashear la tarjeta SD desde
+   Imager de nuevo si algo sale mal justo en este paso — eso no estaba
+   dicho en ningún lado como tranquilidad, y probablemente debería.
+9. **Fuente de poder.** Nada en la lista de hardware hasta este punto
+   decía que la fuente de poder importa — `TESTING.md`/`TROUBLESHOOTING.md`
+   documentan que un cargador subalimentado causa un cuelgue real, pero
+   esa información es reactiva (la encuentras *después* de toparte con
+   el problema), no está dicha como un requisito de comprar lo correcto
+   *antes* de empezar. **Hueco real, ya corregido**: la lista de
+   hardware debería decir **mínimo 5V/2.5A** desde el principio.
+10. **`LIBRARY.md`, configura el USB.** Claro, sin programación de por
+    medio, solo seguir un patrón de nombres y copiar archivos — esto
+    está exactamente al nivel correcto para esta persona.
+11. **Configurar el controlador MIDI en sí** (ej. poner un M-VAVE PD41
+    en modo "Program Change A") requiere la *app y las instrucciones
+    propias del fabricante*, que este proyecto deliberadamente no
+    redistribuye (`PD41-Software-Instructions.pdf` está en gitignore,
+    por una decisión explícita anterior en este proyecto). **Hueco
+    real**: nada en este repo enlaza a dónde conseguir eso de M-VAVE.
+    Alguien que compra el mismo controlador exacto usualmente puede
+    encontrarlo desde el propio empaque/página de soporte del producto,
+    pero esta guía no lo dice ni apunta a ningún lado.
+
+### La única cosa que alguien sin programación genuinamente no puede hacer solo
+
+Si el controlador no es un M-VAVE PD41 (u otro controlador para el que
+alguien más ya haya escrito y contribuido un `Adapter`), **hacer que uno
+nuevo funcione requiere escribir Python** — ver la nota "Si el
+controlador no es un M-VAVE PD41" de `REBUILD.md` y `CONTRIBUTING.md`.
+"Conocimientos básicos de computación" no cubre esto; es una línea
+real y dura entre "reproducir esta construcción exacta" (sí, alguien sin
+programación puede) y "adaptarlo a hardware distinto" (no, eso necesita
+un desarrollador, o un agente de IA siguiendo la metodología de
+`REBUILD.md`/`MAVAVE_ANALYSIS.md` en representación del usuario).
+
+### Veredicto
+
+Con los huecos de arriba corregidos, un músico sin trasfondo en Linux y
+sin experiencia de programación puede construir esto de punta a punta
+**usando exactamente el hardware validado** (M-VAVE PD41, una interfaz
+de audio USB compatible con la clase estándar, una Pi 2). El paso
+individual más riesgoso sigue siendo la edición de la línea de comandos
+del kernel de la sección 4 — no porque las instrucciones estén mal, sino
+porque es el único lugar donde un error pequeño tiene una consecuencia
+desproporcionada (una Pi que no arranca), en una guía escrita por lo
+demás para gente que nunca ha hecho este tipo de cosa antes.

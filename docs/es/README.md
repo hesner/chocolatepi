@@ -73,8 +73,10 @@ para el análisis empírico del controlador MIDI detrás del mapeo actual.
 
 Hardware: una Raspberry Pi (desarrollado contra una Pi 2, Raspberry Pi OS
 Lite), una interfaz de audio USB, un controlador MIDI de pedalera que
-pueda mandar Program Change estándar, y un USB para la biblioteca de
-canciones/videos.
+pueda mandar Program Change estándar, un USB para la biblioteca de
+canciones/videos, y una **fuente de poder de mínimo 5V/2.5A** — una
+subalimentada causa cuelgues reales bajo carga (ver `TESTING.md`), no
+solo una advertencia.
 
 Software: `python3` (solo librería estándar — sin paquetes de Python de
 terceros, nada que instalar con `pip`), más `mpv`, `ffmpeg` y `ntfs-3g`
@@ -89,10 +91,15 @@ python3 -m unittest discover -s tests -v   # esta parte no necesita hardware
 La instalación completa paso a paso —USB de biblioteca, servicio de
 `systemd` para arranque automático, y sistema de archivos raíz de solo
 lectura— está en [`systemd/README.md`](systemd/README.md), desde
-los prerequisitos hasta un aparato completamente blindado. Una vez esté
-corriendo, revisa [`LIBRARY.md`](LIBRARY.md) antes de organizar
-canciones/videos en el USB de biblioteca — un error de nombre de archivo
-fácil de cometer ahí falla completamente en silencio.
+los prerequisitos hasta un aparato completamente blindado (también
+tiene un capítulo que revisa si alguien sin programación puede seguirla
+de punta a punta). Una vez esté corriendo, revisa
+[`LIBRARY.md`](LIBRARY.md) antes de organizar canciones/videos en el USB
+de biblioteca — un error de nombre de archivo fácil de cometer ahí falla
+completamente en silencio. ¿Algo no se comporta como dice la
+documentación? Revisa primero [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
+¿Vas a montar esto en hardware nuevo desde cero (incluso con un agente
+de IA haciendo el trabajo)? Ver [`REBUILD.md`](REBUILD.md).
 
 ## Estructura del proyecto
 

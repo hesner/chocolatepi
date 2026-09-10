@@ -7,6 +7,23 @@ date instead until that changes.
 
 ## [Unreleased]
 
+- Added `REBUILD.md` (en/es): execution-order runbook for reproducing
+  this project on a new PC + new Raspberry Pi, written for an AI coding
+  agent working cold, without conversation history.
+- Added `TROUBLESHOOTING.md` (en/es): symptom-indexed reference of every
+  real failure this project hit during development/testing.
+- `systemd/README.md` (en/es): added a "can a human actually do this
+  alone" review chapter (walked the guide as a non-programmer musician
+  would), which found and fixed several real gaps -- `git`/cloning the
+  repo onto the Pi was never mentioned, no SSH-client guidance, no
+  text-editor (`nano`) instructions for the two files that need manual
+  edits, and the power supply requirement was only documented reactively
+  (after the fact in `TESTING.md`) instead of as an upfront requirement
+  (now also in `README.md`'s hardware list).
+- Fixed a real EN/ES content gap in `TESTING.md`: the Spanish version
+  was missing the section that closes out test 4.0 (the real-TV
+  frame-rate follow-up), leaving a Spanish-only reader thinking it was
+  still open when it had already been resolved.
 - **Fixed**: booting without the library USB dropped into systemd
   emergency mode (no SSH, unrecoverable on a headless appliance) instead
   of the local standby fallback. Cause: the overlay filesystem's default
