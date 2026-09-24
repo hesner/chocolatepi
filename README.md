@@ -92,7 +92,9 @@ on the library USB -- one easy-to-make filename mistake there fails
 completely silently. Something not behaving as documented? Check
 [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) first. Setting this up on new
 hardware from scratch (including with an AI coding agent doing the
-work) -- see [`REBUILD.md`](REBUILD.md).
+work) -- see [`REBUILD.md`](REBUILD.md). Want to manage the library and
+the Pi's WiFi from a phone browser instead of SSH? See the optional
+[`SETLIST_ADMIN_APP.md`](SETLIST_ADMIN_APP.md).
 
 ## Project layout
 

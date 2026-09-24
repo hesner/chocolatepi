@@ -99,7 +99,10 @@ de biblioteca — un error de nombre de archivo fácil de cometer ahí falla
 completamente en silencio. ¿Algo no se comporta como dice la
 documentación? Revisa primero [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
 ¿Vas a montar esto en hardware nuevo desde cero (incluso con un agente
-de IA haciendo el trabajo)? Ver [`REBUILD.md`](REBUILD.md).
+de IA haciendo el trabajo)? Ver [`REBUILD.md`](REBUILD.md). ¿Quieres
+administrar la biblioteca y el WiFi de la Pi desde el navegador de un
+teléfono en vez de SSH? Ver la app opcional
+[`SETLIST_ADMIN_APP.md`](SETLIST_ADMIN_APP.md).
 
 ## Estructura del proyecto
 

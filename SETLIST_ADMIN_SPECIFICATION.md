@@ -96,7 +96,14 @@ On the library USB, a new file: `.setlist-admin/network.enc` (dotfile
 directory so it doesn't show up as a "track" to anything scanning
 `Set N/` folders).
 
-**Encryption**: `openssl enc -aes-256-gcm -pbkdf2` (subprocess call),
+**Encryption**: `openssl enc -aes-256-cbc -pbkdf2` (subprocess call) --
+not GCM as originally proposed here: building this found that
+`openssl enc` (the CLI subcommand, unlike the lower-level EVP API)
+doesn't support AEAD ciphers at all ("AEAD ciphers not supported",
+confirmed against the real binary). CBC has no built-in authentication
+tag, but that's acceptable for what this actually defends against
+(uselessness off this Pi/USB pairing, not tampering by someone who
+already has USB write access -- see `src/admin/crypto.py`'s docstring),
 key derived as `sha256(machine_id + usb_uuid)`. Both inputs are already
 knowable to anything with SSH access to this Pi with this USB inserted
 -- the real value isn't secrecy from someone who's fully compromised
