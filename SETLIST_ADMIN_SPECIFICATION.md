@@ -30,6 +30,7 @@ than live playback, never allowed to affect it.
 | Home WiFi credential storage | Encrypted, on the library USB (survives reboots; the root overlay does not). Encryption via `openssl` (already installed) invoked as a subprocess, not a new Python crypto dependency |
 | Encryption key | Derived from this specific Pi's `/etc/machine-id` + the library USB's own UUID (see section 5) -- the credential file is useless off this exact Pi/USB pairing |
 | Network strategy | The app's own watchdog is the source of truth for which WiFi to (re)apply each boot, not NetworkManager's own persisted state (which lives under the overlaid `/etc` and would not survive a reboot) |
+| Installation | **Fully optional.** The base pedal system works identically, with or without `setlist-admin` ever installed -- see section 11 |
 
 ## 3. Why this needs its own design pass, not just "add a web server"
 
@@ -74,7 +75,7 @@ setlist-admin.service  (new, separate from pedal-core.service)
       └─ wifi.py            wraps nmcli; reads/writes the encrypted
                              credential file on the USB via openssl
 
-pedal-network-watchdog.service  (new, runs continuously, very light)
+setlist-network-watchdog.service  (new, runs continuously, very light)
       │
       ├─ at boot and periodically: decrypts + (re)applies WiFi
       │  profiles to NetworkManager via nmcli, home-network priority
@@ -102,7 +103,7 @@ knowable to anything with SSH access to this Pi with this USB inserted
 the running system, it's that **the file is useless if the USB alone is
 lost, copied, or plugged into a different Pi**.
 
-**Boot-time flow** (`pedal-network-watchdog.service`, starts early,
+**Boot-time flow** (`setlist-network-watchdog.service`, starts early,
 independent of whether the USB or a network is even present yet):
 
 1. Ensure the phone-hotspot profile exists and is applied via `nmcli`
@@ -229,6 +230,13 @@ rigor as the original section 4.0 audio+video test)**:
 - Security: confirm the PIN actually gates access; confirm
   `.setlist-admin/network.enc` isn't readable as plaintext; confirm a copy
   of that file on a different Pi/USB fails to decrypt.
+- Optional install / rollback (section 11): confirm `pedal-core.service`
+  keeps running, untouched, throughout both `install_setlist_admin.sh`
+  and `rollback_setlist_admin.sh` -- no restart, no dropped playback, no
+  modified files outside what section 11 lists. Confirm a full
+  install-then-rollback cycle leaves the system byte-for-byte equivalent
+  to never having installed it (diff `git status` and the running
+  service list before and after).
 
 ## 9. Decided this round
 
@@ -242,7 +250,7 @@ rigor as the original section 4.0 audio+video test)**:
   phase, not v1.
 - **Repo location**: inside the existing `chocolatepi` repo
   (`src/admin/` + a new `setlist-admin.service` /
-  `pedal-network-watchdog.service` under `systemd/`), not a separate
+  `setlist-network-watchdog.service` under `systemd/`), not a separate
   repository -- it shares `Library`'s data model and the same target
   hardware.
 
@@ -269,3 +277,49 @@ rejected for now -- see the discussion this section resolves).
 - [ ] Update `REBUILD.md` to point to it as the fast path, keeping the
       manual phases as the documented fallback/explanation of what it
       automates.
+
+## 11. Optional installation and rollback
+
+**Installation stays opt-in, always.** The base pedal system (sections
+0-4 of `systemd/README.md`) never mentions or depends on
+`setlist-admin` -- it lives entirely in its own install step, run only
+if the user chooses to:
+
+- Not woven into `systemd/README.md`'s numbered phases at all. Its own
+  script, `scripts/install_setlist_admin.sh`, documented in its own
+  section, run manually and only once someone decides they want it.
+- Installing it touches exactly: two new systemd unit files, a new
+  `src/admin/` directory, and (only once actually used) a new
+  `.setlist-admin/` directory on the USB. `pedal-core.service`'s own
+  unit file, `src/core/`, `src/adapter/`, and `src/mapper/` are never
+  modified by installing -- or removing -- this feature. This isn't
+  just a claim; it's a constraint on the implementation itself (section
+  8's test plan gets a line item confirming it).
+- No new apt packages required (`openssl` is already present from the
+  base OS) -- installing this never touches the package set the
+  read-only overlay was built around.
+
+**Before implementation starts**: tag the current commit as a
+known-good checkpoint (`git tag stable-pre-setlist-admin`, pushed to
+GitHub) -- an unambiguous "last known good" to return to, independent
+of how development goes.
+
+**Rollback** (`scripts/rollback_setlist_admin.sh`, built alongside the
+feature itself, not an afterthought written later):
+
+1. `sudo systemctl disable --now setlist-admin.service
+   setlist-network-watchdog.service` -- stop both, prevent restart.
+2. Remove their unit files from `/etc/systemd/system/` (same
+   overlay-disable dance as any other change to `/`, if the overlay is
+   active).
+3. `git checkout stable-pre-setlist-admin` on the Pi's own checkout --
+   reverts the code itself to the tagged known-good state.
+4. `pedal-core.service` is never stopped, restarted, or reconfigured by
+   any of the above -- confirmed by the same test plan, not assumed.
+5. `.setlist-admin/` is left on the USB by default (so a future
+   reinstall doesn't need the PIN/WiFi reconfigured from scratch); a
+   `--purge` flag removes it too, for a genuinely clean slate.
+
+One fast, documented, tested path back to exactly what's running today
+-- no SD re-flash, no redoing the base setup, and confirmation that the
+live-critical service was never touched in the process.
