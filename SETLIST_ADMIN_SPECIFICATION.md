@@ -238,7 +238,64 @@ rigor as the original section 4.0 audio+video test)**:
   to never having installed it (diff `git status` and the running
   service list before and after).
 
-## 9. Decided this round
+### 8a. Network testing safety protocol
+
+The riskiest thing in this whole feature isn't a bug in the code -- it's
+that testing the network-switching logic on real hardware can cut off
+the very SSH access this project's entire development workflow depends
+on. The Pi's home WiFi today is what Claude connects through for every
+single command in this project. **This must never be put at risk during
+iterative development**, so testing it follows a strict, staged order,
+each stage only starting once the previous one is confirmed safe:
+
+1. **Ethernet stays connected for the entire network-testing period.**
+   Before any of this work touches real `nmcli` state, the Pi gets a
+   wired Ethernet connection to the home network, *in addition to*
+   WiFi, and it stays connected until stage 6 explicitly says to remove
+   it. Ethernet is a completely separate network interface from WiFi --
+   whatever the WiFi radio does (switches to the hotspot, drops,
+   misbehaves), SSH over Ethernet is entirely unaffected. This is the
+   actual safety net for everything below, not a nice-to-have.
+2. **Unit tests only** (mocked `nmcli`/`subprocess`, no real hardware
+   touched) -- validates the decision logic (which network to prefer,
+   when to fall back) in isolation first, per section 8's unit test
+   list.
+3. **Dry-run mode on the real Pi**: `setlist-network-watchdog.service`
+   runs its full decision logic against real conditions but only logs
+   what it *would* do -- `nmcli` is never actually called to change
+   anything. Confirms the logic reads real-world state correctly before
+   it's ever allowed to act on it.
+4. **Additive-only real test**: manually add the phone-hotspot
+   NetworkManager profile (over the Ethernet-backed SSH session) at a
+   *lower* priority than the existing home-WiFi profile, so nothing
+   about today's default behavior changes yet. Manually bring the
+   hotspot connection up and down on demand (`nmcli connection up/down`)
+   to confirm the Pi *can* reach it -- observed the whole time over the
+   Ethernet path, so a failed attempt here costs nothing.
+5. **Live fallback test, still Ethernet-backed**: let the watchdog run
+   for real (no longer dry-run), with the *existing, already-working*
+   home-WiFi profile still in place exactly as it is today. Confirm it
+   changes nothing when home WiFi is healthy, then deliberately make
+   home WiFi unreachable (disable the profile's autoconnect via `nmcli`,
+   or briefly power off the home router) and confirm the watchdog falls
+   back to the hotspot within the expected time -- and confirm it
+   switches back once home WiFi is reachable again. Every step of this
+   is observed and recoverable over Ethernet even if the WiFi-side logic
+   is completely broken.
+6. **Only after 1-5 all pass**: migrate the home-WiFi credential from
+   today's baked-in NetworkManager profile (which has worked reliably
+   since before this feature existed) to the new encrypted
+   `.setlist-admin/network.enc` mechanism -- add it once through the app
+   itself, confirm the watchdog picks it up correctly, reboot cold and
+   confirm it reconnects to home WiFi sourced *only* from the new
+   mechanism. Only then remove the old hardcoded profile, and only then
+   -- as the very last step, with the user physically present -- unplug
+   Ethernet and confirm the Pi is reachable purely over WiFi as
+   designed.
+
+Nothing in section 5 (WiFi credential storage and network flow) or
+section 9 (naming/PIN/etc.) changes because of this -- this section is
+entirely about the *order and safety of validating it*, not the design.
 
 - **Naming**: `setlist-admin` for the service/module names in code
   (not user-facing).
