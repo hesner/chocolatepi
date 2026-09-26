@@ -1,9 +1,32 @@
 # SETLIST ADMIN SPECIFICATION — "Chocolate Pi" companion admin app
 
-**Status: draft for review — not approved, not implemented.** Mirrors
-`MASTER_SPECIFICATION.md`'s own process: this document is proposed,
-discussed, and approved before any code is written (section 6 of that
-file).
+**Status: approved and implemented (135 tests, all passing), but
+shelved after real-hardware testing hit a hardware blocker, not a
+design or code one.** This branch (`explore/setlist-admin`) preserves
+the full attempt for reference; `main` has been reverted back to
+before this feature existed, on request, while an alternative design is
+considered.
+
+What happened during hardware validation (section 8a): install and the
+staged network-testing protocol worked correctly through the watchdog
+dry-run and live-start stages (nothing about the design or code was at
+fault). Setting up the web UI for the first time then surfaced one real
+bug -- `usb_mount.py` used `mount -o remount,rw`, which `ntfs-3g` (the
+library USB's actual FUSE driver) refuses outright; fixed on this
+branch to do a real umount+mount cycle instead (see git history). After
+that fix, though, the USB WiFi dongle (Realtek rtl8192cu) itself turned
+out to be failing: it intermittently mis-enumerated or didn't enumerate
+at all across several reboots and USB ports, and when tested directly
+on a separate computer it didn't appear as any USB device at all --
+strong evidence the dongle is dead, not a software/power problem on the
+Pi's side. Since the whole point of this feature is managing the Pi
+over WiFi, that blocks meaningful further testing until there's a
+known-good WiFi adapter to test against.
+
+If picking this back up: the code here should still be a reasonable
+starting point (or reference) once a working WiFi adapter is available
+again, but section 8a's protocol should be re-run from the top on real
+hardware before trusting it again.
 
 ---
 
