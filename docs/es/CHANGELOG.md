@@ -9,38 +9,21 @@ fecha hasta que eso cambie.
 
 ## [Sin publicar]
 
-- Se agregó `setlist-admin`: una app web complementaria **opcional**
-  para administrar el USB de biblioteca (shows/Sets/pistas, CRUD
-  completo) y el WiFi de la Pi (red de casa + respaldo de hotspot del
-  celular) desde el navegador de un teléfono o computador. Documento de
-  diseño: `SETLIST_ADMIN_SPECIFICATION.md`; guía de uso:
-  `SETLIST_ADMIN_APP.md` (en/es). Nunca se instala por defecto y nunca
-  modifica `pedal-core.service` ni nada de `src/core/`, `src/adapter/`,
-  `src/mapper/` — se instala vía `scripts/install_setlist_admin.sh`, se
-  revierte limpiamente vía `scripts/rollback_setlist_admin.sh`.
-  Aspectos destacados:
-  - Backend de Python solo con librería estándar (`http.server`),
-    frontend vanilla responsive — sin dependencia nueva de `pip`/`apt`
-    para la app web en sí.
-  - Credenciales de WiFi cifradas en reposo en el USB (`openssl enc
-    -aes-256-cbc`, no GCM — resultó que `openssl enc` no soporta
-    cifrados AEAD, encontrado mientras se construía esto), con una
-    llave derivada de esta Pi + este USB específicos.
-  - Cada escritura a la biblioteca pasa por una API estructurada que
-    hace imposible reproducir por construcción la clase de falla
-    silenciosa "doble espacio antes del guion" de LIBRARY.md, no solo
-    documentarla.
-  - Validación de códec H.264 al subir (advierte, no bloquea).
-  - 108 tests nuevos unitarios/de integración (135 en total en todo el
-    proyecto) — encontraron y arreglaron dos bugs reales antes de que
-    esto toque hardware: un bug de orden en el Set-cookie que rompía en
-    silencio cada login, y un límite de longitud de nombre de archivo
-    faltante que podía exceder el límite por componente de un sistema
-    de archivos.
-  - Todavía no validado en hardware real — ver el protocolo de
-    seguridad escalonado y respaldado por Ethernet de la sección 8a de
-    `SETLIST_ADMIN_SPECIFICATION.md` para cómo debe proceder esa
-    validación.
+- Se diseñó e implementó `setlist-admin` (una app web complementaria
+  para administrar el USB de biblioteca y el WiFi de la Pi desde el
+  navegador de un teléfono/computador), y luego se revirtió de `main`:
+  la validación en hardware real (`SETLIST_ADMIN_SPECIFICATION.md`
+  sección 8a) avanzó limpio por la instalación y las etapas de dry-run
+  y arranque en vivo del watchdog, pero el dongle USB de WiFi (Realtek
+  rtl8192cu) resultó ser hardware defectuoso — confirmado al probarlo
+  en un computador aparte, donde no apareció como ningún dispositivo
+  USB en absoluto. Como toda la funcionalidad depende de un adaptador
+  de WiFi funcional, seguir probando queda bloqueado hasta contar con
+  uno en buen estado. El diseño completo, la implementación, los tests,
+  y un bug real encontrado en el camino (`ntfs-3g` no soporta `mount -o
+  remount,rw` — se arregló a un ciclo real de umount+mount) quedan
+  preservados en la rama `explore/setlist-admin` para un intento futuro
+  con un diseño alternativo.
 - Se agregó `REBUILD.md` (en/es): guía ordenada por ejecución para
   reproducir este proyecto en un PC nuevo + una Raspberry Pi nueva,
   escrita para un agente de IA trabajando en frío, sin historial de

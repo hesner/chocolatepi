@@ -9,33 +9,20 @@ date instead until that changes.
 
 ## [Unreleased]
 
-- Added `setlist-admin`: an **optional** companion web app for managing
-  the library USB (shows/Sets/tracks, full CRUD) and the Pi's WiFi
-  (home network + phone-hotspot fallback) from a phone or computer
-  browser. Design doc: `SETLIST_ADMIN_SPECIFICATION.md`; usage guide:
-  `SETLIST_ADMIN_APP.md` (en/es). Never installed by default and never
-  modifies `pedal-core.service` or any of `src/core/`, `src/adapter/`,
-  `src/mapper/` -- install via `scripts/install_setlist_admin.sh`, back
-  out cleanly via `scripts/rollback_setlist_admin.sh`. Highlights:
-  - Stdlib-only Python backend (`http.server`), vanilla responsive
-    frontend -- no new `pip`/`apt` dependency for the web app itself.
-  - WiFi credentials encrypted at rest on the USB (`openssl enc
-    -aes-256-cbc`, not GCM -- `openssl enc` turned out not to support
-    AEAD ciphers, found while building this) with a key derived from
-    this specific Pi + USB pairing.
-  - Every write to the library goes through a structured API that
-    makes LIBRARY.md's "double space before the dash" class of silent
-    failure impossible to reproduce by construction, not just
-    documented.
-  - Upload-time H.264 codec validation (warns, doesn't block).
-  - 108 new unit/integration tests (135 total project-wide) -- found
-    and fixed two real bugs before this ever touches hardware: a
-    Set-cookie ordering bug that silently broke every login, and a
-    missing filename-length bound that could exceed a filesystem's
-    per-component limit.
-  - Not yet validated on real hardware -- see
-    `SETLIST_ADMIN_SPECIFICATION.md` section 8a's staged, Ethernet-backed
-    safety protocol for how that validation must proceed.
+- Designed and implemented `setlist-admin` (a companion web app for
+  managing the library USB and the Pi's WiFi from a phone/computer
+  browser), then reverted it from `main`: real-hardware validation
+  (`SETLIST_ADMIN_SPECIFICATION.md` section 8a) went cleanly through
+  install and the watchdog's dry-run/live stages, but then the USB WiFi
+  dongle (Realtek rtl8192cu) turned out to be failing hardware --
+  confirmed by testing it on a separate computer, where it didn't
+  enumerate as any USB device at all. Since the whole feature depends
+  on a working WiFi adapter, further testing is blocked until there's a
+  known-good one. The full design, implementation, tests, and a real
+  bug found along the way (`ntfs-3g` doesn't support `mount -o
+  remount,rw` -- fixed to a real umount+mount cycle) are preserved on
+  the `explore/setlist-admin` branch for a future attempt with an
+  alternative design.
 - Added `REBUILD.md` (en/es): execution-order runbook for reproducing
   this project on a new PC + new Raspberry Pi, written for an AI coding
   agent working cold, without conversation history.
