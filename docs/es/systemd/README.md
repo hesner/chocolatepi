@@ -104,9 +104,15 @@ UUID=07C1339846657D95  /media/usb  ntfs-3g  ro,nofail,x-systemd.device-timeout=1
 - `ro`: montado de solo lectura por defecto, igual que este proyecto
   opera siempre en el día a día (sección 2 de `MASTER_SPECIFICATION.md`
   — el USB de biblioteca nunca debe formatearse automáticamente ni sus
-  archivos borrarse solos). Remonta en lectura-escritura a mano (`sudo
-  mount -o remount,rw /media/usb`) solo para gestión deliberada de la
-  biblioteca, y vuelve a `ro` después.
+  archivos borrarse solos). Cámbialo a lectura-escritura a mano para
+  gestión deliberada de la biblioteca con `sudo umount /media/usb &&
+  sudo mount -o rw /media/usb`, y luego lo mismo al revés (`sudo umount
+  /media/usb && sudo mount -o ro /media/usb`) después. **No** `mount -o
+  remount,rw` — `ntfs-3g` es un sistema de archivos FUSE y rechaza el
+  remount en caliente directamente ("Remounting is not supported at
+  present. You have to umount volume and then mount it once again."),
+  confirmado contra el USB de biblioteca real al poner en marcha
+  `setlist-admin` (`SETLIST_ADMIN_APP.md`) por primera vez.
 - `nofail` + `x-systemd.device-timeout=10`: si el USB no está conectado
   al arrancar, no cuelgues la secuencia de arranque esperándolo — desiste
   después de 10s y continúa. `pedal-core.service` (abajo) maneja que el

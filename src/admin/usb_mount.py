@@ -42,11 +42,37 @@ def writable_usb(mount_point: str = DEFAULT_MOUNT_POINT):
 
 
 def _remount(mount_point: str, mode: str) -> None:
+    # ntfs-3g (a FUSE filesystem, unlike vfat/ext4's in-kernel drivers) does
+    # not support `mount -o remount,X` at all -- it refuses outright with
+    # "Remounting is not supported at present. You have to umount volume
+    # and then mount it once again.", confirmed against the real library
+    # USB. So this does exactly what that message says: a real umount
+    # followed by a fresh mount in the target mode, using the existing
+    # /etc/fstab entry for device/fstype/other options.
     try:
         subprocess.run(
-            ["sudo", "mount", "-o", f"remount,{mode}", mount_point],
+            ["sudo", "umount", mount_point],
             capture_output=True, check=True, timeout=10,
         )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
-        logger.error("Failed to remount %s as %s: %s", mount_point, mode, e)
+        logger.error("Failed to unmount %s before remounting as %s: %s", mount_point, mode, e)
+        raise RemountError(f"Could not remount {mount_point} as {mode}") from e
+
+    try:
+        subprocess.run(
+            ["sudo", "mount", "-o", mode, mount_point],
+            capture_output=True, check=True, timeout=10,
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
+        logger.error("Failed to mount %s as %s: %s", mount_point, mode, e)
+        # Best-effort: leaving the USB fully unmounted is worse than
+        # leaving it mounted read-only, so try to at least get back to
+        # the safe default before surfacing the failure.
+        try:
+            subprocess.run(
+                ["sudo", "mount", "-o", "ro", mount_point],
+                capture_output=True, timeout=10,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+            pass
         raise RemountError(f"Could not remount {mount_point} as {mode}") from e

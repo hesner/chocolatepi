@@ -149,10 +149,14 @@ admin channel:
 
 ```
 ssh pedal
-sudo mount -o remount,rw /media/usb
+sudo umount /media/usb && sudo mount -o rw /media/usb
 rm /media/usb/.setlist-admin/pin.hash
-sudo mount -o remount,ro /media/usb
+sudo umount /media/usb && sudo mount -o ro /media/usb
 ```
+
+(Not `mount -o remount,rw` -- `ntfs-3g` is a FUSE filesystem and refuses
+in-place remounts outright, confirmed against the real library USB;
+`usb_mount.py` does the same real umount+mount cycle internally.)
 
 With `pin.hash` missing, `setlist-admin` treats its next visit as first-run
 and prompts to set a new PIN before allowing anything else. This adds
@@ -168,9 +172,9 @@ the same short-lived sequence, wrapping the exact manual steps this
 project has used by hand all along:
 
 ```
-sudo mount -o remount,rw /media/usb
+sudo umount /media/usb && sudo mount -o rw /media/usb
 <single filesystem operation>
-sudo mount -o remount,ro /media/usb
+sudo umount /media/usb && sudo mount -o ro /media/usb
 ```
 
 The `rw` window stays open only for the duration of one logical

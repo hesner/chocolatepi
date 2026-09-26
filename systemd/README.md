@@ -97,8 +97,14 @@ UUID=07C1339846657D95  /media/usb  ntfs-3g  ro,nofail,x-systemd.device-timeout=1
 - `ro`: mounted read-only by default, matching how this project always
   operates day to day (section 2 of `MASTER_SPECIFICATION.md` -- the
   library USB must never be auto-formatted or have files auto-deleted).
-  Remount read-write by hand (`sudo mount -o remount,rw /media/usb`) only
-  for deliberate library management, then remount `ro` again afterward.
+  Switch it to read-write by hand for deliberate library management with
+  `sudo umount /media/usb && sudo mount -o rw /media/usb`, then the same
+  in reverse (`sudo umount /media/usb && sudo mount -o ro /media/usb`)
+  afterward. **Not** `mount -o remount,rw` -- `ntfs-3g` is a FUSE
+  filesystem and refuses in-place remounts outright ("Remounting is not
+  supported at present. You have to umount volume and then mount it once
+  again."), confirmed against the real library USB while bringing up
+  `setlist-admin` (`SETLIST_ADMIN_APP.md`) for the first time.
 - `nofail` + `x-systemd.device-timeout=10`: if the USB isn't plugged in
   at boot, don't hang the boot sequence waiting for it -- give up after
   10s and continue. `pedal-core.service` (below) handles the USB still

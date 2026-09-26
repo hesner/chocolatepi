@@ -61,9 +61,9 @@ appliance with no account system. Recover it over SSH:
 
 ```
 ssh pedal
-sudo mount -o remount,rw /media/usb
+sudo umount /media/usb && sudo mount -o rw /media/usb
 rm /media/usb/.setlist-admin/pin.hash
-sudo mount -o remount,ro /media/usb
+sudo umount /media/usb && sudo mount -o ro /media/usb
 ```
 
 The next visit to the app treats this as first-run again and asks you
