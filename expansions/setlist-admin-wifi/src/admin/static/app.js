@@ -265,11 +265,28 @@ document.getElementById("btn-new-show").addEventListener("click", async () => {
 });
 
 document.getElementById("btn-new-set").addEventListener("click", async () => {
-  if (!state.selectedShow) return;
-  const number = prompt("New Set number:");
-  if (!number) return;
+  if (!state.selectedShow) {
+    // Real, pre-existing bug: this used to return here silently, with
+    // no feedback at all -- looked exactly like a broken button. Only
+    // reachable if no show exists/is selected yet.
+    alert("Create or select a show first.");
+    return;
+  }
+  const raw = prompt("New Set number:");
+  if (!raw) return;
+  // Strip anything that isn't a digit before parsing -- real,
+  // pre-existing bug found on real hardware: a stray non-digit
+  // character from a mobile keyboard's autocomplete (e.g. an invisible
+  // directional mark iOS sometimes inserts) makes parseInt() return
+  // NaN, which JSON.stringify() then silently turns into `null`,
+  // crashing the server with an unhandled 500 instead of a clear error.
+  const number = parseInt(raw.replace(/[^0-9]/g, ""), 10);
+  if (!Number.isInteger(number) || number < 1) {
+    alert(`"${raw}" isn't a valid Set number.`);
+    return;
+  }
   await apiFetch(`/api/shows/${encodeURIComponent(state.selectedShow)}/sets`, {
-    method: "POST", body: JSON.stringify({ number: parseInt(number, 10) }),
+    method: "POST", body: JSON.stringify({ number }),
   });
   await loadSets(state.selectedShow);
 });

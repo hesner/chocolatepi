@@ -191,12 +191,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def _action_create_set(self, path_params, query):
         body = self._read_json_body()
-        self.api.create_set(path_params["show"], int(body.get("number", 0)))
+        self.api.create_set(path_params["show"], self._parse_set_number(body))
         return 201, {"ok": True}
 
     def _action_rename_set(self, path_params, query):
         body = self._read_json_body()
-        self.api.rename_set(path_params["show"], int(path_params["set"]), int(body.get("number", 0)))
+        self.api.rename_set(path_params["show"], int(path_params["set"]), self._parse_set_number(body))
         return 200, {"ok": True}
 
     def _action_delete_set(self, path_params, query):
@@ -295,6 +295,20 @@ class Handler(BaseHTTPRequestHandler):
             return json.loads(raw)
         except json.JSONDecodeError:
             raise ApiError(400, "Invalid JSON body")
+
+    def _parse_set_number(self, body: dict) -> int:
+        """Real, pre-existing bug found on real hardware: a plain
+        `int(body.get("number", 0))` crashes with an unhandled 500 if
+        the client ever sends `{"number": null}` -- which JSON.stringify()
+        silently produces from JS's own `NaN` (e.g. parseInt() on
+        unexpected input from a mobile keyboard's autocomplete). The
+        default of 0 in .get() only ever applied when the key was
+        missing entirely, never when it was present but null."""
+        value = body.get("number")
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            raise ApiError(400, "Set number is required and must be a number")
 
     def _parse_upload_filename(self):
         """Track uploads are sent as a raw file body with the display

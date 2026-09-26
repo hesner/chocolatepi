@@ -179,6 +179,22 @@ class TestLibraryFlow(ServerIntegrationTestCase):
         self.assertEqual(resp.status, 400)
         self.assertIn("already exists", body["error"])
 
+    def test_create_set_with_null_number_is_a_400_not_a_500(self):
+        # Real, pre-existing bug found on real hardware: the frontend's
+        # parseInt() can return NaN on unexpected prompt() input (e.g. a
+        # stray invisible character from a mobile keyboard), which
+        # JSON.stringify() silently turns into `{"number": null}` --
+        # int(body.get("number", 0)) then crashed with an unhandled
+        # TypeError/500, since .get()'s default only applies when the
+        # key is missing, not when it's present but null.
+        conn, headers = self._authenticated_conn()
+        self._json(conn, "POST", "/api/shows", {"name": "Live"}, headers)
+
+        resp, body = self._json(conn, "POST", "/api/shows/Live/sets", {"number": None}, headers)
+
+        self.assertEqual(resp.status, 400)
+        self.assertIn("number", body["error"])
+
 
 class TestSongLibraryFlow(ServerIntegrationTestCase):
     def _authenticated_conn(self):
