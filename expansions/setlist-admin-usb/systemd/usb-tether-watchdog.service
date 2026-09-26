@@ -9,7 +9,7 @@ After=network.target NetworkManager.service
 [Service]
 Type=simple
 User=<YOUR_USER>
-ExecStart=/usr/bin/python3 /home/<YOUR_USER>/chocolatepi/src/admin/usb_tether_watchdog.py --log-file /home/<YOUR_USER>/usb-tether-watchdog.log
+ExecStart=/usr/bin/python3 /home/<YOUR_USER>/chocolatepi/expansions/setlist-admin-usb/src/admin/usb_tether_watchdog.py --log-file /home/<YOUR_USER>/usb-tether-watchdog.log
 # Same reasoning as pedal-core.service's Restart=always: no one is
 # available to restart this by hand on a headless appliance.
 Restart=always

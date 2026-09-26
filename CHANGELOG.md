@@ -9,15 +9,27 @@ date instead until that changes.
 
 ## [Unreleased]
 
+- Introduced `expansions/`: a top-level home for optional, independently
+  installable/removable addons to the base pedal system -- moved
+  `setlist-admin` (USB-tether design) into `expansions/setlist-admin-usb/`
+  as the first one, fully self-contained (its own `src/`, `systemd/`,
+  `scripts/install.sh`+`rollback.sh`, `tests/`, docs), so installing or
+  rolling it back can never collaterally affect the base project or any
+  other expansion. See `expansions/README.md` for the model. The earlier
+  WiFi-based attempt, previously only living on the `explore/setlist-admin`
+  branch, was brought onto `main` too as a second, equally independent
+  expansion (`expansions/setlist-admin-wifi/`) -- still paused on its
+  dead USB WiFi dongle blocker, not installed by default, but now visible
+  in the same checkout instead of requiring a branch switch to see.
 - Added `setlist-admin` (USB-tether design): a second attempt at the
   companion web app for managing the library USB (shows/Sets/tracks,
   full CRUD) from a phone's browser, this time reachable by plugging
   the phone into the Pi with a USB cable (Android USB tethering or
   iPhone Personal Hotspot over cable) instead of the Pi needing its own
-  WiFi radio -- see `SETLIST_ADMIN_USB_SPECIFICATION.md` for the design
-  and why (the earlier WiFi-based attempt is paused on a dead USB WiFi
-  dongle, preserved on the `explore/setlist-admin` branch, not this
-  feature's fault). Reuses that design's CRUD backend and frontend UX
+  WiFi radio -- see `expansions/setlist-admin-usb/SPECIFICATION.md` for
+  the design and why (the earlier WiFi-based attempt is paused on a
+  dead USB WiFi dongle, not this feature's fault). Reuses that design's
+  CRUD backend and frontend UX
   unchanged (`library_ops.py`, `usb_mount.py` including its `ntfs-3g`
   fix, `auth.py`, the CRUD screens) so the two stay convergeable later.
   A phone is identified by its USB network driver name

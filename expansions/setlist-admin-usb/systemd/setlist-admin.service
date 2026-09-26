@@ -20,7 +20,7 @@ User=<YOUR_USER>
 # path.
 Nice=10
 CPUWeight=20
-ExecStart=/usr/bin/python3 /home/<YOUR_USER>/chocolatepi/src/admin/server.py --usb-root /media/usb --port 8080 --log-file /home/<YOUR_USER>/setlist-admin.log
+ExecStart=/usr/bin/python3 /home/<YOUR_USER>/chocolatepi/expansions/setlist-admin-usb/src/admin/server.py --usb-root /media/usb --port 8080 --log-file /home/<YOUR_USER>/setlist-admin.log
 Restart=on-failure
 RestartSec=5
 

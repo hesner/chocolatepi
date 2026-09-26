@@ -9,16 +9,30 @@ fecha hasta que eso cambie.
 
 ## [Sin publicar]
 
+- Se introdujo `expansions/`: un lugar a nivel raíz para addons
+  opcionales, instalables/removibles de forma independiente, al
+  sistema base del pedal — se movió `setlist-admin` (diseño por USB) a
+  `expansions/setlist-admin-usb/` como el primero, completamente
+  autocontenido (su propio `src/`, `systemd/`,
+  `scripts/install.sh`+`rollback.sh`, `tests/`, documentación), para
+  que instalarlo o revertirlo nunca pueda afectar de forma colateral
+  al proyecto base ni a ninguna otra expansión. Ver
+  `expansions/README.md` para el modelo. El intento anterior por WiFi,
+  que antes solo vivía en la rama `explore/setlist-admin`, también se
+  trajo a `main` como una segunda expansión igual de independiente
+  (`expansions/setlist-admin-wifi/`) — todavía en pausa por su dongle
+  USB de WiFi muerto, no instalada por defecto, pero ahora visible en
+  el mismo checkout sin necesitar cambiar de rama para verla.
 - Se agregó `setlist-admin` (diseño por USB): un segundo intento de la
   app web complementaria para administrar el USB de biblioteca
   (shows/Sets/pistas, CRUD completo) desde el navegador de un teléfono,
   esta vez conectando el teléfono a la Pi con un cable USB (compartir
   conexión por USB en Android, o Compartir Internet por cable en
   iPhone) en vez de que la Pi necesite su propio radio WiFi — ver
-  `SETLIST_ADMIN_USB_SPECIFICATION.md` para el diseño y el porqué (el
-  intento anterior por WiFi quedó en pausa por un dongle USB de WiFi
-  muerto, preservado en la rama `explore/setlist-admin`, no por culpa
-  de ese diseño). Reutiliza sin cambios el backend de CRUD y la
+  `expansions/setlist-admin-usb/SPECIFICATION.md` para el diseño y el
+  porqué (el intento anterior por WiFi quedó en pausa por un dongle USB
+  de WiFi muerto, no por culpa de ese diseño). Reutiliza sin cambios el
+  backend de CRUD y la
   experiencia del frontend de ese diseño (`library_ops.py`,
   `usb_mount.py` incluyendo su arreglo de `ntfs-3g`, `auth.py`, las
   pantallas de CRUD) para que los dos queden convergibles más adelante.

@@ -26,15 +26,24 @@ import logging
 import os
 import re
 import shutil
+import sys
 from dataclasses import dataclass
 from typing import BinaryIO, Dict, List, Optional
 
 # Reusing core.library's own extension sets rather than redefining them
 # -- if a supported format is ever added there, this module picks it up
-# automatically instead of silently drifting out of sync. Assumes `src/`
-# is already on sys.path, the same convention main.py sets up for every
-# other cross-package import in this project.
-from core.library import _AUDIO_ONLY_EXTENSIONS, _VIDEO_EXTENSIONS, _TRACK_LETTERS
+# automatically instead of silently drifting out of sync. This is this
+# expansion's one deliberate dependency on the base project (expansions
+# may depend on the base project's own src/, never on each other) -- so
+# unlike every other import here, this can't rely on a caller having
+# already set up sys.path; it sets up its own path to the base
+# project's src/, four levels up from this file
+# (expansions/setlist-admin-usb/src/admin/ -> repo root, then + src).
+_BASE_PROJECT_SRC = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "src")
+if _BASE_PROJECT_SRC not in sys.path:
+    sys.path.insert(0, _BASE_PROJECT_SRC)
+
+from core.library import _AUDIO_ONLY_EXTENSIONS, _VIDEO_EXTENSIONS, _TRACK_LETTERS  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

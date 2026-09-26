@@ -1,11 +1,13 @@
 # Setlist Admin (USB) — usage guide
 
-*[Leer en español](docs/es/SETLIST_ADMIN_APP.md)*
+*[Leer en español](docs/es/USAGE.md)*
 
-The optional web app for managing the library USB (shows, Sets,
-tracks) from a phone's browser, reachable by plugging the phone into
-the Pi with a USB cable -- instead of SSH + `nano` + copying files by
-hand. Design and rationale: `SETLIST_ADMIN_USB_SPECIFICATION.md`. Not
+This is one **expansion** (`expansions/setlist-admin-usb/`) -- see the
+repo root's `expansions/README.md` for what that means. It's the
+optional web app for managing the library USB (shows, Sets, tracks)
+from a phone's browser, reachable by plugging the phone into the Pi
+with a USB cable -- instead of SSH + `nano` + copying files by hand.
+Design and rationale: [`SPECIFICATION.md`](SPECIFICATION.md). Not
 installed by default -- see "Installing" below.
 
 **Pre/post-show only.** This isn't designed or tested for editing the
@@ -16,19 +18,20 @@ that warning as a real one, not a formality.
 ## Installing
 
 Optional, and separate from the base pedal setup
-(`systemd/README.md`). Requires the read-only root overlay to be
-temporarily disabled first, same as any other install step that writes
-to `/etc/systemd/system` (`systemd/README.md` section 4):
+(`systemd/README.md` at the repo root). Requires the read-only root
+overlay to be temporarily disabled first, same as any other install
+step that writes to `/etc/systemd/system` (`systemd/README.md`
+section 4):
 
 ```
 sudo raspi-config nonint do_overlayfs 1
 sudo reboot
 ```
 
-Then, from the repo root on the Pi:
+Then, from anywhere inside the repo checkout on the Pi:
 
 ```
-sh scripts/install_setlist_admin.sh
+sh expansions/setlist-admin-usb/scripts/install.sh
 ```
 
 If you'll ever connect an iPhone (not just Android), also install its
@@ -70,7 +73,7 @@ re-enable.
    (`ip -4 addr show` on the Pi, looking for the interface that just
    appeared).
 4. First visit: set a PIN (at least 4 characters). This is shared,
-   single-PIN auth (`SETLIST_ADMIN_USB_SPECIFICATION.md` section 7) --
+   single-PIN auth (`SPECIFICATION.md` section 7) --
    not a per-person account.
 5. From then on, visiting the app asks for that PIN.
 
@@ -133,10 +136,10 @@ it -- `pedal-core.service`, the actual live-critical pedal, is never
 touched by installing or removing this:
 
 ```
-sh scripts/rollback_setlist_admin.sh
+sh expansions/setlist-admin-usb/scripts/rollback.sh
 ```
 
 Add `--purge` to also delete the stored PIN from the USB; omit it to
 keep it so a future reinstall doesn't need reconfiguring from scratch.
-See `SETLIST_ADMIN_USB_SPECIFICATION.md` section 11 for exactly what
+See `SPECIFICATION.md` section 11 for exactly what
 this does and doesn't touch.

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chocolate Pi — Setlist Admin</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Setlist Admin</h1>
+    <div id="status-pill" class="pill" hidden></div>
+  </header>
+
+  <main id="app">
+    <!-- First-run / PIN setup -->
+    <section id="view-setup-pin" class="view" hidden>
+      <h2>Set a PIN</h2>
+      <p class="hint">No PIN has been configured yet. Choose one to protect this app (at least 4 characters).</p>
+      <form id="form-setup-pin">
+        <input type="password" id="setup-pin-input" inputmode="numeric" autocomplete="new-password" placeholder="New PIN" required minlength="4">
+        <button type="submit">Set PIN</button>
+      </form>
+      <p id="setup-pin-error" class="error" hidden></p>
+    </section>
+
+    <!-- Login -->
+    <section id="view-login" class="view" hidden>
+      <h2>Enter PIN</h2>
+      <form id="form-login">
+        <input type="password" id="login-pin-input" inputmode="numeric" autocomplete="current-password" placeholder="PIN" required>
+        <button type="submit">Unlock</button>
+      </form>
+      <p id="login-error" class="error" hidden></p>
+    </section>
+
+    <!-- Main admin UI -->
+    <section id="view-main" class="view" hidden>
+      <nav class="tabs">
+        <button class="tab-btn active" data-tab="library">Library</button>
+        <button class="tab-btn" data-tab="wifi">WiFi</button>
+      </nav>
+
+      <div id="tab-library" class="tab-panel">
+        <div id="playback-warning" class="warning" hidden>
+          ⚠ The pedal looks like it's actively playing right now. Editing
+          the library while a show is in progress isn't supported —
+          changes may not be reflected safely until playback stops.
+        </div>
+
+        <div class="row">
+          <label for="show-select">Show</label>
+          <select id="show-select"></select>
+          <button id="btn-new-show" class="secondary">+ New show</button>
+        </div>
+
+        <div id="sets-container"></div>
+        <button id="btn-new-set" class="secondary">+ New Set</button>
+      </div>
+
+      <div id="tab-wifi" class="tab-panel" hidden>
+        <h2>Home WiFi</h2>
+        <p class="hint">
+          Optional. If configured and reachable, the Pi prefers this
+          network; otherwise it falls back to the phone hotspot
+          automatically.
+        </p>
+        <div id="wifi-status" class="hint"></div>
+        <form id="form-home-wifi">
+          <input type="text" id="wifi-ssid" placeholder="Network name (SSID)" required>
+          <input type="password" id="wifi-password" placeholder="Password">
+          <button type="submit">Save home WiFi</button>
+        </form>
+        <p id="wifi-error" class="error" hidden></p>
+        <p id="wifi-success" class="success" hidden></p>
+      </div>
+    </section>
+  </main>
+
+  <template id="tpl-set">
+    <div class="set-card">
+      <div class="set-card-header">
+        <h3><span class="set-number-label"></span></h3>
+        <button class="btn-delete-set danger">Delete Set</button>
+      </div>
+      <div class="tracks"></div>
+    </div>
+  </template>
+
+  <template id="tpl-track">
+    <div class="track-row">
+      <span class="track-letter"></span>
+      <span class="track-name"></span>
+      <input type="file" class="track-file-input" hidden>
+      <button class="btn-upload secondary">Upload</button>
+      <button class="btn-rename secondary" hidden>Rename</button>
+      <button class="btn-delete danger" hidden>Delete</button>
+    </div>
+  </template>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

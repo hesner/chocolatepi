@@ -278,12 +278,16 @@ whatever the phone-tether interface is doing).
 
 ## 11. Installation and rollback
 
-Same pattern as the WiFi design, since it was never the problem:
-optional install via `scripts/install_setlist_admin.sh` (adapted --
-installs `setlist-admin.service` + `usb-tether-watchdog.service`
-instead of the WiFi watchdog), never auto-enabled by the base
-`systemd/README.md` setup, `scripts/rollback_setlist_admin.sh` to
-remove cleanly, a git tag before implementation begins as a safety net.
+This whole feature lives under `expansions/setlist-admin-usb/` -- an
+**expansion**: a self-contained, independently installable/removable
+addon to the base project, never required for the base pedal to work
+(see the repo root's `expansions/README.md` for the general model).
+Optional install via `expansions/setlist-admin-usb/scripts/install.sh`
+(installs `setlist-admin.service` + `usb-tether-watchdog.service`),
+never auto-enabled by the base `systemd/README.md` setup,
+`expansions/setlist-admin-usb/scripts/rollback.sh` to remove cleanly
+(stops/removes the services only -- doesn't touch git state, so it
+can't collaterally affect any other expansion).
 
 ## 12. Open questions for approval
 

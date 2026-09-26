@@ -100,9 +100,11 @@ completamente en silencio. ¿Algo no se comporta como dice la
 documentación? Revisa primero [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
 ¿Vas a montar esto en hardware nuevo desde cero (incluso con un agente
 de IA haciendo el trabajo)? Ver [`REBUILD.md`](REBUILD.md). ¿Quieres
-administrar la biblioteca desde el teléfono en vez de SSH? Ver la app
-opcional [`SETLIST_ADMIN_APP.md`](SETLIST_ADMIN_APP.md) — conecta el
-teléfono a la Pi por USB, sin necesitar hardware de WiFi.
+administrar la biblioteca desde el teléfono en vez de SSH? Ver
+[`expansions/`](../../expansions/) — addons opcionales,
+instalables/removibles de forma independiente, empezando por
+[`setlist-admin-usb`](../../expansions/setlist-admin-usb/docs/es/USAGE.md)
+(conecta el teléfono a la Pi por USB, sin necesitar hardware de WiFi).
 
 ## Estructura del proyecto
 

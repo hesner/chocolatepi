@@ -1,17 +1,26 @@
 #!/bin/sh
-# Rolls setlist-admin back out, per SETLIST_ADMIN_USB_SPECIFICATION.md
-# section 11: stops and disables both services, removes their unit
-# files, and reverts the code checkout to the last known-good tag from
-# before this feature existed. pedal-core.service is never touched --
-# it keeps running throughout, confirmed by this project's own test plan
-# before this script is trusted for real use.
+# Uninstalls the setlist-admin (USB) expansion, per ../SPECIFICATION.md
+# section 11: stops and disables both of its services and removes their
+# unit files. pedal-core.service is never touched -- it keeps running
+# throughout, confirmed by this project's own test plan before this
+# script is trusted for real use.
+#
+# Deliberately does NOT touch git history or check out any tag: an
+# expansion's own source files (this whole expansions/setlist-admin-usb/
+# folder) are inert on disk once its systemd units are gone -- nothing
+# runs them, nothing else in the repo depends on them existing. Doing a
+# repo-wide `git checkout` here would also risk reverting an unrelated
+# expansion (e.g. expansions/setlist-admin-wifi/) if it was added in a
+# later commit than this one's pre-install tag, which would break the
+# "each expansion is independent" property the whole expansions/
+# folder exists for.
 #
 # Requires the read-only root overlay to be temporarily disabled first,
 # same as installing (systemd/README.md section 4) -- the unit files
 # being removed live under the overlaid /etc/systemd/system.
 #
-# Usage (from the repo root, on the Pi):
-#   sh scripts/rollback_setlist_admin.sh [--purge]
+# Usage (from anywhere, on the Pi, inside a checkout of this repo):
+#   sh expansions/setlist-admin-usb/scripts/rollback.sh [--purge]
 #
 # --purge also deletes .setlist-admin/ from the library USB (the PIN
 # hash) -- omit it to keep that in place so a future reinstall doesn't
@@ -24,10 +33,7 @@ if [ "$1" = "--purge" ]; then
   PURGE=1
 fi
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-TAG="stable-pre-setlist-admin-usb"
-
-echo "Rolling back setlist-admin..."
+echo "Uninstalling the setlist-admin-usb expansion..."
 
 sudo systemctl disable --now setlist-admin.service 2>/dev/null || true
 sudo systemctl disable --now usb-tether-watchdog.service 2>/dev/null || true
@@ -37,10 +43,6 @@ sudo rm -f /etc/systemd/system/setlist-admin.service
 sudo rm -f /etc/systemd/system/usb-tether-watchdog.service
 sudo systemctl daemon-reload
 echo "Removed unit files."
-
-cd "$REPO_ROOT"
-git checkout "$TAG"
-echo "Checked out $TAG."
 
 if [ "$PURGE" = "1" ]; then
   echo "Purging .setlist-admin/ from the library USB..."
@@ -55,9 +57,14 @@ if [ "$PURGE" = "1" ]; then
 fi
 
 echo ""
-echo "Rollback complete. pedal-core.service was never stopped or"
+echo "Uninstall complete. pedal-core.service was never stopped or"
 echo "restarted by this script -- confirm with:"
 echo "  systemctl is-active pedal-core.service"
+echo ""
+echo "The expansion's own files are still on disk (harmless, inert --"
+echo "nothing runs them with the services gone). Delete them too if you"
+echo "want, or leave them for a future reinstall:"
+echo "  rm -rf expansions/setlist-admin-usb"
 echo ""
 echo "Don't forget to re-enable the read-only root overlay if you"
 echo "disabled it to run this (systemd/README.md section 4)."

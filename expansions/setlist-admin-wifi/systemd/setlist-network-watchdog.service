@@ -1,0 +1,20 @@
+[Unit]
+Description=Chocolate Pi -- Setlist Admin network watchdog
+# Starts early and stays running for the Pi's whole uptime -- this is
+# what reapplies WiFi profiles every boot (they don't survive under the
+# read-only root overlay otherwise, SETLIST_ADMIN_SPECIFICATION.md
+# section 3, point 2) and what decides whether setlist-admin.service
+# should be running at all.
+After=network.target NetworkManager.service
+
+[Service]
+Type=simple
+User=<YOUR_USER>
+ExecStart=/usr/bin/python3 /home/<YOUR_USER>/chocolatepi/expansions/setlist-admin-wifi/src/admin/network_watchdog.py --usb-root /media/usb --usb-uuid=<YOUR_USB_UUID> --log-file /home/<YOUR_USER>/setlist-network-watchdog.log
+# Same reasoning as pedal-core.service's Restart=always: no one is
+# available to restart this by hand on a headless appliance.
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

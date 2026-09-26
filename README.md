@@ -94,8 +94,10 @@ completely silently. Something not behaving as documented? Check
 hardware from scratch (including with an AI coding agent doing the
 work) -- see [`REBUILD.md`](REBUILD.md). Want to manage the library
 from a phone instead of SSH? See the optional
-[`SETLIST_ADMIN_APP.md`](SETLIST_ADMIN_APP.md) -- plug the phone into
-the Pi over USB, no WiFi hardware required.
+[`expansions/`](expansions/) -- self-contained, independently
+installable/removable addons, starting with
+[`setlist-admin-usb`](expansions/setlist-admin-usb/USAGE.md) (plug the
+phone into the Pi over USB, no WiFi hardware required).
 
 ## Project layout
 

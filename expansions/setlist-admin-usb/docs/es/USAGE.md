@@ -1,13 +1,15 @@
 # Setlist Admin (USB) — guía de uso
 
-*[Read in English](../../SETLIST_ADMIN_APP.md)*
+*[Read in English](../../USAGE.md)*
 
-La app web opcional para administrar el USB de biblioteca (shows,
+Esta es una **expansión** (`expansions/setlist-admin-usb/`) — ver el
+`expansions/README.md` en la raíz del repo para qué significa eso. Es
+la app web opcional para administrar el USB de biblioteca (shows,
 Sets, pistas) desde el navegador de un teléfono, a la que se accede
 conectando el teléfono a la Pi con un cable USB — en vez de SSH +
 `nano` + copiar archivos a mano. Diseño y justificación:
-`SETLIST_ADMIN_USB_SPECIFICATION.md`. No se instala por defecto — ver
-"Instalación" abajo.
+[`SPECIFICATION.md`](../../SPECIFICATION.md). No se instala por
+defecto — ver "Instalación" abajo.
 
 **Solo antes o después de un show.** No está diseñada ni probada para
 editar la biblioteca mientras un show está en curso — la app muestra
@@ -27,10 +29,10 @@ sudo raspi-config nonint do_overlayfs 1
 sudo reboot
 ```
 
-Luego, desde la raíz del repo en la Pi:
+Luego, desde cualquier parte dentro del checkout del repo en la Pi:
 
 ```
-sh scripts/install_setlist_admin.sh
+sh expansions/setlist-admin-usb/scripts/install.sh
 ```
 
 Si alguna vez vas a conectar un iPhone (no solo Android), instala
@@ -73,7 +75,7 @@ requerido después de cualquier reactivación del overlay.
    show` en la Pi, buscando la interfaz que acaba de aparecer).
 4. Primera visita: define un PIN (mínimo 4 caracteres). Es
    autenticación compartida de un solo PIN
-   (`SETLIST_ADMIN_USB_SPECIFICATION.md` sección 7) — no una cuenta por
+   (`SPECIFICATION.md` sección 7) — no una cuenta por
    persona.
 5. De ahí en adelante, visitar la app pide ese PIN.
 
@@ -139,10 +141,10 @@ usarlo — `pedal-core.service`, el pedal realmente crítico en vivo,
 nunca se toca al instalar o quitar esto:
 
 ```
-sh scripts/rollback_setlist_admin.sh
+sh expansions/setlist-admin-usb/scripts/rollback.sh
 ```
 
 Agrega `--purge` para también borrar el PIN guardado del USB; omítelo
 para conservarlo y que una futura reinstalación no necesite
-configurarse desde cero. Ver `SETLIST_ADMIN_USB_SPECIFICATION.md`
+configurarse desde cero. Ver `SPECIFICATION.md`
 sección 11 para exactamente qué toca y qué no.
