@@ -148,6 +148,111 @@ class TestLibraryFlow(ServerIntegrationTestCase):
         resp.read()
         self.assertNotEqual(resp.status, 200)
 
+    def test_show_name_needing_url_encoding_round_trips_correctly(self):
+        # Real, pre-existing bug found while adding the song library:
+        # the frontend calls encodeURIComponent() on show names, but
+        # nothing decoded them server-side, so any name actually
+        # needing encoding (any space, in practice) silently broke.
+        conn, headers = self._authenticated_conn()
+        show_name = "Gira Verano 2026"
+
+        resp, _ = self._json(conn, "POST", "/api/shows", {"name": show_name}, headers)
+        self.assertEqual(resp.status, 201)
+
+        import urllib.parse
+        encoded = urllib.parse.quote(show_name, safe="")
+        resp, body = self._json(conn, "GET", f"/api/shows/{encoded}/sets", headers=headers)
+        self.assertEqual(resp.status, 200)
+        self.assertEqual(body["sets"], [])
+
+    def test_validation_error_from_library_ops_is_a_400_not_a_500(self):
+        # Real, pre-existing bug: LibraryOpsError (raised for almost
+        # every invalid-input/name-collision case in library_ops.py)
+        # was never translated into an ApiError, so it fell through to
+        # server.py's generic 500 "Internal error" -- none of its
+        # carefully written user-facing messages ever reached a client.
+        conn, headers = self._authenticated_conn()
+        self._json(conn, "POST", "/api/shows", {"name": "Live"}, headers)
+
+        resp, body = self._json(conn, "POST", "/api/shows", {"name": "Live"}, headers)
+
+        self.assertEqual(resp.status, 400)
+        self.assertIn("already exists", body["error"])
+
+
+class TestSongLibraryFlow(ServerIntegrationTestCase):
+    def _authenticated_conn(self):
+        conn = self._conn()
+        self._json(conn, "POST", "/api/pin", {"pin": "1234"})
+        resp, _ = self._json(conn, "POST", "/api/login", {"pin": "1234"})
+        cookie_value = resp.getheader("Set-Cookie").split(";")[0]
+        return conn, {"Cookie": cookie_value}
+
+    def test_upload_song_then_list_it(self):
+        conn, headers = self._authenticated_conn()
+        upload_headers = dict(headers)
+        upload_headers["X-Track-Name"] = "My Song"
+        upload_headers["X-Track-Extension"] = "mp3"
+        body_bytes = b"fake mp3 bytes"
+        upload_headers["Content-Length"] = str(len(body_bytes))
+        conn.request("POST", "/api/songs", body=body_bytes, headers=upload_headers)
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 200)
+        resp.read()
+
+        resp, body = self._json(conn, "GET", "/api/songs", headers=headers)
+        self.assertEqual(resp.status, 200)
+        self.assertEqual([s["filename"] for s in body["songs"]], ["My Song.mp3"])
+
+    def test_assign_from_library_then_appears_in_the_set(self):
+        conn, headers = self._authenticated_conn()
+        upload_headers = dict(headers)
+        upload_headers["X-Track-Name"] = "Reusable"
+        upload_headers["X-Track-Extension"] = "wav"
+        body_bytes = b"fake wav bytes"
+        upload_headers["Content-Length"] = str(len(body_bytes))
+        conn.request("POST", "/api/songs", body=body_bytes, headers=upload_headers)
+        conn.getresponse().read()
+
+        self._json(conn, "POST", "/api/shows", {"name": "Live"}, headers)
+        self._json(conn, "POST", "/api/shows/Live/sets", {"number": 1}, headers)
+
+        resp, _ = self._json(
+            conn, "POST", "/api/shows/Live/sets/1/tracks/A/assign-from-library",
+            {"song_filename": "Reusable.wav"}, headers,
+        )
+        self.assertEqual(resp.status, 200)
+
+        resp, tracks = self._json(conn, "GET", "/api/shows/Live/sets/1/tracks", headers=headers)
+        self.assertEqual(tracks["A"]["display_name"], "Reusable")
+
+        # And the library's own copy is still there for the next Show.
+        resp, body = self._json(conn, "GET", "/api/songs", headers=headers)
+        self.assertEqual([s["filename"] for s in body["songs"]], ["Reusable.wav"])
+
+    def test_save_track_to_library_then_reusable_elsewhere(self):
+        conn, headers = self._authenticated_conn()
+        self._json(conn, "POST", "/api/shows", {"name": "OldShow"}, headers)
+        self._json(conn, "POST", "/api/shows/OldShow/sets", {"number": 1}, headers)
+        upload_headers = dict(headers)
+        upload_headers["X-Track-Name"] = "From Old Show"
+        upload_headers["X-Track-Extension"] = "mp3"
+        # Delete it from the library first so this test exercises
+        # save-to-library in isolation, not assign_track()'s automatic add.
+        body_bytes = b"data"
+        upload_headers["Content-Length"] = str(len(body_bytes))
+        conn.request("POST", "/api/shows/OldShow/sets/1/tracks/A", body=body_bytes, headers=upload_headers)
+        conn.getresponse().read()
+        self._json(conn, "DELETE", "/api/songs/From%20Old%20Show.mp3", headers=headers)
+
+        resp, _ = self._json(
+            conn, "POST", "/api/shows/OldShow/sets/1/tracks/A/save-to-library", headers=headers,
+        )
+        self.assertEqual(resp.status, 200)
+
+        resp, body = self._json(conn, "GET", "/api/songs", headers=headers)
+        self.assertEqual([s["filename"] for s in body["songs"]], ["From Old Show.mp3"])
+
 
 if __name__ == "__main__":
     unittest.main()

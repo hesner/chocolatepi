@@ -15,6 +15,9 @@ wrong.
 <USB root>/
 ├── active_show.txt          -- plain text, one line: the active show's folder name
 ├── standby.mp4               -- looped when nothing is playing
+├── _Songs/                    -- recommended: the band's master song library (see below)
+│   ├── song name.mp3
+│   └── another song.mp4
 └── <Show Name>/               -- e.g. "Live", one folder per show/setlist collection
     ├── Set 1/
     │   ├── A - song name.mp3
@@ -36,6 +39,59 @@ wrong.
 - **Track files**: exactly one file per letter, `A`/`B`/`C` (footswitch
   `D` is always STOP -- it never needs a file). An empty slot (no file
   for a letter) is normal and expected, not an error.
+- **`_Songs/`** and anything else starting with `_`: reserved, never
+  treated as a Show. `Library.resolve()` (`src/core/library.py`) never
+  even lists the USB root's contents -- it only ever reads
+  `active_show.txt` and looks inside that one named folder -- so `_Songs/`
+  is completely invisible to playback no matter what's in it. See the
+  next section for what it's for.
+
+## Recommended: keep a master song library in `_Songs/`
+
+Put **every song the band has** -- not just the ones in the current
+setlist -- as plain files directly under `_Songs/` at the USB root,
+named `<song name>.<extension>` (no `<Letter> - ` prefix here; that
+prefix only means something inside a `Set` folder, where it marks
+*which footswitch position* plays the file). This is the band's
+complete, standing song library, independent of any one show.
+
+To build or edit an actual setlist: **copy** (don't move) the specific
+songs a given show needs from `_Songs/` into that show's `Set N/`
+folders, adding the `<Letter> - ` prefix as you go. `_Songs/` keeps its
+copy untouched, so the same song is one copy away from reuse in the
+next setlist too, without re-encoding or re-transferring it.
+
+**Never delete a song from `_Songs/` unless you're sure.** Treat it as a
+permanent, append-only record of everything the band has ever had ready
+to play -- even a song currently unused in any active show is worth
+keeping there, both so nothing has to be re-sourced/re-encoded from
+scratch later and so `_Songs/`'s file count is always an honest answer
+to "how many songs does the band actually have."
+
+What deleting from `_Songs/` actually does and doesn't affect:
+- It **does** mean that song can no longer be picked when putting
+  together a future `Set` -- it simply won't be there to choose from
+  anymore.
+- It does **not** touch any `Set` that already has a copy of that song
+  assigned to a letter -- that copy is a completely separate file, made
+  at the moment it was assigned, so it keeps playing normally regardless
+  of what later happens in `_Songs/`.
+- Removing a show or a `Set` never touches `_Songs/` either, in the
+  other direction (same reasoning: independent copies, not the same
+  file).
+
+This is a discipline to keep on your own -- nothing on the USB enforces
+it. If using the optional `setlist-admin` expansions, the app's own
+delete confirmation repeats this warning before it lets you delete a
+song from the library.
+
+If you're using the optional `setlist-admin` expansions
+(`expansions/setlist-admin-usb/` or `expansions/setlist-admin-wifi/`),
+this whole workflow is automated: uploading a song anywhere adds it to
+`_Songs/` automatically, and assigning a `Set` slot from the library is
+a one-tap copy instead of a manual `cp`. Same convention either way --
+this section describes what the app is actually doing under the hood,
+and what to do by hand if you're not using it.
 
 ## The one rule that actually matters: the filename pattern
 

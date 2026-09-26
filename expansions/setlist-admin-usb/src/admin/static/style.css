@@ -179,6 +179,43 @@ button:active { opacity: 0.8; }
 }
 
 .track-row button { font-size: 0.85rem; padding: 0.45rem 0.7rem; }
+.track-row select.track-song-select { flex: 1; min-width: 140px; width: auto; }
+
+#song-library {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+#song-library summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+#song-library[open] summary { margin-bottom: 0.75rem; }
+
+.song-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.song-row:first-child { border-top: none; }
+
+.song-name {
+  flex: 1;
+  min-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.song-row button { font-size: 0.85rem; padding: 0.45rem 0.7rem; }
 
 /* Wider screens (a PC on the home network, section 1) -- more breathing
    room, side-by-side controls, but nothing about the layout is

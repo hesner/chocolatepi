@@ -20,18 +20,32 @@
 # being removed live under the overlaid /etc/systemd/system.
 #
 # Usage (from anywhere, on the Pi, inside a checkout of this repo):
-#   sh expansions/setlist-admin-usb/scripts/rollback.sh [--purge]
+#   sh expansions/setlist-admin-usb/scripts/rollback.sh [--purge] [--purge-library]
 #
 # --purge also deletes .setlist-admin/ from the library USB (the PIN
 # hash) -- omit it to keep that in place so a future reinstall doesn't
 # need reconfiguring from scratch.
+#
+# --purge-library additionally deletes _Songs/, the shared song library
+# this expansion writes to (see ../SPECIFICATION.md's song-reuse
+# design). Separate from --purge on purpose -- it deletes actual
+# uploaded song files, not just a small credentials file, and _Songs/
+# is shared with the setlist-admin-wifi expansion too (deleting it here
+# removes it there as well, since it's the same USB). Every Show's own
+# copies of its tracks are untouched either way -- _Songs/ only ever
+# held independent copies for reuse, never the only copy of anything a
+# Show actually plays.
 
 set -e
 
 PURGE=0
-if [ "$1" = "--purge" ]; then
-  PURGE=1
-fi
+PURGE_LIBRARY=0
+for arg in "$@"; do
+  case "$arg" in
+    --purge) PURGE=1 ;;
+    --purge-library) PURGE_LIBRARY=1 ;;
+  esac
+done
 
 echo "Uninstalling the setlist-admin-usb expansion..."
 
@@ -44,13 +58,19 @@ sudo rm -f /etc/systemd/system/usb-tether-watchdog.service
 sudo systemctl daemon-reload
 echo "Removed unit files."
 
-if [ "$PURGE" = "1" ]; then
-  echo "Purging .setlist-admin/ from the library USB..."
+if [ "$PURGE" = "1" ] || [ "$PURGE_LIBRARY" = "1" ]; then
   # Not `mount -o remount,rw` -- ntfs-3g (a FUSE filesystem) refuses
   # in-place remounts outright, confirmed against the real library USB.
   sudo umount /media/usb
   sudo mount -o rw /media/usb
-  rm -rf /media/usb/.setlist-admin
+  if [ "$PURGE" = "1" ]; then
+    echo "Purging .setlist-admin/ from the library USB..."
+    rm -rf /media/usb/.setlist-admin
+  fi
+  if [ "$PURGE_LIBRARY" = "1" ]; then
+    echo "Purging _Songs/ (the shared song library) from the library USB..."
+    rm -rf /media/usb/_Songs
+  fi
   sudo umount /media/usb
   sudo mount -o ro /media/usb
   echo "Purged."

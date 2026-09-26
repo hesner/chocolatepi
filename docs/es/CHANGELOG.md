@@ -9,6 +9,31 @@ fecha hasta que eso cambie.
 
 ## [Sin publicar]
 
+- Se agregó una biblioteca compartida de canciones (`_Songs/` en la raíz
+  del USB) a las dos expansiones de `setlist-admin`, para que una
+  canción solo se suba una vez y se pueda reutilizar en cualquier
+  cantidad de setlists en vez de volver a subirla en cada show nuevo.
+  Documentada como convención del proyecto base en `LIBRARY.md` (en/es)
+  — también funciona a mano por SSH, no solo a través de alguna de las
+  dos apps — con una advertencia explícita de no borrar canciones de
+  ahí, ya que borrar solo las quita de futuras selecciones, nunca de un
+  Set donde ya estén asignadas (eso siempre es una copia independiente).
+  Las funciones nuevas de `library_ops.py`
+  (`list_songs`/`upload_song`/`rename_song`/`delete_song`/
+  `assign_song_to_slot`/`save_track_to_library`) son idénticas entre las
+  dos expansiones. `scripts/rollback.sh` ganó una bandera separada
+  `--purge-library` (distinta de `--purge`, que solo tocaba el pequeño
+  archivo de PIN/credenciales) ya que borrar archivos de canciones
+  reales es una acción más grande y deliberada. También se arreglaron
+  dos bugs reales preexistentes encontrados al construir esto (presentes
+  desde el diseño original por WiFi, sin relación con la biblioteca de
+  canciones en sí): `library_ops.LibraryOpsError` nunca se traducía a
+  una respuesta HTTP apropiada (caía en el 500 "Internal error" genérico
+  en vez del 400 con mensaje útil que debía ser), y los segmentos de
+  ruta de la URL (nombres de show, ahora también de canciones) nunca se
+  decodificaban del lado del servidor pese a que el frontend sí los
+  codifica, así que cualquier nombre que realmente necesitara
+  codificación (cualquier espacio o tilde) fallaba en silencio.
 - Se introdujo `expansions/`: un lugar a nivel raíz para addons
   opcionales, instalables/removibles de forma independiente, al
   sistema base del pedal — se movió `setlist-admin` (diseño por USB) a

@@ -52,6 +52,17 @@ _VALID_LETTERS = set(_TRACK_LETTERS.values())  # {"A", "B", "C"} -- D is always 
 _SET_FOLDER_RE = re.compile(r"^Set (\d+)$")
 _UPLOAD_CHUNK_SIZE = 1024 * 1024  # 1 MiB -- streamed, never the whole file in RAM (section 7)
 
+# The shared song library (SPECIFICATION.md's song-reuse design): a flat
+# pool of songs at the USB root, independent of any Show, so the same
+# song can be assigned into any number of Shows/Sets without re-uploading
+# it each time. A leading "_" is reserved for folders like this one --
+# list_shows() excludes anything starting with "_" the same way it
+# already excludes dotfiles, so this is invisible to the Show listing
+# (and, since core.library.Library never lists the USB root at all --
+# only ever active_show.txt's one named folder -- it's invisible to the
+# base project too, with zero changes needed there).
+_SONGS_FOLDER = "_Songs"
+
 # What a "display name" may contain -- deliberately conservative (no " - ",
 # no path separators, no leading/trailing dots or spaces) so it can never
 # combine with the "<Letter> - " prefix to accidentally produce something
@@ -79,21 +90,35 @@ class TrackInfo:
         return f"{self.letter} - {self.display_name}.{self.extension}"
 
 
+@dataclass(frozen=True)
+class SongInfo:
+    """A song in the shared library (_Songs/) -- not tied to any Show,
+    Set, or letter, unlike TrackInfo."""
+    display_name: str
+    extension: str
+    is_audio_only: bool
+
+    @property
+    def filename(self) -> str:
+        return f"{self.display_name}.{self.extension}"
+
+
 # ---------------------------------------------------------------------------
 # Shows
 # ---------------------------------------------------------------------------
 
 def list_shows(usb_root: str) -> List[str]:
     """Every top-level folder under the USB root, except this app's own
-    dotfile directory -- i.e. every folder LIBRARY.md's Show convention
-    would recognize."""
+    dotfile directory and the shared song library -- i.e. every folder
+    LIBRARY.md's Show convention would recognize."""
     try:
         entries = os.listdir(usb_root)
     except OSError:
         return []
     return sorted(
         e for e in entries
-        if not e.startswith(".") and os.path.isdir(os.path.join(usb_root, e))
+        if not e.startswith(".") and not e.startswith("_")
+        and os.path.isdir(os.path.join(usb_root, e))
     )
 
 
@@ -211,7 +236,11 @@ def assign_track(
     the given Set, replacing whatever was there for that letter, if
     anything. Streamed in chunks (never the whole file read into
     memory at once) -- required given this runs on a 1GB-RAM Pi 2,
-    matching section 7."""
+    matching section 7.
+
+    Also becomes available for reuse in future Shows: best-effort added
+    to the shared song library too (skipped, never an error, if a song
+    with that exact name is already there -- see _add_to_library_if_new)."""
     show_path = _require_show(usb_root, show_name)
     set_path = _require_set(show_path, set_number)
     letter = _validate_letter(letter)
@@ -227,23 +256,12 @@ def assign_track(
     dest_path = os.path.join(set_path, info.filename)
 
     # Write to a temp name first, rename into place at the end -- so a
-    # failed/interrupted upload (dropped WiFi mid-transfer, the classic
-    # risk this app is designed around) never leaves a half-written file
-    # sitting under the real "<Letter> - ..." name where
-    # Library.resolve() could find and try to play it.
-    tmp_path = dest_path + ".part"
-    try:
-        with open(tmp_path, "wb") as dest:
-            while True:
-                chunk = source.read(_UPLOAD_CHUNK_SIZE)
-                if not chunk:
-                    break
-                dest.write(chunk)
-        os.replace(tmp_path, dest_path)
-    except Exception:
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
-        raise
+    # failed/interrupted upload (dropped connection mid-transfer, the
+    # classic risk this app is designed around) never leaves a
+    # half-written file sitting under the real "<Letter> - ..." name
+    # where Library.resolve() could find and try to play it.
+    _atomic_write_stream(dest_path, source)
+    _add_to_library_if_new(usb_root, dest_path, info.display_name, info.extension, info.is_audio_only)
 
     return info
 
@@ -312,6 +330,206 @@ def delete_track(usb_root: str, show_name: str, set_number: int, letter: str) ->
     set_path = _require_set(show_path, set_number)
     letter = _validate_letter(letter)
     _remove_existing_track(set_path, letter)
+
+
+# ---------------------------------------------------------------------------
+# Song library (_Songs/) -- reusable across every Show. A Show's
+# Set/Letter slot is always a *copy* of a song here, never a reference,
+# so each Show stays exactly as self-contained as it always was (nothing
+# about core.library.Library's boot-time resolution changes) and a human
+# without this app could recreate the same convention by hand over SSH
+# with a plain `cp`.
+# ---------------------------------------------------------------------------
+
+def list_songs(usb_root: str) -> List[SongInfo]:
+    songs_path = _songs_path(usb_root)
+    try:
+        entries = sorted(os.listdir(songs_path))
+    except OSError:
+        return []
+    songs = []
+    for entry in entries:
+        info = _parse_song_filename(entry)
+        if info is not None:
+            songs.append(info)
+    return songs
+
+
+def upload_song(usb_root: str, display_name: str, extension: str, source: BinaryIO) -> SongInfo:
+    """Streams `source` straight into the shared library as
+    "<display_name>.<extension>". Rejects a name that's already taken --
+    delete_song() or rename_song() first to replace it; no silent
+    overwrites, same rule as create_show()/create_set()."""
+    extension = _validate_extension(extension)
+    _validate_display_name(display_name, what="song name")
+
+    info = SongInfo(
+        display_name=display_name, extension=extension,
+        is_audio_only=extension in _AUDIO_ONLY_EXTENSIONS,
+    )
+    songs_path = _songs_path(usb_root)
+    dest_path = os.path.join(songs_path, info.filename)
+    if os.path.exists(dest_path):
+        raise LibraryOpsError(f'A song named "{info.filename}" already exists in the library')
+
+    os.makedirs(songs_path, exist_ok=True)
+    _atomic_write_stream(dest_path, source)
+    return info
+
+
+def rename_song(usb_root: str, filename: str, new_display_name: str) -> SongInfo:
+    songs_path = _songs_path(usb_root)
+    current = _parse_song_filename(filename)
+    if current is None:
+        raise LibraryOpsError(f'"{filename}" is not a song in the library')
+    _validate_display_name(new_display_name, what="song name")
+
+    new_info = SongInfo(
+        display_name=new_display_name, extension=current.extension,
+        is_audio_only=current.is_audio_only,
+    )
+    old_path = os.path.join(songs_path, current.filename)
+    new_path = os.path.join(songs_path, new_info.filename)
+    if os.path.exists(new_path):
+        raise LibraryOpsError(f'A song named "{new_info.filename}" already exists in the library')
+    os.rename(old_path, new_path)
+    return new_info
+
+
+def delete_song(usb_root: str, filename: str) -> None:
+    """Removes a song from the shared library only -- copies already
+    assigned into a Show's Set are independent files, untouched by this."""
+    songs_path = _songs_path(usb_root)
+    info = _parse_song_filename(filename)
+    if info is None:
+        raise LibraryOpsError(f'"{filename}" is not a song in the library')
+    os.remove(os.path.join(songs_path, info.filename))
+
+
+def assign_song_to_slot(
+    usb_root: str, show_name: str, set_number: int, letter: str, song_filename: str,
+) -> TrackInfo:
+    """Copies a song from the shared library into a Show's Set/Letter
+    slot, replacing whatever was there before -- the library's own copy
+    is untouched, so the same song stays available for the next Show.
+    This is the "reuse an existing song" path; assign_track() is the
+    "upload a new one" path (which also adds it to the library as a
+    side effect, so both paths converge)."""
+    show_path = _require_show(usb_root, show_name)
+    set_path = _require_set(show_path, set_number)
+    letter = _validate_letter(letter)
+
+    song = _parse_song_filename(song_filename)
+    if song is None:
+        raise LibraryOpsError(f'"{song_filename}" is not a song in the library')
+    source_path = os.path.join(_songs_path(usb_root), song.filename)
+    if not os.path.isfile(source_path):
+        raise LibraryOpsError(f'"{song.filename}" is not in the library')
+
+    _remove_existing_track(set_path, letter)
+
+    info = TrackInfo(
+        letter=letter, display_name=song.display_name,
+        extension=song.extension, is_audio_only=song.is_audio_only,
+    )
+    dest_path = os.path.join(set_path, info.filename)
+    _atomic_copy_file(source_path, dest_path)
+    return info
+
+
+def save_track_to_library(usb_root: str, show_name: str, set_number: int, letter: str) -> SongInfo:
+    """The reverse direction: copies whatever is already assigned to a
+    Set/Letter slot into the shared library, so it becomes available for
+    future Shows too. Meant for content assigned before this feature
+    existed (or from a different Pi/USB) -- no automatic migration or
+    dedup is attempted; this is always an explicit, one-track-at-a-time
+    action, since guessing whether two files across different Shows are
+    "the same song" is exactly the kind of fragile heuristic this
+    project avoids (SPECIFICATION.md)."""
+    show_path = _require_show(usb_root, show_name)
+    set_path = _require_set(show_path, set_number)
+    letter = _validate_letter(letter)
+
+    tracks = list_tracks(usb_root, show_name, set_number)
+    track = tracks.get(letter)
+    if track is None:
+        raise LibraryOpsError(f"Track {letter} is empty, nothing to save")
+
+    info = SongInfo(
+        display_name=track.display_name, extension=track.extension,
+        is_audio_only=track.is_audio_only,
+    )
+    songs_path = _songs_path(usb_root)
+    dest_path = os.path.join(songs_path, info.filename)
+    if os.path.exists(dest_path):
+        raise LibraryOpsError(f'A song named "{info.filename}" already exists in the library')
+
+    os.makedirs(songs_path, exist_ok=True)
+    source_path = os.path.join(set_path, track.filename)
+    _atomic_copy_file(source_path, dest_path)
+    return info
+
+
+def _songs_path(usb_root: str) -> str:
+    return os.path.join(usb_root, _SONGS_FOLDER)
+
+
+def _parse_song_filename(filename: str) -> Optional[SongInfo]:
+    if "." not in filename:
+        return None
+    display_name, extension = filename.rsplit(".", 1)
+    if extension.lower() not in _ALL_EXTENSIONS or not display_name:
+        return None
+    return SongInfo(
+        display_name=display_name, extension=extension.lower(),
+        is_audio_only=extension.lower() in _AUDIO_ONLY_EXTENSIONS,
+    )
+
+
+def _add_to_library_if_new(
+    usb_root: str, source_path: str, display_name: str, extension: str, is_audio_only: bool,
+) -> None:
+    """Best-effort only: a fresh upload also becomes reusable in future
+    Shows, unless a song with that exact name is already in the library
+    -- never overwritten, and this never fails the caller's own write
+    over it (a convenience side effect, not something the primary
+    assign_track() operation should ever fail because of)."""
+    songs_path = _songs_path(usb_root)
+    dest_path = os.path.join(songs_path, f"{display_name}.{extension}")
+    if os.path.exists(dest_path):
+        return
+    try:
+        os.makedirs(songs_path, exist_ok=True)
+        _atomic_copy_file(source_path, dest_path)
+    except OSError:
+        logger.warning("Could not add %s to the song library", os.path.basename(source_path))
+
+
+def _atomic_write_stream(dest_path: str, source: BinaryIO) -> None:
+    tmp_path = dest_path + ".part"
+    try:
+        with open(tmp_path, "wb") as dest:
+            while True:
+                chunk = source.read(_UPLOAD_CHUNK_SIZE)
+                if not chunk:
+                    break
+                dest.write(chunk)
+        os.replace(tmp_path, dest_path)
+    except Exception:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        raise
+
+
+def _atomic_copy_file(source_path: str, dest_path: str) -> None:
+    tmp_path = dest_path + ".part"
+    try:
+        shutil.copyfile(source_path, tmp_path)
+        os.replace(tmp_path, dest_path)
+    except Exception:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        raise
 
 
 # ---------------------------------------------------------------------------

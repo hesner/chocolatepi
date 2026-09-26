@@ -83,10 +83,21 @@ definir un PIN nuevo.
 
 **Pestaña Library**: elige o crea un show, crea/borra carpetas `Set`, y
 para cada espacio de pista (A/B/C):
-- **Upload** reemplaza lo que haya en esa letra.
+- **Upload new** sube un archivo directo a esa letra, reemplazando lo
+  que hubiera. También se agrega automáticamente a la **biblioteca de
+  canciones** (ver abajo), lista para reutilizarse en un show futuro
+  sin volver a subirla.
+- **Assign** (junto al selector desplegable de canciones) pone una
+  canción existente de la biblioteca en esa letra, sin subir nada — una
+  copia instantánea dentro del mismo USB.
 - **Rename** cambia solo el nombre visible (la letra —su posición— y la
   extensión del archivo se mantienen).
-- **Delete** vacía el espacio.
+- **Delete** vacía el espacio. Esto **no** borra la canción de la
+  biblioteca — es una copia independiente (ver abajo).
+- **Save to library**, visible cuando la casilla ya tiene algo, agrega
+  esa copia específica a la biblioteca si todavía no estaba — útil para
+  canciones asignadas antes de que existiera esta función, o desde otro
+  dispositivo.
 
 No hay un botón separado de "reordenar" — para cambiar qué canción está
 en qué posición, sube/renombra para que el archivo correcto quede bajo
@@ -97,6 +108,35 @@ Cada subida se valida de códec (`ffprobe`) — un video que no sea H.264
 recibe una advertencia, no un bloqueo, apuntando a la guía de
 codificación de `LIBRARY.md`. Igual se sube; puede que no se reproduzca
 hasta que lo re-codifiques, igual que si lo hubieras copiado a mano.
+
+### Biblioteca de canciones: reutilizar canciones entre setlists
+
+La sección **"Song library"** al inicio de la pestaña Library (toca
+para desplegarla) lista todas las canciones disponibles para
+reutilizar — es la carpeta `_Songs/` en la raíz del USB (`LIBRARY.md`
+documenta la misma convención para editar el USB a mano, sin esta app).
+Está pensada para tener **todas las canciones que tiene la banda**, no
+solo las del setlist que estás armando ahora, para que empezar el
+setlist del próximo show sea cuestión de elegir entre lo que ya existe,
+en vez de volver a subir todo.
+
+Desde ahí puedes subir una canción nueva directo a la biblioteca (sin
+asignarla a ningún Set todavía), renombrarla, o borrarla. **Borrar una
+canción de la biblioteca no se recomienda — si tienes dudas, no la
+borres.** `LIBRARY.md` recomienda tratarla como un registro permanente
+de todo lo que tiene la banda, incluso canciones que no se usan en
+ningún show en este momento, para que la biblioteca sea siempre una
+respuesta honesta a "¿cuántas canciones tenemos realmente?". Una vez
+borrada, la canción ya no se puede elegir al armar un Set (no aparecerá
+en el selector para ningún show futuro) — pero borrarla **no** la quita
+de ningún Set donde ya esté asignada; esos siguen sonando normal,
+porque asignarla ya hizo una copia independiente. La confirmación de
+borrado de la app lo explica así también. Desinstalar cualquiera de las
+expansiones de `setlist-admin` tampoco borra `_Songs/` por defecto —
+solo lo hace la bandera explícita `--purge-library` (ver "Desinstalar"
+abajo). Y en la otra dirección: asignar una canción a un Set nunca la
+quita de la biblioteca — cada asignación es una copia, la biblioteca
+siempre conserva la suya.
 
 **Los cambios necesitan un reinicio para aplicarse.** El pedal solo lee
 la estructura de la biblioteca cuando arranca (`MASTER_SPECIFICATION.md`)
@@ -139,5 +179,10 @@ sh expansions/setlist-admin-wifi/scripts/rollback.sh
 
 Agrega `--purge` para también borrar el PIN y las credenciales de WiFi
 guardadas del USB; omítelo para conservarlos así una futura
-reinstalación no necesita reconfigurarse desde cero. Ver la sección 11
-de `SPECIFICATION.md` para exactamente qué toca y qué no.
+reinstalación no necesita reconfigurarse desde cero. Agrega
+`--purge-library` (aparte) para también borrar `_Songs/`, la biblioteca
+compartida de canciones — no incluida en `--purge` porque borra
+archivos de canciones reales, un paso más grande que reiniciar un PIN;
+ver la recomendación de `LIBRARY.md` de tratar esa biblioteca como
+permanente antes de usar esto. Ver las secciones 11-12 de
+`SPECIFICATION.md` para exactamente qué toca cada bandera y qué no.

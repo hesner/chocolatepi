@@ -9,6 +9,30 @@ date instead until that changes.
 
 ## [Unreleased]
 
+- Added a shared song library (`_Songs/` at the USB root) to both
+  `setlist-admin` expansions, so a song only needs to be uploaded once
+  and can be reused across any number of setlists instead of
+  re-uploading it into every new show. Documented as a base-project
+  convention in `LIBRARY.md` (en/es) -- works by hand over SSH too, not
+  just through either app -- with an explicit warning not to delete
+  songs from it, since doing so only removes them from future picking,
+  never from a Set they're already assigned to (that's always an
+  independent copy). `library_ops.py`'s new functions
+  (`list_songs`/`upload_song`/`rename_song`/`delete_song`/
+  `assign_song_to_slot`/`save_track_to_library`) are identical between
+  the two expansions. `scripts/rollback.sh` gained a separate
+  `--purge-library` flag (distinct from `--purge`, which only ever
+  touched the small PIN/credentials file) since deleting actual song
+  files is a bigger, more deliberate action. Also fixed two real,
+  pre-existing bugs found while building this (present since the
+  original WiFi design, unrelated to the song library itself):
+  `library_ops.LibraryOpsError` was never translated into a proper HTTP
+  response (fell through to a generic 500 "Internal error" instead of
+  the 400 with a helpful message it should have been), and URL path
+  segments (show names, now also song filenames) were never
+  percent-decoded server-side despite the frontend percent-encoding
+  them, so any name actually needing encoding (any space or accented
+  character) silently failed.
 - Introduced `expansions/`: a top-level home for optional, independently
   installable/removable addons to the base pedal system -- moved
   `setlist-admin` (USB-tether design) into `expansions/setlist-admin-usb/`

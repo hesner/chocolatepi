@@ -384,5 +384,147 @@ class TestDeleteTrack(LibraryOpsTestCase):
         library_ops.delete_track(self.usb_root, show, set_number, "A")  # should not raise
 
 
+class TestSongLibrary(LibraryOpsTestCase):
+    def test_upload_song_creates_file_in_songs_folder(self):
+        library_ops.upload_song(self.usb_root, "My Song", "mp4", io.BytesIO(b"video bytes"))
+
+        songs_path = os.path.join(self.usb_root, "_Songs")
+        self.assertEqual(os.listdir(songs_path), ["My Song.mp4"])
+        with open(os.path.join(songs_path, "My Song.mp4"), "rb") as f:
+            self.assertEqual(f.read(), b"video bytes")
+
+    def test_upload_song_rejects_duplicate_name(self):
+        library_ops.upload_song(self.usb_root, "Song", "mp3", io.BytesIO(b"a"))
+
+        with self.assertRaises(library_ops.LibraryOpsError):
+            library_ops.upload_song(self.usb_root, "Song", "mp3", io.BytesIO(b"b"))
+
+    def test_list_songs_returns_uploaded_songs_sorted(self):
+        library_ops.upload_song(self.usb_root, "Zeta", "mp3", io.BytesIO(b"a"))
+        library_ops.upload_song(self.usb_root, "Alpha", "wav", io.BytesIO(b"b"))
+
+        songs = library_ops.list_songs(self.usb_root)
+
+        self.assertEqual([s.filename for s in songs], ["Alpha.wav", "Zeta.mp3"])
+
+    def test_list_songs_on_missing_folder_returns_empty(self):
+        self.assertEqual(library_ops.list_songs(self.usb_root), [])
+
+    def test_rename_song(self):
+        library_ops.upload_song(self.usb_root, "Old Name", "mp3", io.BytesIO(b"a"))
+
+        library_ops.rename_song(self.usb_root, "Old Name.mp3", "New Name")
+
+        songs = library_ops.list_songs(self.usb_root)
+        self.assertEqual([s.filename for s in songs], ["New Name.mp3"])
+
+    def test_rename_song_rejects_collision_with_existing_song(self):
+        library_ops.upload_song(self.usb_root, "First", "mp3", io.BytesIO(b"a"))
+        library_ops.upload_song(self.usb_root, "Second", "mp3", io.BytesIO(b"b"))
+
+        with self.assertRaises(library_ops.LibraryOpsError):
+            library_ops.rename_song(self.usb_root, "First.mp3", "Second")
+
+    def test_delete_song_removes_it(self):
+        library_ops.upload_song(self.usb_root, "Song", "mp3", io.BytesIO(b"a"))
+
+        library_ops.delete_song(self.usb_root, "Song.mp3")
+
+        self.assertEqual(library_ops.list_songs(self.usb_root), [])
+
+    def test_delete_song_does_not_touch_copies_already_assigned_to_shows(self):
+        show, set_number = self._make_show_with_set()
+        library_ops.assign_track(self.usb_root, show, set_number, "A", "Song", "mp3", io.BytesIO(b"a"))
+
+        library_ops.delete_song(self.usb_root, "Song.mp3")
+
+        tracks = library_ops.list_tracks(self.usb_root, show, set_number)
+        self.assertIsNotNone(tracks["A"])
+
+    def test_assigning_track_also_adds_it_to_the_library(self):
+        show, set_number = self._make_show_with_set()
+
+        library_ops.assign_track(self.usb_root, show, set_number, "A", "New Song", "mp3", io.BytesIO(b"data"))
+
+        songs = library_ops.list_songs(self.usb_root)
+        self.assertEqual([s.filename for s in songs], ["New Song.mp3"])
+
+    def test_assigning_track_does_not_clobber_an_existing_library_song_of_the_same_name(self):
+        library_ops.upload_song(self.usb_root, "Song", "mp3", io.BytesIO(b"library version"))
+        show, set_number = self._make_show_with_set()
+
+        library_ops.assign_track(self.usb_root, show, set_number, "A", "Song", "mp3", io.BytesIO(b"different bytes"))
+
+        songs_path = os.path.join(self.usb_root, "_Songs")
+        with open(os.path.join(songs_path, "Song.mp3"), "rb") as f:
+            self.assertEqual(f.read(), b"library version")
+
+    def test_assign_song_to_slot_copies_from_the_library(self):
+        library_ops.upload_song(self.usb_root, "Song", "mp4", io.BytesIO(b"library bytes"))
+        show, set_number = self._make_show_with_set()
+
+        info = library_ops.assign_song_to_slot(self.usb_root, show, set_number, "B", "Song.mp4")
+
+        self.assertEqual(info.filename, "B - Song.mp4")
+        set_path = os.path.join(self.usb_root, show, f"Set {set_number}")
+        with open(os.path.join(set_path, "B - Song.mp4"), "rb") as f:
+            self.assertEqual(f.read(), b"library bytes")
+        # The library's own copy is untouched -- still there for reuse.
+        songs = library_ops.list_songs(self.usb_root)
+        self.assertEqual([s.filename for s in songs], ["Song.mp4"])
+
+    def test_assign_song_to_slot_replaces_whatever_was_in_that_letter(self):
+        library_ops.upload_song(self.usb_root, "New Song", "mp3", io.BytesIO(b"new"))
+        show, set_number = self._make_show_with_set()
+        library_ops.assign_track(self.usb_root, show, set_number, "A", "Old Song", "mp3", io.BytesIO(b"old"))
+
+        library_ops.assign_song_to_slot(self.usb_root, show, set_number, "A", "New Song.mp3")
+
+        set_path = os.path.join(self.usb_root, show, f"Set {set_number}")
+        self.assertEqual(os.listdir(set_path), ["A - New Song.mp3"])
+
+    def test_assign_song_to_slot_raises_for_unknown_song(self):
+        show, set_number = self._make_show_with_set()
+
+        with self.assertRaises(library_ops.LibraryOpsError):
+            library_ops.assign_song_to_slot(self.usb_root, show, set_number, "A", "Nonexistent.mp3")
+
+    def test_save_track_to_library_copies_an_existing_assignment(self):
+        show, set_number = self._make_show_with_set()
+        library_ops.assign_track(self.usb_root, show, set_number, "A", "Song", "mp3", io.BytesIO(b"data"))
+        library_ops.delete_song(self.usb_root, "Song.mp3")  # undo the automatic add, to test this path in isolation
+
+        library_ops.save_track_to_library(self.usb_root, show, set_number, "A")
+
+        songs = library_ops.list_songs(self.usb_root)
+        self.assertEqual([s.filename for s in songs], ["Song.mp3"])
+
+    def test_save_track_to_library_raises_for_empty_slot(self):
+        show, set_number = self._make_show_with_set()
+
+        with self.assertRaises(library_ops.LibraryOpsError):
+            library_ops.save_track_to_library(self.usb_root, show, set_number, "A")
+
+    def test_save_track_to_library_rejects_collision(self):
+        library_ops.upload_song(self.usb_root, "Song", "mp3", io.BytesIO(b"library version"))
+        show, set_number = self._make_show_with_set()
+        library_ops.assign_song_to_slot(self.usb_root, show, set_number, "A", "Song.mp3")
+        # Manually place a different file under the same assigned name to
+        # simulate an out-of-band collision, without going through
+        # assign_track()'s own auto-add (which would just no-op here).
+        library_ops.delete_song(self.usb_root, "Song.mp3")
+        library_ops.upload_song(self.usb_root, "Song", "mp3", io.BytesIO(b"a different song entirely"))
+
+        with self.assertRaises(library_ops.LibraryOpsError):
+            library_ops.save_track_to_library(self.usb_root, show, set_number, "A")
+
+    def test_songs_folder_is_excluded_from_list_shows(self):
+        library_ops.upload_song(self.usb_root, "Song", "mp3", io.BytesIO(b"data"))
+
+        shows = library_ops.list_shows(self.usb_root)
+
+        self.assertEqual(shows, [])
+
+
 if __name__ == "__main__":
     unittest.main()

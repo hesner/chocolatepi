@@ -7,6 +7,7 @@ const state = {
   shows: [],
   activeShow: null,
   selectedShow: null,
+  songs: [], // the shared library (_Songs/) -- reusable across every Show/Set
 };
 
 async function apiFetch(path, options = {}) {
@@ -50,6 +51,7 @@ async function boot() {
   // Try loading shows -- if the session cookie is missing/expired this
   // 401s, which means "show the login screen", not an error to surface.
   try {
+    await loadSongs();
     await loadShows();
     show("view-main");
     initTabs();
@@ -89,6 +91,7 @@ document.getElementById("form-login").addEventListener("submit", async (ev) => {
   try {
     await apiFetch("/api/login", { method: "POST", body: JSON.stringify({ pin }) });
     hide("view-login");
+    await loadSongs();
     await loadShows();
     show("view-main");
     initTabs();
@@ -125,6 +128,106 @@ async function refreshPlaybackWarning() {
     document.getElementById("playback-warning").hidden = !status.playback_active;
   } catch (_) { /* non-fatal -- just don't show the warning */ }
 }
+
+// -- Song library (reusable across every Show/Set) ---------------------------
+
+async function loadSongs() {
+  const data = await apiFetch("/api/songs");
+  state.songs = data.songs;
+
+  const countEl = document.getElementById("song-library-count");
+  countEl.textContent = state.songs.length ? `(${state.songs.length})` : "(empty)";
+
+  const container = document.getElementById("songs-container");
+  container.innerHTML = "";
+  if (state.songs.length === 0) {
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.textContent = "No songs yet -- upload one here, or upload directly into a Set slot below.";
+    container.appendChild(p);
+  }
+  for (const song of state.songs) {
+    container.appendChild(renderSongRow(song));
+  }
+
+  // Every track row's "choose from library" dropdown needs to reflect
+  // the current song list too.
+  document.querySelectorAll(".track-song-select").forEach(populateSongSelect);
+}
+
+function populateSongSelect(select) {
+  const previousValue = select.value;
+  select.innerHTML = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = state.songs.length ? "-- choose a song --" : "-- library is empty --";
+  select.appendChild(placeholder);
+  for (const song of state.songs) {
+    const opt = document.createElement("option");
+    opt.value = song.filename;
+    opt.textContent = `${song.display_name}.${song.extension}`;
+    select.appendChild(opt);
+  }
+  select.value = previousValue || "";
+}
+
+function renderSongRow(song) {
+  const tpl = document.getElementById("tpl-song");
+  const node = tpl.content.cloneNode(true);
+  node.querySelector(".song-name").textContent = song.filename;
+
+  node.querySelector(".btn-rename-song").addEventListener("click", async () => {
+    const newName = prompt("New name:", song.display_name);
+    if (!newName) return;
+    await apiFetch(`/api/songs/${encodeURIComponent(song.filename)}`, {
+      method: "PUT", body: JSON.stringify({ display_name: newName }),
+    });
+    await loadSongs();
+  });
+
+  node.querySelector(".btn-delete-song").addEventListener("click", async () => {
+    if (!confirm(
+      `⚠ Delete "${song.filename}" from the song library?\n\n` +
+      `If you're not sure, don't delete it. Once deleted, this song can ` +
+      `no longer be chosen when building a Set -- it won't show up in ` +
+      `the picker for any future show.\n\n` +
+      `This will NOT remove it from any Set it's already assigned to -- ` +
+      `those keep playing normally, since that's an independent copy, ` +
+      `made when it was assigned.`
+    )) return;
+    await apiFetch(`/api/songs/${encodeURIComponent(song.filename)}`, { method: "DELETE" });
+    await loadSongs();
+  });
+
+  return node;
+}
+
+document.getElementById("btn-upload-to-library").addEventListener("click", () => {
+  document.getElementById("library-upload-input").click();
+});
+
+document.getElementById("library-upload-input").addEventListener("change", async (ev) => {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const dotIndex = file.name.lastIndexOf(".");
+  const displayName = dotIndex > 0 ? file.name.slice(0, dotIndex) : file.name;
+  const extension = dotIndex > 0 ? file.name.slice(dotIndex + 1) : "";
+  try {
+    const res = await fetch("/api/songs", {
+      method: "POST",
+      headers: { "X-Track-Name": displayName, "X-Track-Extension": extension },
+      body: file,
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || "Upload failed");
+    if (result.warning) alert(result.warning);
+    await loadSongs();
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    ev.target.value = "";
+  }
+});
 
 // -- Shows / Sets / Tracks ---------------------------------------------------
 
@@ -213,6 +316,21 @@ function renderTrackRow(showName, setNumber, letter, track) {
   const uploadBtn = node.querySelector(".btn-upload");
   const renameBtn = node.querySelector(".btn-rename");
   const deleteBtn = node.querySelector(".btn-delete");
+  const songSelect = node.querySelector(".track-song-select");
+  const assignBtn = node.querySelector(".btn-assign-from-library");
+  const saveToLibraryBtn = node.querySelector(".btn-save-to-library");
+
+  populateSongSelect(songSelect);
+
+  assignBtn.addEventListener("click", async () => {
+    const songFilename = songSelect.value;
+    if (!songFilename) return;
+    await apiFetch(
+      `/api/shows/${encodeURIComponent(showName)}/sets/${setNumber}/tracks/${letter}/assign-from-library`,
+      { method: "POST", body: JSON.stringify({ song_filename: songFilename }) },
+    );
+    await loadSets(showName);
+  });
 
   uploadBtn.addEventListener("click", () => fileInput.click());
   fileInput.addEventListener("change", async () => {
@@ -239,9 +357,10 @@ function renderTrackRow(showName, setNumber, letter, track) {
         // rare path and doesn't warrant its own UI component.
         alert(result.warning);
       }
+      await loadSongs(); // the upload also added it to the library
       await loadSets(showName);
     } finally {
-      uploadBtn.textContent = "Upload";
+      uploadBtn.textContent = "Upload new";
       uploadBtn.disabled = false;
     }
   });
@@ -249,6 +368,7 @@ function renderTrackRow(showName, setNumber, letter, track) {
   if (track) {
     renameBtn.hidden = false;
     deleteBtn.hidden = false;
+    saveToLibraryBtn.hidden = false;
 
     renameBtn.addEventListener("click", async () => {
       const newName = prompt("New name:", track.display_name);
@@ -267,6 +387,18 @@ function renderTrackRow(showName, setNumber, letter, track) {
         { method: "DELETE" },
       );
       await loadSets(showName);
+    });
+
+    saveToLibraryBtn.addEventListener("click", async () => {
+      try {
+        await apiFetch(
+          `/api/shows/${encodeURIComponent(showName)}/sets/${setNumber}/tracks/${letter}/save-to-library`,
+          { method: "POST" },
+        );
+        await loadSongs();
+      } catch (e) {
+        alert(e.message);
+      }
     });
   }
 

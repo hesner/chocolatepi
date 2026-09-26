@@ -161,6 +161,40 @@ class AdminAPI:
         with usb_mount.writable_usb(self.config.mount_point):
             library_ops.delete_track(self.config.usb_root, show_name, set_number, letter)
 
+    # -- Song library (reuse across Shows) -------------------------------------
+
+    def list_songs(self) -> dict:
+        return {
+            "songs": [
+                {"filename": s.filename, "display_name": s.display_name,
+                 "extension": s.extension, "is_audio_only": s.is_audio_only}
+                for s in library_ops.list_songs(self.config.usb_root)
+            ]
+        }
+
+    def upload_song(self, display_name: str, extension: str, source: BinaryIO) -> Optional[str]:
+        """Same codec-warning contract as assign_track()."""
+        with usb_mount.writable_usb(self.config.mount_point):
+            info = library_ops.upload_song(self.config.usb_root, display_name, extension, source)
+        songs_path = os.path.join(self.config.usb_root, "_Songs")
+        return codec_check.check_video_codec(os.path.join(songs_path, info.filename), extension)
+
+    def rename_song(self, filename: str, new_display_name: str) -> None:
+        with usb_mount.writable_usb(self.config.mount_point):
+            library_ops.rename_song(self.config.usb_root, filename, new_display_name)
+
+    def delete_song(self, filename: str) -> None:
+        with usb_mount.writable_usb(self.config.mount_point):
+            library_ops.delete_song(self.config.usb_root, filename)
+
+    def assign_song_to_slot(self, show_name: str, set_number: int, letter: str, song_filename: str) -> None:
+        with usb_mount.writable_usb(self.config.mount_point):
+            library_ops.assign_song_to_slot(self.config.usb_root, show_name, set_number, letter, song_filename)
+
+    def save_track_to_library(self, show_name: str, set_number: int, letter: str) -> None:
+        with usb_mount.writable_usb(self.config.mount_point):
+            library_ops.save_track_to_library(self.config.usb_root, show_name, set_number, letter)
+
     # -- Playback status (advisory warning, section 1) -----------------------
 
     def is_playback_likely_active(self) -> bool:

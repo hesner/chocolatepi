@@ -18,7 +18,7 @@ import re
 import sys
 from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -45,6 +45,12 @@ _ROUTES = [
     ("PUT", re.compile(r"^/api/shows/(?P<show>[^/]+)/sets/(?P<set>\d+)/tracks/(?P<letter>[A-Za-z])$"), "rename_track"),
     ("DELETE", re.compile(r"^/api/shows/(?P<show>[^/]+)/sets/(?P<set>\d+)/tracks/(?P<letter>[A-Za-z])$"), "delete_track"),
     ("POST", re.compile(r"^/api/shows/(?P<show>[^/]+)/sets/(?P<set>\d+)/swap$"), "swap_tracks"),
+    ("GET", re.compile(r"^/api/songs$"), "list_songs"),
+    ("POST", re.compile(r"^/api/songs$"), "upload_song"),
+    ("PUT", re.compile(r"^/api/songs/(?P<filename>[^/]+)$"), "rename_song"),
+    ("DELETE", re.compile(r"^/api/songs/(?P<filename>[^/]+)$"), "delete_song"),
+    ("POST", re.compile(r"^/api/shows/(?P<show>[^/]+)/sets/(?P<set>\d+)/tracks/(?P<letter>[A-Za-z])/assign-from-library$"), "assign_song_to_slot"),
+    ("POST", re.compile(r"^/api/shows/(?P<show>[^/]+)/sets/(?P<set>\d+)/tracks/(?P<letter>[A-Za-z])/save-to-library$"), "save_track_to_library"),
     ("GET", re.compile(r"^/api/wifi$"), "wifi_status"),
     ("POST", re.compile(r"^/api/wifi/home$"), "set_home_wifi"),
 ]
@@ -104,7 +110,16 @@ class Handler(BaseHTTPRequestHandler):
             match = pattern.match(path)
             if not match:
                 continue
-            self._handle_action(action_name, match.groupdict(), parse_qs(parsed.query))
+            # Path segments arrive percent-encoded (the frontend calls
+            # encodeURIComponent() on show/song names before building
+            # the URL, so spaces/accents/etc. round-trip correctly) --
+            # decode them here, once, so every _action_* handler and
+            # library_ops.py always see the real name, never "My%20Show".
+            # Found as a real, pre-existing bug: nothing decoded these
+            # before, so any show/song name needing encoding at all
+            # (any space or accented character) silently failed.
+            path_params = {k: unquote(v) if v is not None else v for k, v in match.groupdict().items()}
+            self._handle_action(action_name, path_params, parse_qs(parsed.query))
             return
 
         self._send_json(404, {"error": "Not found"})
@@ -129,6 +144,14 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(status, body)
         except ApiError as e:
             self._send_json(e.status, {"error": e.message})
+        except ValueError as e:
+            # library_ops.LibraryOpsError (invalid input, name collision,
+            # "Show/Set doesn't exist", etc.) is a ValueError -- catching
+            # it here, generically, is what actually turns its carefully
+            # written user-facing messages into a real 400 response
+            # instead of falling through to the 500 below. Found as a
+            # real, pre-existing bug: nothing translated it before this.
+            self._send_json(400, {"error": str(e)})
         except Exception:
             logger.exception("Unhandled error handling %s", action_name)
             self._send_json(500, {"error": "Internal error"})
@@ -211,6 +234,37 @@ class Handler(BaseHTTPRequestHandler):
     def _action_swap_tracks(self, path_params, query):
         body = self._read_json_body()
         self.api.swap_tracks(path_params["show"], int(path_params["set"]), body.get("letter_a", ""), body.get("letter_b", ""))
+        return 200, {"ok": True}
+
+    def _action_list_songs(self, path_params, query):
+        return 200, self.api.list_songs()
+
+    def _action_upload_song(self, path_params, query):
+        display_name, extension = self._parse_upload_filename()
+        length = int(self.headers.get("Content-Length", 0))
+        bounded_source = _LimitedReader(self.rfile, length)
+        warning = self.api.upload_song(display_name, extension, bounded_source)
+        return 200, {"ok": True, "warning": warning}
+
+    def _action_rename_song(self, path_params, query):
+        body = self._read_json_body()
+        self.api.rename_song(path_params["filename"], body.get("display_name", ""))
+        return 200, {"ok": True}
+
+    def _action_delete_song(self, path_params, query):
+        self.api.delete_song(path_params["filename"])
+        return 200, {"ok": True}
+
+    def _action_assign_song_to_slot(self, path_params, query):
+        body = self._read_json_body()
+        self.api.assign_song_to_slot(
+            path_params["show"], int(path_params["set"]), path_params["letter"],
+            body.get("song_filename", ""),
+        )
+        return 200, {"ok": True}
+
+    def _action_save_track_to_library(self, path_params, query):
+        self.api.save_track_to_library(path_params["show"], int(path_params["set"]), path_params["letter"])
         return 200, {"ok": True}
 
     def _action_wifi_status(self, path_params, query):

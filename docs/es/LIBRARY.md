@@ -15,6 +15,9 @@ de que un show salga mal.
 <raíz del USB>/
 ├── active_show.txt          -- texto plano, una línea: el nombre de la carpeta del show activo
 ├── standby.mp4               -- en loop cuando no hay nada reproduciéndose
+├── _Songs/                    -- recomendado: la biblioteca maestra de canciones de la banda (ver abajo)
+│   ├── nombre de canción.mp3
+│   └── otra canción.mp4
 └── <Nombre del Show>/         -- ej. "Live", una carpeta por show/colección de setlists
     ├── Set 1/
     │   ├── A - nombre de canción.mp3
@@ -39,6 +42,62 @@ de que un show salga mal.
   (el footswitch `D` siempre es STOP — nunca necesita archivo). Un
   espacio vacío (sin archivo para una letra) es normal y esperado, no un
   error.
+- **`_Songs/`** y cualquier otra carpeta que empiece con `_`: reservadas,
+  nunca se tratan como un Show. `Library.resolve()` (`src/core/library.py`)
+  ni siquiera lista el contenido de la raíz del USB — solo lee
+  `active_show.txt` y entra directo a esa carpeta específica — así que
+  `_Songs/` es completamente invisible para la reproducción sin importar
+  qué tenga adentro. Ver la siguiente sección para qué sirve.
+
+## Recomendado: mantén una biblioteca maestra de canciones en `_Songs/`
+
+Pon **todas las canciones que tiene la banda** — no solo las del setlist
+actual — como archivos planos directamente bajo `_Songs/` en la raíz del
+USB, nombrados `<nombre de la canción>.<extensión>` (sin el prefijo
+`<Letra> - ` aquí; ese prefijo solo significa algo dentro de una carpeta
+`Set`, donde marca *qué posición del pedal* reproduce el archivo). Esta
+es la biblioteca completa y permanente de canciones de la banda,
+independiente de cualquier show en particular.
+
+Para armar o editar un setlist real: **copia** (no muevas) las
+canciones específicas que necesite ese show desde `_Songs/` hacia las
+carpetas `Set N/` de ese show, agregando el prefijo `<Letra> - ` en el
+proceso. `_Songs/` conserva su copia intacta, así que la misma canción
+queda a una copia de distancia de poder reutilizarse en el siguiente
+setlist también, sin tener que re-codificarla ni volver a transferirla.
+
+**Nunca borres una canción de `_Songs/` a menos que estés seguro.**
+Trátala como un registro permanente, de solo agregar, de todo lo que la
+banda alguna vez tuvo listo para tocar — incluso una canción que hoy no
+se use en ningún show activo vale la pena conservarla ahí, tanto para
+no tener que re-conseguirla/re-codificarla desde cero después, como
+para que el número de archivos en `_Songs/` sea siempre una respuesta
+honesta a "¿cuántas canciones tiene realmente la banda?".
+
+Qué afecta y qué no afecta borrar de `_Songs/`:
+- **Sí** significa que esa canción ya no se puede elegir al armar un
+  `Set` futuro — simplemente ya no estará ahí para seleccionarla.
+- **No** toca ningún `Set` que ya tenga una copia de esa canción
+  asignada a una letra — esa copia es un archivo completamente
+  separado, hecho en el momento en que se asignó, así que sigue
+  sonando normal sin importar qué pase después en `_Songs/`.
+- Borrar un show o un `Set` tampoco toca `_Songs/`, en la otra
+  dirección (mismo razonamiento: copias independientes, no el mismo
+  archivo).
+
+Esto es una disciplina que hay que mantener por cuenta propia — nada en
+el USB la obliga. Si usas las expansiones opcionales de
+`setlist-admin`, la propia confirmación de borrado de la app repite
+esta advertencia antes de dejarte borrar una canción de la biblioteca.
+
+Si usas las expansiones opcionales de `setlist-admin`
+(`expansions/setlist-admin-usb/` o `expansions/setlist-admin-wifi/`),
+todo este flujo queda automatizado: subir una canción en cualquier
+lugar la agrega a `_Songs/` automáticamente, y asignar una casilla de
+un `Set` desde la biblioteca es una copia de un toque en vez de un `cp`
+manual. Es la misma convención de cualquier forma — esta sección
+describe lo que la app realmente hace por debajo, y qué hacer a mano si
+no la estás usando.
 
 ## La única regla que realmente importa: el patrón del nombre de archivo
 

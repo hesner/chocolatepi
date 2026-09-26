@@ -1,9 +1,13 @@
 # SETLIST ADMIN USB SPECIFICATION — "Chocolate Pi" companion admin app (USB-tether design)
 
-**Status: approved, 2026-09-26 — implementation starting.** Mirrors
-`MASTER_SPECIFICATION.md`'s own process: this document was proposed,
-discussed, and approved before any code was written (section 6 of that
-file).
+**Status: implemented and passing its first real-hardware test
+(2026-09-26 -- PIN setup, login, and a track rename all confirmed
+working end-to-end over an iPhone's Personal Hotspot connection).**
+Mirrors `MASTER_SPECIFICATION.md`'s own process: this document was
+proposed, discussed, and approved before any code was written (section
+6 of that file). Section 13 (song library) was approved and added the
+same day, after the initial hardware test, in response to a real
+workflow gap noticed once real songs were actually being assigned.
 
 This is a **separate design track** from the earlier WiFi-based
 attempt (preserved, unfinished, on the `explore/setlist-admin` branch
@@ -301,3 +305,68 @@ can't collaterally affect any other expansion).
 - Anything else you want different from the WiFi design's UX while
   we're building this track, given section 3 otherwise keeps them
   identical on purpose?
+
+## 13. Song library (reuse across Shows) -- approved 2026-09-26
+
+**Problem**: originally, a song only ever existed as a copy physically
+inside one specific `<Show>/Set N/<Letter> - name.ext`. Building a new
+setlist (a new Show) for the next concert meant re-uploading every song
+from scratch, even ones already used in a previous Show.
+
+**Design**: a shared, flat pool of songs at the USB root, `_Songs/`,
+independent of any Show -- now documented as a base-project convention
+in `LIBRARY.md`, not just an implementation detail of this expansion
+(a human without any expansion installed can and should use the same
+convention by hand, per that document). A Show's `Set`/Letter slot is
+still always a real, physical copy -- never a symlink or reference --
+so `core.library.Library`'s boot-time resolution needs zero changes,
+and each Show stays exactly as self-contained as it always was.
+Rejected the symlink/reference alternative specifically because it
+would have required `core.library.Library` itself to learn to resolve
+them, and this project already had one `ntfs-3g` surprise this month
+where an operation that "should just work" didn't.
+
+Two ways a song ends up in `_Songs/`:
+1. **Uploading directly into a Set slot** (the original flow,
+   unchanged) now *also* copies the result into `_Songs/` automatically
+   (`library_ops._add_to_library_if_new`) -- best-effort, silently
+   skipped (never an error) if a song with that exact name is already
+   there.
+2. **Uploading straight into the library** (`upload_song`), from the
+   new "Song library" section of the UI, without assigning it anywhere
+   yet.
+
+Assigning a Set slot from the library (`assign_song_to_slot`) is a
+same-USB file copy, not a re-upload -- fast, and the library's own copy
+is left untouched for the next Show. `save_track_to_library` is the
+reverse direction, for content that predates this feature or was
+assigned before being added to the library -- always an explicit,
+one-track-at-a-time action; no automatic cross-Show dedup/migration is
+attempted (guessing whether two files in different Shows are "the same
+song" is exactly the kind of fragile heuristic this project avoids).
+
+`list_shows()` now excludes anything starting with `_` (previously only
+excluded dotfiles) so `_Songs/` never appears in the Shows list.
+
+Two real, pre-existing bugs (present since the WiFi design, unrelated
+to this feature) were found and fixed while building this: `server.py`
+never translated `library_ops.LibraryOpsError` into a proper HTTP
+response (fell through to a generic 500 "Internal error" instead of the
+400 with a helpful message it should have been -- fixed by catching
+`ValueError` generically in `_handle_action`), and URL path segments
+(show names, now also song filenames) were never percent-decoded
+server-side despite the frontend percent-encoding them, so any name
+actually needing encoding (any space) silently failed.
+
+Per `LIBRARY.md`: songs in `_Songs/` should never be deleted, treated as
+a permanent record of everything the band has -- `delete_song()` exists
+for real cleanup needs, but the UI's confirmation dialog says this
+explicitly rather than just asking "are you sure?".
+
+**Uninstalling**: `_Songs/` is new data this feature introduces, so
+`scripts/rollback.sh` gained a second, separate purge flag,
+`--purge-library`, distinct from `--purge` (which only ever touched the
+small PIN file) -- deleting actual song files is a bigger, more
+deliberate action than resetting a PIN, and `_Songs/` is shared with
+`setlist-admin-wifi` too (same USB, same convention), so purging it
+here removes it there as well.

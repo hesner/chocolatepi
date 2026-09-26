@@ -397,27 +397,65 @@ if the user chooses to:
   base OS) -- installing this never touches the package set the
   read-only overlay was built around.
 
-**Before implementation starts**: tag the current commit as a
-known-good checkpoint (`git tag stable-pre-setlist-admin`, pushed to
-GitHub) -- an unambiguous "last known good" to return to, independent
-of how development goes.
-
 **Rollback** (`expansions/setlist-admin-wifi/scripts/rollback.sh`, built alongside the
-feature itself, not an afterthought written later):
+feature itself, not an afterthought written later; revised when this
+feature moved into the `expansions/` model -- see the repo root's
+`expansions/README.md`):
 
 1. `sudo systemctl disable --now setlist-admin.service
    setlist-network-watchdog.service` -- stop both, prevent restart.
 2. Remove their unit files from `/etc/systemd/system/` (same
    overlay-disable dance as any other change to `/`, if the overlay is
    active).
-3. `git checkout stable-pre-setlist-admin` on the Pi's own checkout --
-   reverts the code itself to the tagged known-good state.
+3. Deliberately does **not** touch git state -- no `git checkout` of
+   any kind. This expansion's own source files
+   (`expansions/setlist-admin-wifi/`) are inert on disk once its
+   systemd units are gone; nothing runs them, and a repo-wide checkout
+   would risk reverting the unrelated `setlist-admin-usb` expansion
+   too if it was added in a later commit, which would break the "each
+   expansion is independent" property `expansions/` exists for.
 4. `pedal-core.service` is never stopped, restarted, or reconfigured by
    any of the above -- confirmed by the same test plan, not assumed.
-5. `.setlist-admin/` is left on the USB by default (so a future
-   reinstall doesn't need the PIN/WiFi reconfigured from scratch); a
-   `--purge` flag removes it too, for a genuinely clean slate.
+5. `.setlist-admin/` (PIN + encrypted WiFi credentials) is left on the
+   USB by default; a `--purge` flag removes it too. `_Songs/` (the
+   shared song library, section 12) is left by default too, since it's
+   shared with `setlist-admin-usb` and deleting actual song files is a
+   bigger, more deliberate action than resetting a PIN; a separate
+   `--purge-library` flag removes it.
 
 One fast, documented, tested path back to exactly what's running today
 -- no SD re-flash, no redoing the base setup, and confirmation that the
 live-critical service was never touched in the process.
+
+## 12. Song library (reuse across Shows) -- approved 2026-09-26
+
+Added after the sibling `setlist-admin-usb` expansion's own first
+real-hardware test surfaced a real workflow gap: originally, a song
+only ever existed as a copy physically inside one specific
+`<Show>/Set N/<Letter> - name.ext`, so building a new setlist for the
+next concert meant re-uploading every song from scratch, even ones
+already used before.
+
+**Design**: a shared, flat pool of songs at the USB root, `_Songs/`,
+independent of any Show -- documented as a base-project convention in
+`LIBRARY.md`, not just an implementation detail of either expansion (a
+human without any expansion installed can and should use the same
+convention by hand). A Show's `Set`/Letter slot is still always a real,
+physical copy -- never a symlink or reference -- so
+`core.library.Library`'s boot-time resolution needs zero changes.
+Uploading directly into a Set slot also adds the result to `_Songs/`
+automatically; assigning a slot from the library is a same-USB file
+copy, not a re-upload. Full design and reasoning:
+`expansions/setlist-admin-usb/SPECIFICATION.md` section 13 -- the two
+expansions share this design and its implementation (`library_ops.py`'s
+song-library functions are identical between them) rather than
+duplicating divergent versions.
+
+Two real, pre-existing bugs (present since this design's first
+implementation, unrelated to the song library itself) were found and
+fixed while adding this: `LibraryOpsError` was never translated into a
+proper HTTP response (fell through to a generic 500 instead of a 400
+with a helpful message), and URL path segments (show names, now also
+song filenames) were never percent-decoded server-side despite the
+frontend percent-encoding them, so any name actually needing encoding
+(any space) silently failed.

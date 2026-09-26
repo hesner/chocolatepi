@@ -48,6 +48,20 @@
           changes may not be reflected safely until playback stops.
         </div>
 
+        <details id="song-library">
+          <summary>Song library <span id="song-library-count" class="hint"></span></summary>
+          <p class="hint">
+            Songs here can be reused in any Set of any show, without
+            uploading them again. Uploading directly into a Set slot
+            below also adds it here automatically.
+          </p>
+          <div id="songs-container"></div>
+          <div class="row">
+            <input type="file" id="library-upload-input" hidden>
+            <button id="btn-upload-to-library" class="secondary">+ Upload song to library</button>
+          </div>
+        </details>
+
         <div class="row">
           <label for="show-select">Show</label>
           <select id="show-select"></select>
@@ -91,10 +105,21 @@
     <div class="track-row">
       <span class="track-letter"></span>
       <span class="track-name"></span>
+      <select class="track-song-select"></select>
+      <button class="btn-assign-from-library secondary">Assign</button>
       <input type="file" class="track-file-input" hidden>
-      <button class="btn-upload secondary">Upload</button>
+      <button class="btn-upload secondary">Upload new</button>
+      <button class="btn-save-to-library secondary" hidden>Save to library</button>
       <button class="btn-rename secondary" hidden>Rename</button>
       <button class="btn-delete danger" hidden>Delete</button>
+    </div>
+  </template>
+
+  <template id="tpl-song">
+    <div class="song-row">
+      <span class="song-name"></span>
+      <button class="btn-rename-song secondary">Rename</button>
+      <button class="btn-delete-song danger">Delete</button>
     </div>
   </template>
 
