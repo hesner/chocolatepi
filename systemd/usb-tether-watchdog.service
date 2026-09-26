@@ -1,0 +1,19 @@
+[Unit]
+Description=Chocolate Pi -- Setlist Admin USB-tether watchdog
+# Starts early and stays running for the Pi's whole uptime -- this is
+# what notices a phone tethered over USB (by kernel driver name, not
+# IP range -- SETLIST_ADMIN_USB_SPECIFICATION.md section 4c) and
+# starts/stops setlist-admin.service accordingly.
+After=network.target NetworkManager.service
+
+[Service]
+Type=simple
+User=<YOUR_USER>
+ExecStart=/usr/bin/python3 /home/<YOUR_USER>/chocolatepi/src/admin/usb_tether_watchdog.py --log-file /home/<YOUR_USER>/usb-tether-watchdog.log
+# Same reasoning as pedal-core.service's Restart=always: no one is
+# available to restart this by hand on a headless appliance.
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

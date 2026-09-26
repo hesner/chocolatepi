@@ -9,6 +9,30 @@ fecha hasta que eso cambie.
 
 ## [Sin publicar]
 
+- Se agregó `setlist-admin` (diseño por USB): un segundo intento de la
+  app web complementaria para administrar el USB de biblioteca
+  (shows/Sets/pistas, CRUD completo) desde el navegador de un teléfono,
+  esta vez conectando el teléfono a la Pi con un cable USB (compartir
+  conexión por USB en Android, o Compartir Internet por cable en
+  iPhone) en vez de que la Pi necesite su propio radio WiFi — ver
+  `SETLIST_ADMIN_USB_SPECIFICATION.md` para el diseño y el porqué (el
+  intento anterior por WiFi quedó en pausa por un dongle USB de WiFi
+  muerto, preservado en la rama `explore/setlist-admin`, no por culpa
+  de ese diseño). Reutiliza sin cambios el backend de CRUD y la
+  experiencia del frontend de ese diseño (`library_ops.py`,
+  `usb_mount.py` incluyendo su arreglo de `ntfs-3g`, `auth.py`, las
+  pantallas de CRUD) para que los dos queden convergibles más adelante.
+  Un teléfono se identifica por el nombre de su driver de red USB
+  (`rndis_host`/`cdc_ether`/`cdc_ncm` para Android, `ipheth` para
+  iPhone), no por rango de IP, así que un cable Ethernet permanente
+  nunca arranca el servidor de admin por accidente. Sin
+  almacenamiento de credenciales de WiFi, sin manejo de perfiles de
+  NetworkManager — toda esa capa desapareció. Aplicar un cambio de
+  setlist sigue requiriendo un reinicio (este proyecto ya intentó y
+  abandonó un mecanismo de recarga en vivo una vez, ver más abajo en
+  este mismo archivo); la app agrega un botón "Reiniciar ahora para
+  aplicar" para que eso no necesite SSH. Todavía no validado en
+  hardware real.
 - Se diseñó e implementó `setlist-admin` (una app web complementaria
   para administrar el USB de biblioteca y el WiFi de la Pi desde el
   navegador de un teléfono/computador), y luego se revirtió de `main`:

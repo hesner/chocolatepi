@@ -9,6 +9,26 @@ date instead until that changes.
 
 ## [Unreleased]
 
+- Added `setlist-admin` (USB-tether design): a second attempt at the
+  companion web app for managing the library USB (shows/Sets/tracks,
+  full CRUD) from a phone's browser, this time reachable by plugging
+  the phone into the Pi with a USB cable (Android USB tethering or
+  iPhone Personal Hotspot over cable) instead of the Pi needing its own
+  WiFi radio -- see `SETLIST_ADMIN_USB_SPECIFICATION.md` for the design
+  and why (the earlier WiFi-based attempt is paused on a dead USB WiFi
+  dongle, preserved on the `explore/setlist-admin` branch, not this
+  feature's fault). Reuses that design's CRUD backend and frontend UX
+  unchanged (`library_ops.py`, `usb_mount.py` including its `ntfs-3g`
+  fix, `auth.py`, the CRUD screens) so the two stay convergeable later.
+  A phone is identified by its USB network driver name
+  (`rndis_host`/`cdc_ether`/`cdc_ncm` for Android, `ipheth` for
+  iPhone), not by IP range, so a permanently-attached Ethernet cable
+  never spuriously starts the admin server. No WiFi credential storage,
+  no NetworkManager profile juggling -- that whole layer is gone.
+  Applying a setlist change still requires a reboot (this project
+  already tried and abandoned a live-reload mechanism once, see below
+  in this same file); the app adds a "Reboot now to apply" button so
+  that doesn't need SSH. Not yet validated on real hardware.
 - Designed and implemented `setlist-admin` (a companion web app for
   managing the library USB and the Pi's WiFi from a phone/computer
   browser), then reverted it from `main`: real-hardware validation
