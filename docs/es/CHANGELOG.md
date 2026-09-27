@@ -88,6 +88,17 @@ fecha hasta que eso cambie.
   (alternativa en escritorio/navegador sin soporte: descarga directa).
   Se cierra con una ✕ en pantalla, con Escape, o con el gesto de
   retroceso del navegador.
+- **Corregido**: en `setlist-admin-usb`, elegir un Set distinto en el
+  desplegable solo cambiaba lo que la app mostraba/editaba — nunca le
+  decía al pedal cuál Set tocar realmente. Solo *crear* un Set nuevo
+  llamaba a la API `set_active_set`; cambiar entre Sets que ya existían
+  no tenía forma de volverse "el" activo salvo borrar y recrear uno.
+  Corregido haciendo que "Reboot now to apply" marque como activo el
+  Set que esté seleccionado justo antes de reiniciar — el momento en
+  que esta app ya le pide al usuario confirmar su intención, así que
+  también es el momento correcto para confirmarlo. (Todavía no
+  trasladado a `setlist-admin-wifi`, que no tiene botón propio de
+  reinicio — ver `expansions/setlist-admin-usb/NEXT_STEPS.md`.)
 - Se agregó una biblioteca compartida de canciones (`_Songs/` en la raíz
   del USB) a las dos expansiones de `setlist-admin`, para que una
   canción solo se suba una vez y se pueda reutilizar en cualquier

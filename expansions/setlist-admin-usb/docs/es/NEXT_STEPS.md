@@ -7,7 +7,9 @@ cualquier otro agente de IA, un colaborador humano, o yo mismo en el
 futuro. Está escrito para entenderse en frío, sin necesitar el
 historial de la conversación que lo produjo.
 
-## Dónde están las cosas (al commit `2ed29ed`, 2026-09-27)
+## Dónde están las cosas (al commit `9209a29`, 2026-09-27 — revisa el
+log de git por si hay algo más nuevo, este archivo se queda un poco
+atrás de los commits por naturaleza)
 
 El renombramiento de terminología Show/Set/Bank (ver la entrada
 "Renamed the library's terminology..." de `CHANGELOG.md`) y una
@@ -50,6 +52,21 @@ Se agregó **Export Set**: una vista a pantalla completa, en letra
 grande, con el repertorio del Set seleccionado, con un botón "Share"
 que la convierte en PNG y la entrega al menú nativo de compartir del
 teléfono. Ver `SPECIFICATION.md` sección 14 (en inglés) para el diseño.
+
+**Corregido y confirmado por el usuario (2026-09-27, después de lo
+anterior)**: seleccionar un Set en el desplegable nunca marcaba
+realmente ese Set como el activo para el pedal — solo *crear* un Set
+nuevo lo hacía, vía `set_active_set`. Cambiar entre Sets que ya
+existían no hacía nada para la reproducción, sin importar cuántas veces
+seleccionaras uno distinto. Corregido: "Reboot now to apply" ahora
+llama a `POST /api/sets/active` con el Set que esté seleccionado justo
+antes de reiniciar. **No trasladado a `setlist-admin-wifi`** — esa
+expansión no tiene botón propio de reinicio (su `USAGE.md` ya le dice
+al usuario que haga `ssh pedal sudo reboot` a mano), así que la
+corrección equivalente ahí necesitaría su propia decisión de diseño
+(ej. marcar como activo de inmediato al seleccionar en el desplegable,
+ya que no hay un momento de "aplicar" del cual colgarse) — todavía no
+diseñada, ni mucho menos construida.
 
 ## Lo que sigue genuinamente sin confirmar — haz esto antes de confiar en ello
 

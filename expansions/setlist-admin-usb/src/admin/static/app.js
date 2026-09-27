@@ -784,6 +784,17 @@ document.getElementById("btn-reboot").addEventListener("click", async () => {
   errEl.hidden = true;
   okEl.hidden = true;
   try {
+    // Real bug found on real hardware: selecting a Set in the dropdown
+    // only changed what this app was showing/editing -- it never told
+    // the pedal which Set to actually play. Only *creating* a new Set
+    // called /api/sets/active; switching between existing ones had no
+    // way to become "the" active one at all. Applying changes is the
+    // one moment this app already asks the user to confirm intent, so
+    // that's also the right moment to commit to whichever Set is
+    // currently selected as the one to boot into.
+    if (state.selectedSet) {
+      await apiFetch("/api/sets/active", { method: "POST", body: JSON.stringify({ name: state.selectedSet }) });
+    }
     await apiFetch("/api/reboot", { method: "POST" });
     setText(okEl, "Rebooting now — this page will stop responding shortly.");
     okEl.hidden = false;

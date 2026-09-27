@@ -7,7 +7,9 @@ you're Claude or any other AI agent, human contributor, or future-me.
 It's written to be understood cold, without the conversation history
 that produced it.
 
-## Where things stand (as of commit `2ed29ed`, 2026-09-27)
+## Where things stand (as of commit `9209a29`, 2026-09-27 -- see the
+git log for anything newer, this file lags slightly behind commits by
+nature)
 
 The Show/Set/Bank terminology rename (see `CHANGELOG.md`'s "Renamed the
 library's terminology..." entry) and a full real-hardware validation
@@ -43,6 +45,20 @@ An **Export Set** feature was added: a full-screen, large-print running
 order for the selected Set, with a "Share" button that renders it to a
 PNG and hands it to the phone's native share sheet. See
 `SPECIFICATION.md` section 14 for the design.
+
+**Fixed and user-confirmed working (2026-09-27, after the above)**:
+selecting a Set from the dropdown never actually marked it as the
+pedal's active Set -- only *creating* a new Set did, via
+`set_active_set`. Switching between Sets that already existed silently
+did nothing for playback, no matter how many times you selected a
+different one. Fixed: "Reboot now to apply" now calls
+`POST /api/sets/active` for whichever Set is currently selected
+immediately before rebooting. **Not ported to `setlist-admin-wifi`** --
+that expansion has no reboot button of its own (its `USAGE.md` already
+tells users to `ssh pedal sudo reboot` by hand instead), so the
+equivalent fix there would need its own UI decision (e.g. set-active
+immediately on dropdown selection, since there's no "apply" moment to
+hook into) -- not yet designed, let alone built.
 
 ## What's genuinely unconfirmed -- do these before trusting them
 

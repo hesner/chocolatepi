@@ -75,6 +75,17 @@ date instead until that changes.
   the list to a PNG image and hands it to the phone's native share sheet
   (desktop/unsupported-browser fallback: plain download). Closes via an
   on-screen ✕, Escape, or the browser back gesture.
+- **Fixed**: in `setlist-admin-usb`, picking a different Set from the
+  dropdown only changed what the app was showing/editing -- it never
+  told the pedal which Set to actually play. Only *creating* a new Set
+  called the `set_active_set` API; switching between Sets that already
+  existed had no way to become "the" active one at all short of
+  deleting and recreating one. Fixed by having "Reboot now to apply"
+  set whichever Set is currently selected as active immediately before
+  rebooting -- the one moment this app already asks the user to
+  confirm intent, so also the right moment to commit to it. (Not yet
+  ported to `setlist-admin-wifi`, which has no reboot button of its own
+  -- see `expansions/setlist-admin-usb/NEXT_STEPS.md`.)
 - Added a shared song library (`_Songs/` at the USB root) to both
   `setlist-admin` expansions, so a song only needs to be uploaded once
   and can be reused across any number of Sets instead of
