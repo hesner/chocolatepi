@@ -1,5 +1,10 @@
 # SETLIST ADMIN USB SPECIFICATION — "Chocolate Pi" companion admin app (USB-tether design)
 
+**Picking this up cold? Read [`NEXT_STEPS.md`](NEXT_STEPS.md) first --
+current status, what's confirmed vs. still needs re-checking, the
+ordered test plan's next item, and Pi-deployment gotchas that cost real
+time to learn.**
+
 **Status: implemented and extensively validated on real hardware
 (2026-09-26/27, over an iPhone's Personal Hotspot connection) --
 covering PIN setup/login, the full Set/Bank/track CRUD flow, the shared
