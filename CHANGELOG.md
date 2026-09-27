@@ -9,14 +9,80 @@ date instead until that changes.
 
 ## [Unreleased]
 
+- Renamed the library's terminology throughout the whole project (code,
+  tests, and docs): the top-level folder, previously called a "Show", is
+  now a **Set** (a group of Banks + songs usable in a single live
+  performance); what was previously called a "Set" (the mid-level
+  folder holding up to three `A`/`B`/`C` tracks) is now a **Bank**,
+  matching the M-VAVE PD41's own bank/group terminology. Track letters
+  (`A`/`B`/`C`) are unchanged. `active_show.txt` is now `active_set.txt`;
+  folders go from `<Show Name>/Set N/` to `<Set Name>/Bank N/`. Both
+  `setlist-admin` expansions' REST routes moved from `/api/shows` and
+  `/api/shows/{show}/sets/...` to `/api/sets` and
+  `/api/sets/{set}/banks/...`. The internal Mapper/Core protocol
+  parameter name `setlist` (`Library.resolve(setlist, track)`,
+  `src/core/library.py`) is deliberately **not** part of this rename --
+  it's an internal implementation detail never surfaced to a user, kept
+  stable on purpose. Existing library USBs need their folders/file
+  renamed by hand to match (see `LIBRARY.md`) before this version's code
+  will find anything on them.
+- Real-hardware validation of `expansions/setlist-admin-usb/` (iPhone USB
+  tethering), which found and fixed several real bugs:
+  - Transient `umount` failures (`pedal-core.service`'s mpv holds
+    `/media/usb` open continuously) now get a bounded retry instead of
+    failing the whole write.
+  - The library USB has been observed to spontaneously unmount itself on
+    real hardware with no corresponding log evidence anywhere -- root
+    cause not confirmed, but a real power-supply brownout was caught in
+    the act (`vcgencmd get_throttled` showed under-voltage) during the
+    same session, the strongest lead so far. `usb_mount.py` now
+    self-heals: `_remount()` treats "already not mounted" as success
+    instead of erroring, and new `usb_mount.ensure_mounted()` (used by
+    `is_first_run()`) attempts a recovery mount before a read-only check
+    ever draws a wrong conclusion from an empty directory (previously
+    misreported as "first run," prompting to overwrite an existing PIN).
+  - Two overlapping requests (e.g. a real double-tap on a button) used to
+    race each other's raw `umount`/`mount` calls with no coordination,
+    occasionally corrupting the remount state. `writable_usb()` is now
+    held under a process-wide lock, serializing every write.
+  - A phone disconnecting mid-upload (`usb-tether-watchdog.service`
+    stopping the admin server via SIGTERM the instant the tethered
+    interface disappears) never corrupted real data (the atomic
+    temp-file write design held), but did leave large orphaned
+    `.part`/`.swaptmp` files behind forever, since SIGTERM skips Python's
+    normal exception-cleanup path. New `library_ops.cleanup_stale_temp_files()`
+    sweeps these on every server startup.
+  - `rename_song()`/`delete_song()` didn't verify a song file still
+    existed before touching it (unlike every other function in
+    `library_ops.py`) -- a stale reference to a song deleted by hand
+    directly on the USB hit a raw, unhandled `FileNotFoundError` instead
+    of a clean error message.
+  - Frontend: several button handlers had no error handling at all (a
+    server error was an invisible unhandled promise rejection); the
+    per-track upload handler never checked the response status; list
+    reloads reset scroll to the top of the page after every
+    save/assign/rename (root cause: the container was genuinely empty,
+    sometimes for as long as several sequential network round-trips,
+    forcing the browser to clamp scroll -- fixed by building new content
+    off-screen first and swapping it in in one step); and the
+    "this worked" button flash fired only after the server responded
+    instead of the instant the button was tapped, so a slow upload
+    looked unresponsive for its whole duration.
+- Added an **Export Set** view to both `setlist-admin` expansions: a
+  full-screen, large-print running order for the selected Set (each
+  track's exact stored filename + extension, in Bank/letter order),
+  with a supported-formats disclaimer and a "Share" button that renders
+  the list to a PNG image and hands it to the phone's native share sheet
+  (desktop/unsupported-browser fallback: plain download). Closes via an
+  on-screen ✕, Escape, or the browser back gesture.
 - Added a shared song library (`_Songs/` at the USB root) to both
   `setlist-admin` expansions, so a song only needs to be uploaded once
-  and can be reused across any number of setlists instead of
-  re-uploading it into every new show. Documented as a base-project
+  and can be reused across any number of Sets instead of
+  re-uploading it into every new Set. Documented as a base-project
   convention in `LIBRARY.md` (en/es) -- works by hand over SSH too, not
   just through either app -- with an explicit warning not to delete
   songs from it, since doing so only removes them from future picking,
-  never from a Set they're already assigned to (that's always an
+  never from a Bank they're already assigned to (that's always an
   independent copy). `library_ops.py`'s new functions
   (`list_songs`/`upload_song`/`rename_song`/`delete_song`/
   `assign_song_to_slot`/`save_track_to_library`) are identical between
@@ -29,7 +95,7 @@ date instead until that changes.
   `library_ops.LibraryOpsError` was never translated into a proper HTTP
   response (fell through to a generic 500 "Internal error" instead of
   the 400 with a helpful message it should have been), and URL path
-  segments (show names, now also song filenames) were never
+  segments (Set names, now also song filenames) were never
   percent-decoded server-side despite the frontend percent-encoding
   them, so any name actually needing encoding (any space or accented
   character) silently failed.
@@ -46,7 +112,7 @@ date instead until that changes.
   dead USB WiFi dongle blocker, not installed by default, but now visible
   in the same checkout instead of requiring a branch switch to see.
 - Added `setlist-admin` (USB-tether design): a second attempt at the
-  companion web app for managing the library USB (shows/Sets/tracks,
+  companion web app for managing the library USB (Sets/Banks/tracks,
   full CRUD) from a phone's browser, this time reachable by plugging
   the phone into the Pi with a USB cable (Android USB tethering or
   iPhone Personal Hotspot over cable) instead of the Pi needing its own
@@ -105,7 +171,7 @@ date instead until that changes.
   `systemd/README.md` section 4.
 - Added `LIBRARY.md` (en/es): how to name library USB folders/files, and
   the exact filename-spacing mistake (`A  - x.mov` vs `A - x.mov`) that
-  fails completely silently -- found live while testing a Set 5 video
+  fails completely silently -- found live while testing a Bank 5 video
   that didn't play.
 - Project renamed from "Sequence Pedal" / "Pedal de Secuencias" to
   **Chocolate Pi** -- a proper product name (playing on the M-VAVE

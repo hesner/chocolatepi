@@ -159,7 +159,7 @@ never tears this service down because of what the USB does afterward.
 
 Approved operational policy: the musician powers the Pi off, swaps the
 USB's content on a separate computer, plugs the USB back into the Pi,
-and powers the Pi back on. Editing the library while the show is
+and powers the Pi back on. Editing the library while a Set is
 actively running is explicitly **not** a supported workflow.
 
 A fully automatic hot-swap (unplug, edit, replug, no reboot) was

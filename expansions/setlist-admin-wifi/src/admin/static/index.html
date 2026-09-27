@@ -44,15 +44,15 @@
       <div id="tab-library" class="tab-panel">
         <div id="playback-warning" class="warning" hidden>
           ⚠ The pedal looks like it's actively playing right now. Editing
-          the library while a show is in progress isn't supported —
+          the library while a Set is in progress isn't supported —
           changes may not be reflected safely until playback stops.
         </div>
 
         <details id="song-library">
           <summary>Song library <span id="song-library-count" class="hint"></span></summary>
           <p class="hint">
-            Songs here can be reused in any Set of any show, without
-            uploading them again. Uploading directly into a Set slot
+            Songs here can be reused in any Bank of any Set, without
+            uploading them again. Uploading directly into a Bank slot
             below also adds it here automatically.
           </p>
           <div id="songs-container"></div>
@@ -63,13 +63,14 @@
         </details>
 
         <div class="row">
-          <label for="show-select">Show</label>
-          <select id="show-select"></select>
-          <button id="btn-new-show" class="secondary">+ New show</button>
+          <label for="set-select">Set</label>
+          <select id="set-select"></select>
+          <button id="btn-new-set" class="secondary">+ New Set</button>
+          <button id="btn-export-set" class="secondary">Export Set</button>
         </div>
 
-        <div id="sets-container"></div>
-        <button id="btn-new-set" class="secondary">+ New Set</button>
+        <div id="banks-container"></div>
+        <button id="btn-new-bank" class="secondary">+ New Bank</button>
       </div>
 
       <div id="tab-wifi" class="tab-panel" hidden>
@@ -91,11 +92,27 @@
     </section>
   </main>
 
-  <template id="tpl-set">
-    <div class="set-card">
-      <div class="set-card-header">
-        <h3><span class="set-number-label"></span></h3>
-        <button class="btn-delete-set danger">Delete Set</button>
+  <!-- Export Set: full-screen, large-print setlist view + share-as-image -->
+  <div id="export-view" class="export-view" hidden>
+    <div class="export-header">
+      <h2>Set: <span id="export-set-name"></span></h2>
+      <button id="btn-export-close" class="secondary export-close" aria-label="Close">✕</button>
+    </div>
+    <ol id="export-list" class="export-list"></ol>
+    <p class="hint export-disclaimer">
+      Supported formats for uploading: audio MP3, WAV — video MP4, MOV,
+      MPEG, MPG (with embedded audio).
+    </p>
+    <div class="export-actions">
+      <button id="btn-export-share" class="secondary">Share</button>
+    </div>
+  </div>
+
+  <template id="tpl-bank">
+    <div class="bank-card">
+      <div class="bank-card-header">
+        <h3><span class="bank-number-label"></span></h3>
+        <button class="btn-delete-bank danger">Delete Bank</button>
       </div>
       <div class="tracks"></div>
     </div>

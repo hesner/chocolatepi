@@ -87,7 +87,7 @@ Sigue la sección 1 de `systemd/README.md`.
 ## Fase 4 — Configurar el USB de biblioteca
 
 1. Prepara el USB con la estructura que describe `LIBRARY.md`
-   (`active_show.txt`, al menos un `<Nombre del Show>/Set 1/` con una
+   (`active_set.txt`, al menos un `<Nombre del Set>/Bank 1/` con una
    pista de prueba — sigue el patrón de nombres de `LIBRARY.md`
    exactamente, especialmente la regla del espacio único alrededor del
    guion).
@@ -138,7 +138,7 @@ No des esto por terminado hasta que cada uno de estos se haya
 observado realmente, no asumido:
 
 1. **Cada footswitch del controlador** dispara la pista/acción correcta
-   (confirma contra el contenido real de tu propia carpeta Set, no solo
+   (confirma contra el contenido real de tu propia carpeta Bank, no solo
    que *algo* suene).
 2. **STOP** funciona instantáneo desde cualquier estado.
 3. **Las pistas de video y de solo audio** ambas se reproducen

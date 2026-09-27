@@ -60,7 +60,7 @@ Consequences of this shape, deliberately:
 
 | Expansion | What it does | Status |
 |---|---|---|
-| [`setlist-admin-usb`](setlist-admin-usb/USAGE.md) | Manage the library USB (shows/Sets/tracks) from a phone's browser, reachable by plugging the phone into the Pi over USB (Android tethering / iPhone Personal Hotspot over cable) | Implemented, not yet validated on real hardware |
+| [`setlist-admin-usb`](setlist-admin-usb/USAGE.md) | Manage the library USB (Sets/Banks/tracks) from a phone's browser, reachable by plugging the phone into the Pi over USB (Android tethering / iPhone Personal Hotspot over cable) | Implemented, not yet validated on real hardware |
 | [`setlist-admin-wifi`](setlist-admin-wifi/USAGE.md) | The same library management, plus Pi WiFi configuration (home network / phone hotspot fallback), reachable over WiFi | Implemented and unit-tested; real-hardware validation shelved on a dead USB WiFi dongle (hardware, not design/code) |
 
 Both were designed to stay convergeable: `setlist-admin-usb` reuses

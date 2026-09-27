@@ -167,7 +167,7 @@ tumba este servicio por lo que el USB haga después.
 
 Política operativa aprobada: el músico apaga la Pi, cambia el contenido
 del USB en otra computadora, vuelve a conectar el USB a la Pi, y la
-enciende de nuevo. Editar la biblioteca con el show en curso
+enciende de nuevo. Editar la biblioteca con un Set en curso
 explícitamente **no** es un flujo de trabajo soportado.
 
 Se intentó un hot-swap totalmente automático (desconectar, editar,

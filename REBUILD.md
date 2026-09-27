@@ -82,7 +82,7 @@ Follow `systemd/README.md` section 1.
 ## Phase 4 -- Set up the library USB
 
 1. Format/prepare the drive with the structure `LIBRARY.md` describes
-   (`active_show.txt`, at least one `<Show Name>/Set 1/` with a test
+   (`active_set.txt`, at least one `<Set Name>/Bank 1/` with a test
    track in it -- follow `LIBRARY.md`'s naming pattern exactly, the
    single-space-around-the-dash rule especially).
 2. Get its UUID: `sudo blkid /dev/sda1` (or whatever device it enumerates
@@ -132,7 +132,7 @@ Don't consider this done until every one of these has actually been
 observed, not assumed:
 
 1. **Each of the controller's footswitches** triggers the right
-   track/action (confirm against your own Set folder's actual content,
+   track/action (confirm against your own Bank folder's actual content,
    not just that *something* plays).
 2. **STOP** works instantly from any state.
 3. **Video and audio-only tracks** both play correctly (an `.mp3`/`.wav`

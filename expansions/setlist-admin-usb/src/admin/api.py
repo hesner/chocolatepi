@@ -2,7 +2,7 @@
 Request handling logic for setlist-admin, kept separate from `server.py`'s
 raw HTTP plumbing so it's testable by calling methods directly, with a
 mocked filesystem/subprocess layer -- no real HTTP server, no real USB
-needed to exercise this (SETLIST_ADMIN_USB_SPECIFICATION.md section 10).
+needed to exercise this (SPECIFICATION.md section 10).
 
 Every method that mutates the library wraps its single filesystem
 operation in `usb_mount.writable_usb()` -- the rw window is exactly one
@@ -51,6 +51,14 @@ class AdminAPI:
         return os.path.join(self.config.usb_root, PIN_FILENAME)
 
     def is_first_run(self) -> bool:
+        # Real anomaly seen on hardware: the library USB has turned up
+        # spontaneously unmounted, and without this check that just looks
+        # like an empty USB -- "no pin.hash, must be first run" -- even
+        # though a PIN really is set, just unreachable right now.
+        try:
+            usb_mount.ensure_mounted(self.config.mount_point)
+        except usb_mount.RemountError as e:
+            raise ApiError(503, "Library USB not detected -- check the physical connection and try again.") from e
         return not os.path.exists(self.pin_path())
 
     def set_pin(self, pin: str) -> None:
@@ -91,43 +99,43 @@ class AdminAPI:
                 self._sessions = auth.SessionManager(f.read())
         return self._sessions
 
-    # -- Shows ------------------------------------------------------------
+    # -- Sets ------------------------------------------------------------
 
-    def list_shows(self) -> dict:
+    def list_sets(self) -> dict:
         return {
-            "shows": library_ops.list_shows(self.config.usb_root),
-            "active": library_ops.get_active_show(self.config.usb_root),
+            "sets": library_ops.list_sets(self.config.usb_root),
+            "active": library_ops.get_active_set(self.config.usb_root),
         }
 
-    def create_show(self, show_name: str) -> None:
+    def create_set(self, set_name: str) -> None:
         with usb_mount.writable_usb(self.config.mount_point):
-            library_ops.create_show(self.config.usb_root, show_name)
+            library_ops.create_set(self.config.usb_root, set_name)
 
-    def set_active_show(self, show_name: str) -> None:
+    def set_active_set(self, set_name: str) -> None:
         with usb_mount.writable_usb(self.config.mount_point):
-            library_ops.set_active_show(self.config.usb_root, show_name)
+            library_ops.set_active_set(self.config.usb_root, set_name)
 
-    # -- Sets ---------------------------------------------------------------
+    # -- Banks ---------------------------------------------------------------
 
-    def list_sets(self, show_name: str) -> dict:
-        return {"sets": library_ops.list_sets(self.config.usb_root, show_name)}
+    def list_banks(self, set_name: str) -> dict:
+        return {"banks": library_ops.list_banks(self.config.usb_root, set_name)}
 
-    def create_set(self, show_name: str, set_number: int) -> None:
+    def create_bank(self, set_name: str, bank_number: int) -> None:
         with usb_mount.writable_usb(self.config.mount_point):
-            library_ops.create_set(self.config.usb_root, show_name, set_number)
+            library_ops.create_bank(self.config.usb_root, set_name, bank_number)
 
-    def rename_set(self, show_name: str, old_number: int, new_number: int) -> None:
+    def rename_bank(self, set_name: str, old_number: int, new_number: int) -> None:
         with usb_mount.writable_usb(self.config.mount_point):
-            library_ops.rename_set(self.config.usb_root, show_name, old_number, new_number)
+            library_ops.rename_bank(self.config.usb_root, set_name, old_number, new_number)
 
-    def delete_set(self, show_name: str, set_number: int) -> None:
+    def delete_bank(self, set_name: str, bank_number: int) -> None:
         with usb_mount.writable_usb(self.config.mount_point):
-            library_ops.delete_set(self.config.usb_root, show_name, set_number)
+            library_ops.delete_bank(self.config.usb_root, set_name, bank_number)
 
     # -- Tracks -------------------------------------------------------------
 
-    def list_tracks(self, show_name: str, set_number: int) -> dict:
-        tracks = library_ops.list_tracks(self.config.usb_root, show_name, set_number)
+    def list_tracks(self, set_name: str, bank_number: int) -> dict:
+        tracks = library_ops.list_tracks(self.config.usb_root, set_name, bank_number)
         return {
             letter: (
                 {"display_name": t.display_name, "extension": t.extension, "is_audio_only": t.is_audio_only}
@@ -136,32 +144,32 @@ class AdminAPI:
             for letter, t in tracks.items()
         }
 
-    def assign_track(self, show_name: str, set_number: int, letter: str,
+    def assign_track(self, set_name: str, bank_number: int, letter: str,
                       display_name: str, extension: str, source: BinaryIO) -> Optional[str]:
         """Returns a codec warning string if the upload is a video that
         isn't H.264, or None if it's fine (or not a video). The warning
         never blocks the upload -- see codec_check.py's docstring."""
         with usb_mount.writable_usb(self.config.mount_point):
             info = library_ops.assign_track(
-                self.config.usb_root, show_name, set_number, letter,
+                self.config.usb_root, set_name, bank_number, letter,
                 display_name, extension, source,
             )
-        set_path = os.path.join(self.config.usb_root, show_name, f"Set {set_number}")
-        return codec_check.check_video_codec(os.path.join(set_path, info.filename), extension)
+        bank_path = os.path.join(self.config.usb_root, set_name, f"Bank {bank_number}")
+        return codec_check.check_video_codec(os.path.join(bank_path, info.filename), extension)
 
-    def rename_track(self, show_name: str, set_number: int, letter: str, new_display_name: str) -> None:
+    def rename_track(self, set_name: str, bank_number: int, letter: str, new_display_name: str) -> None:
         with usb_mount.writable_usb(self.config.mount_point):
-            library_ops.rename_track(self.config.usb_root, show_name, set_number, letter, new_display_name)
+            library_ops.rename_track(self.config.usb_root, set_name, bank_number, letter, new_display_name)
 
-    def swap_tracks(self, show_name: str, set_number: int, letter_a: str, letter_b: str) -> None:
+    def swap_tracks(self, set_name: str, bank_number: int, letter_a: str, letter_b: str) -> None:
         with usb_mount.writable_usb(self.config.mount_point):
-            library_ops.swap_tracks(self.config.usb_root, show_name, set_number, letter_a, letter_b)
+            library_ops.swap_tracks(self.config.usb_root, set_name, bank_number, letter_a, letter_b)
 
-    def delete_track(self, show_name: str, set_number: int, letter: str) -> None:
+    def delete_track(self, set_name: str, bank_number: int, letter: str) -> None:
         with usb_mount.writable_usb(self.config.mount_point):
-            library_ops.delete_track(self.config.usb_root, show_name, set_number, letter)
+            library_ops.delete_track(self.config.usb_root, set_name, bank_number, letter)
 
-    # -- Song library (reuse across Shows) -------------------------------------
+    # -- Song library (reuse across Sets) -------------------------------------
 
     def list_songs(self) -> dict:
         return {
@@ -187,13 +195,22 @@ class AdminAPI:
         with usb_mount.writable_usb(self.config.mount_point):
             library_ops.delete_song(self.config.usb_root, filename)
 
-    def assign_song_to_slot(self, show_name: str, set_number: int, letter: str, song_filename: str) -> None:
+    def assign_song_to_slot(self, set_name: str, bank_number: int, letter: str, song_filename: str) -> None:
         with usb_mount.writable_usb(self.config.mount_point):
-            library_ops.assign_song_to_slot(self.config.usb_root, show_name, set_number, letter, song_filename)
+            library_ops.assign_song_to_slot(self.config.usb_root, set_name, bank_number, letter, song_filename)
 
-    def save_track_to_library(self, show_name: str, set_number: int, letter: str) -> None:
+    def save_track_to_library(self, set_name: str, bank_number: int, letter: str) -> None:
         with usb_mount.writable_usb(self.config.mount_point):
-            library_ops.save_track_to_library(self.config.usb_root, show_name, set_number, letter)
+            library_ops.save_track_to_library(self.config.usb_root, set_name, bank_number, letter)
+
+    def cleanup_stale_temp_files(self) -> int:
+        """Called once at server startup -- see
+        library_ops.cleanup_stale_temp_files()'s docstring for why this
+        is needed (a SIGTERM mid-upload, e.g. from usb-tether-watchdog
+        stopping this service the instant a phone disconnects, skips the
+        normal per-write cleanup)."""
+        with usb_mount.writable_usb(self.config.mount_point):
+            return library_ops.cleanup_stale_temp_files(self.config.usb_root)
 
     # -- Playback status (advisory warning, section 1) -----------------------
 

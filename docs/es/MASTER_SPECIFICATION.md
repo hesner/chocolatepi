@@ -15,7 +15,7 @@ Un pedal/caja de control en vivo, basado en Raspberry Pi, que:
 - Recibe eventos MIDI estándar desde un controlador MIDI USB (cualquiera capaz de enviar Program Change 0-127 en el formato definido en este documento; ver sección 4 sobre el controlador con el que se validó la arquitectura).
 - Dispara **audio** (canciones/samples/efectos) y **video** (clips + standby) en tiempo real.
 - Se usa en presentaciones en vivo de la banda **NO FUTURO**.
-- Debe funcionar como un *appliance* dedicado: sin pantalla ni teclado durante el show, arranque automático al conectar alimentación.
+- Debe funcionar como un *appliance* dedicado: sin pantalla ni teclado durante un Set, arranque automático al conectar alimentación.
 
 El objetivo final es que sea **open source**, con documentación bilingüe (es/en).
 
@@ -90,7 +90,7 @@ Esto permite que en el futuro un controlador distinto (otro MIDI, una app móvil
 La Raspberry Pi 2 es hardware limitado (quad-core Cortex-A7, 1GB RAM, USB 2.0 compartido entre todos los puertos). Antes de construir el MIDI Engine y el resto de la arquitectura, hay que confirmar que el hardware puede sostener el caso de uso real:
 
 - Reproducir un video H.264 con audio embebido (sección 2 — audio y video del mismo clip nunca deben desincronizarse) por HDMI, **y** un MP3 independiente si aplica al mismo tiempo, sin cortes, pops de audio, ni deriva de sincronización entre audio y video.
-- Hacerlo con la interfaz de audio USB Behringer, el M-VAVE **y el USB de biblioteca** conectados simultáneamente (los 3 dispositivos reales del show), para detectar problemas de ancho de banda/energía en el bus USB compartido. El USB de biblioteca solo debe conectarse para esta medición — no escribir ni modificar nada en él.
+- Hacerlo con la interfaz de audio USB Behringer, el M-VAVE **y el USB de biblioteca** conectados simultáneamente (los 3 dispositivos reales usados en un Set), para detectar problemas de ancho de banda/energía en el bus USB compartido. El USB de biblioteca solo debe conectarse para esta medición — no escribir ni modificar nada en él.
 - Determinar y documentar qué stack de reproducción de video es viable en Raspberry Pi OS Legacy Lite sin entorno gráfico (por ejemplo, si `omxplayer` sigue disponible en esta imagen específica, o si hace falta usar `mpv` con salida DRM/KMS, `ffplay` u otra alternativa). Esto es parte del resultado esperado de esta prueba, no una decisión previa.
 - Medir uso de CPU/RAM durante esa prueba, y verificar específicamente que audio y video permanezcan sincronizados a lo largo del tiempo (no solo al inicio de la reproducción).
 

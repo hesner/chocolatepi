@@ -16,8 +16,8 @@ muerto, no un problema de diseño/código — ver la nota de estado en
 esto cuando haya un adaptador de WiFi en buen estado con el cual
 probar.
 
-**Solo pre/post-show.** Esto no está diseñado ni probado para editar la
-biblioteca con un show en curso — la app muestra una advertencia si
+**Solo pre/post-Set.** Esto no está diseñado ni probado para editar la
+biblioteca con un Set en curso — la app muestra una advertencia si
 detecta que el pedal está reproduciendo activamente, pero no bloquea;
 trata esa advertencia como real, no como formalidad.
 
@@ -81,11 +81,11 @@ definir un PIN nuevo.
 
 ## Usándola
 
-**Pestaña Library**: elige o crea un show, crea/borra carpetas `Set`, y
+**Pestaña Library**: elige o crea un Set, crea/borra carpetas `Bank`, y
 para cada espacio de pista (A/B/C):
 - **Upload new** sube un archivo directo a esa letra, reemplazando lo
   que hubiera. También se agrega automáticamente a la **biblioteca de
-  canciones** (ver abajo), lista para reutilizarse en un show futuro
+  canciones** (ver abajo), lista para reutilizarse en un Set futuro
   sin volver a subirla.
 - **Assign** (junto al selector desplegable de canciones) pone una
   canción existente de la biblioteca en esa letra, sin subir nada — una
@@ -109,34 +109,53 @@ recibe una advertencia, no un bloqueo, apuntando a la guía de
 codificación de `LIBRARY.md`. Igual se sube; puede que no se reproduzca
 hasta que lo re-codifiques, igual que si lo hubieras copiado a mano.
 
-### Biblioteca de canciones: reutilizar canciones entre setlists
+### Exportar Set: el repertorio en letra grande para leer en el escenario
+
+El botón **"Export Set"** (junto al selector de Set) abre una vista a
+pantalla completa, en letra grande, con todas las pistas asignadas en
+ese Set, en orden (Bank 1 A, B, C, luego Bank 2, y así sucesivamente) —
+cada línea muestra el nombre de archivo exacto y su extensión tal como
+están guardados, para que lo que veas acá siempre coincida con lo que
+realmente hay en el USB. Pensada para verse de un vistazo mientras
+tocas, no para leerse de cerca.
+
+Se cierra con la **✕** en la esquina, la tecla Escape, o el gesto/botón
+de atrás de tu teléfono.
+
+**Share** convierte la lista en una imagen PNG y la entrega al menú
+nativo de compartir de tu teléfono (WhatsApp, Mensajes, correo, guardar
+en Fotos — lo que tengas instalado); en un navegador de escritorio sin
+ese soporte, en cambio descarga el PNG directamente (el soporte desde
+un PC todavía se está verificando por separado).
+
+### Biblioteca de canciones: reutilizar canciones entre Sets
 
 La sección **"Song library"** al inicio de la pestaña Library (toca
 para desplegarla) lista todas las canciones disponibles para
 reutilizar — es la carpeta `_Songs/` en la raíz del USB (`LIBRARY.md`
 documenta la misma convención para editar el USB a mano, sin esta app).
 Está pensada para tener **todas las canciones que tiene la banda**, no
-solo las del setlist que estás armando ahora, para que empezar el
-setlist del próximo show sea cuestión de elegir entre lo que ya existe,
+solo las del Set que estás armando ahora, para que empezar el Set de
+la próxima presentación sea cuestión de elegir entre lo que ya existe,
 en vez de volver a subir todo.
 
 Desde ahí puedes subir una canción nueva directo a la biblioteca (sin
-asignarla a ningún Set todavía), renombrarla, o borrarla. **Borrar una
+asignarla a ningún Bank todavía), renombrarla, o borrarla. **Borrar una
 canción de la biblioteca no se recomienda — si tienes dudas, no la
 borres.** `LIBRARY.md` recomienda tratarla como un registro permanente
 de todo lo que tiene la banda, incluso canciones que no se usan en
-ningún show en este momento, para que la biblioteca sea siempre una
+ningún Set en este momento, para que la biblioteca sea siempre una
 respuesta honesta a "¿cuántas canciones tenemos realmente?". Una vez
-borrada, la canción ya no se puede elegir al armar un Set (no aparecerá
-en el selector para ningún show futuro) — pero borrarla **no** la quita
-de ningún Set donde ya esté asignada; esos siguen sonando normal,
-porque asignarla ya hizo una copia independiente. La confirmación de
-borrado de la app lo explica así también. Desinstalar cualquiera de las
-expansiones de `setlist-admin` tampoco borra `_Songs/` por defecto —
-solo lo hace la bandera explícita `--purge-library` (ver "Desinstalar"
-abajo). Y en la otra dirección: asignar una canción a un Set nunca la
-quita de la biblioteca — cada asignación es una copia, la biblioteca
-siempre conserva la suya.
+borrada, la canción ya no se puede elegir al armar un Bank (no
+aparecerá en el selector para ningún Set futuro) — pero borrarla **no**
+la quita de ningún Bank donde ya esté asignada; esos siguen sonando
+normal, porque asignarla ya hizo una copia independiente. La
+confirmación de borrado de la app lo explica así también. Desinstalar
+cualquiera de las expansiones de `setlist-admin` tampoco borra
+`_Songs/` por defecto — solo lo hace la bandera explícita
+`--purge-library` (ver "Desinstalar" abajo). Y en la otra dirección:
+asignar una canción a un Bank nunca la quita de la biblioteca — cada
+asignación es una copia, la biblioteca siempre conserva la suya.
 
 **Los cambios necesitan un reinicio para aplicarse.** El pedal solo lee
 la estructura de la biblioteca cuando arranca (`MASTER_SPECIFICATION.md`)

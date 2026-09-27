@@ -52,9 +52,9 @@ Esto casi siempre es una falla silenciosa de "espacio vacío" en
 `Library.resolve()`, no un problema de hardware o MIDI. Revisa, en
 orden:
 
-1. **`active_show.txt`** en la raíz del USB — ¿su contenido coincide
+1. **`active_set.txt`** en la raíz del USB — ¿su contenido coincide
    exactamente con el nombre de una carpeta real bajo la raíz del USB?
-2. **La carpeta `Set N`** — ¿existe para el grupo al que mapea ese
+2. **La carpeta `Bank N`** — ¿existe para el grupo al que mapea ese
    footswitch? (Ver `MAVAVE_ANALYSIS.md` para la numeración de grupos
    del M-VAVE PD41 si ese es el controlador en uso.)
 3. **El nombre del archivo en sí** — `LIBRARY.md` tiene la regla

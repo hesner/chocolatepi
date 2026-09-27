@@ -28,7 +28,7 @@ def parse_args():
     parser.add_argument(
         "--usb-root",
         required=True,
-        help="Path where the library USB drive is mounted (contains active_show.txt)",
+        help="Path where the library USB drive is mounted (contains active_set.txt)",
     )
     parser.add_argument(
         "--standby",

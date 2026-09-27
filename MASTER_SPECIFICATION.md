@@ -15,7 +15,7 @@ A live-performance control pedal/box, based on a Raspberry Pi, that:
 - Receives standard MIDI events from a USB MIDI controller (any controller capable of sending Program Change 0-127 in the format defined in this document; see section 4 for the controller with which the architecture was validated).
 - Triggers **audio** (songs/samples/effects) and **video** (clips + standby) in real time.
 - Is used in live performances by the band **NO FUTURO**.
-- Must work as a dedicated *appliance*: no screen or keyboard during the show, automatic boot on power-up.
+- Must work as a dedicated *appliance*: no screen or keyboard during a Set, automatic boot on power-up.
 
 The end goal is for it to be **open source**, with bilingual documentation (en/es).
 
@@ -90,7 +90,7 @@ This allows a different controller in the future (another MIDI device, a mobile 
 The Raspberry Pi 2 is limited hardware (quad-core Cortex-A7, 1GB RAM, USB 2.0 shared across all ports). Before building the MIDI Engine and the rest of the architecture, we need to confirm the hardware can sustain the real use case:
 
 - Play an H.264 video with embedded audio (section 2 — video and audio of the same clip must never drift out of sync) over HDMI, **and** an independent MP3 at the same time if applicable, with no dropouts, audio pops, or sync drift between audio and video.
-- Do this with the USB Behringer audio interface, the MIDI controller, **and the library USB drive** connected simultaneously (the 3 real devices used in the show), to detect bandwidth/power issues on the shared USB bus. The library USB should only be connected for this measurement — do not write to or modify anything on it.
+- Do this with the USB Behringer audio interface, the MIDI controller, **and the library USB drive** connected simultaneously (the 3 real devices used in a Set), to detect bandwidth/power issues on the shared USB bus. The library USB should only be connected for this measurement — do not write to or modify anything on it.
 - Determine and document which video playback stack is viable on Raspberry Pi OS Legacy Lite without a graphical environment (for example, whether `omxplayer` is still available on this specific image, or whether `mpv` with DRM/KMS output, `ffplay`, or another alternative is needed). This is part of this test's expected outcome, not a prior decision.
 - Measure CPU/RAM usage during the test, and specifically verify that audio and video stay in sync over time (not just at the start of playback).
 

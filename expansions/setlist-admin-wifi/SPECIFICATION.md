@@ -40,7 +40,7 @@ hardware before trusting it again.
 ## 1. What this is
 
 A web app, running on the Raspberry Pi itself, for managing the library
-USB's content (shows, Sets, tracks) and the Pi's own WiFi connectivity,
+USB's content (Sets, Banks, tracks) and the Pi's own WiFi connectivity,
 from a phone or computer's browser — instead of the manual SSH +
 `nano`/file-copy workflow this project has used until now.
 
@@ -52,8 +52,8 @@ than live playback, never allowed to affect it.
 
 | Area | Decision |
 |---|---|
-| Scope | Full CRUD: rename/reorder tracks, create/rename/delete `Set` folders, upload/delete track files, switch the active show |
-| When it's usable | Pre/post-show only, by policy -- not designed or tested for use during an active performance (matches the existing "no live library hot-swap" decision in `systemd/README.md`) |
+| Scope | Full CRUD: rename/reorder tracks, create/rename/delete `Bank` folders, upload/delete track files, switch the active Set |
+| When it's usable | Pre/post-Set only, by policy -- not designed or tested for use during an active performance (matches the existing "no live library hot-swap" decision in `systemd/README.md`) |
 | Authentication | Required -- a single shared PIN, not per-user accounts. Recovery via SSH (section 5a) if forgotten |
 | Backend | Python standard library only (`http.server`/`socketserver`), no `pip install`, no new apt package for the web framework itself -- consistent with the rest of `src/` |
 | Frontend | Vanilla HTML/CSS/JS, mobile-first responsive, no build step, no framework |
@@ -80,10 +80,10 @@ decisions, found by analysis before writing any code:
    like the pre-`recurse=0` `/media/usb` bug. This is why WiFi
    credentials must live on the USB and get reapplied at every boot
    (section 5), not rely on NetworkManager remembering them itself.
-3. **"Editing the library while the show is running" was already
+3. **"Editing the library while a Set is running" was already
    explicitly rejected** as a supported workflow (`systemd/README.md`).
    This app, by definition, makes editing far easier and more tempting
-   mid-event -- the pre/post-show-only decision (section 2) is what
+   mid-event -- the pre/post-Set-only decision (section 2) is what
    keeps this app from silently reopening that already-closed question.
 
 ## 4. Architecture
@@ -95,8 +95,8 @@ Phone/PC browser
 setlist-admin.service  (new, separate from pedal-core.service)
       │
       ├─ static/            vanilla HTML/CSS/JS, mobile-first
-      ├─ api.py             JSON endpoints: shows/sets/tracks CRUD,
-      │                     active show, WiFi status/config
+      ├─ api.py             JSON endpoints: sets/banks/tracks CRUD,
+      │                     active Set, WiFi status/config
       ├─ auth.py            PIN check + signed session cookie
       │                     (stdlib hmac/secrets/hashlib only)
       ├─ library_ops.py     the actual filesystem operations --
@@ -124,7 +124,7 @@ discipline in section 6.
 
 On the library USB, a new file: `.setlist-admin/network.enc` (dotfile
 directory so it doesn't show up as a "track" to anything scanning
-`Set N/` folders).
+`Bank N/` folders).
 
 **Encryption**: `openssl enc -aes-256-cbc -pbkdf2` (subprocess call) --
 not GCM as originally proposed here: building this found that
@@ -216,7 +216,7 @@ reads the filesystem fresh on every footswitch press (confirmed in
 **This needs to be confirmed on real hardware, not assumed** -- see the
 test plan in section 8.
 
-Given the pre/post-show-only policy (section 2), true simultaneous
+Given the pre/post-Set-only policy (section 2), true simultaneous
 write-during-playback races are out of scope to defend against in v1;
 the app should still visibly warn if it detects `pedal-core.service` is
 in the middle of active playback (not just running -- actually playing
@@ -244,7 +244,7 @@ net, not a hard block.
 **Unit tests (no hardware, `tests/test_admin_*.py`, same style as
 existing `tests/`)**:
 - `library_ops.py`'s operations against a temp directory (rename,
-  create/delete Set, reorder) -- including that it's impossible to
+  create/delete Bank, reorder) -- including that it's impossible to
   produce a filename that violates `LIBRARY.md`'s naming rule through
   the API, closing off the whole silent-failure class of bug by
   construction.
@@ -427,23 +427,23 @@ One fast, documented, tested path back to exactly what's running today
 -- no SD re-flash, no redoing the base setup, and confirmation that the
 live-critical service was never touched in the process.
 
-## 12. Song library (reuse across Shows) -- approved 2026-09-26
+## 12. Song library (reuse across Sets) -- approved 2026-09-26
 
 Added after the sibling `setlist-admin-usb` expansion's own first
 real-hardware test surfaced a real workflow gap: originally, a song
 only ever existed as a copy physically inside one specific
-`<Show>/Set N/<Letter> - name.ext`, so building a new setlist for the
+`<Set>/Bank N/<Letter> - name.ext`, so building a new Set for the
 next concert meant re-uploading every song from scratch, even ones
 already used before.
 
 **Design**: a shared, flat pool of songs at the USB root, `_Songs/`,
-independent of any Show -- documented as a base-project convention in
+independent of any Set -- documented as a base-project convention in
 `LIBRARY.md`, not just an implementation detail of either expansion (a
 human without any expansion installed can and should use the same
-convention by hand). A Show's `Set`/Letter slot is still always a real,
+convention by hand). A Set's `Bank`/Letter slot is still always a real,
 physical copy -- never a symlink or reference -- so
 `core.library.Library`'s boot-time resolution needs zero changes.
-Uploading directly into a Set slot also adds the result to `_Songs/`
+Uploading directly into a Bank slot also adds the result to `_Songs/`
 automatically; assigning a slot from the library is a same-USB file
 copy, not a re-upload. Full design and reasoning:
 `expansions/setlist-admin-usb/SPECIFICATION.md` section 13 -- the two
@@ -455,7 +455,7 @@ Two real, pre-existing bugs (present since this design's first
 implementation, unrelated to the song library itself) were found and
 fixed while adding this: `LibraryOpsError` was never translated into a
 proper HTTP response (fell through to a generic 500 instead of a 400
-with a helpful message), and URL path segments (show names, now also
+with a helpful message), and URL path segments (Set names, now also
 song filenames) were never percent-decoded server-side despite the
 frontend percent-encoding them, so any name actually needing encoding
 (any space) silently failed.

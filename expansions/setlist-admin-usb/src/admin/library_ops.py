@@ -1,7 +1,7 @@
 """
-Read/write operations over the library USB's show/Set/track structure,
+Read/write operations over the library USB's Set/Bank/track structure,
 for the setlist-admin web app, reused unchanged from the earlier WiFi
-design (SETLIST_ADMIN_USB_SPECIFICATION.md section 3).
+design (SPECIFICATION.md section 3).
 
 Deliberately hardware-agnostic, like `core.library.Library` itself: this
 module knows nothing about mounting, remounting, or the USB being
@@ -49,17 +49,17 @@ logger = logging.getLogger(__name__)
 
 _ALL_EXTENSIONS = _AUDIO_ONLY_EXTENSIONS | _VIDEO_EXTENSIONS
 _VALID_LETTERS = set(_TRACK_LETTERS.values())  # {"A", "B", "C"} -- D is always STOP, never a file
-_SET_FOLDER_RE = re.compile(r"^Set (\d+)$")
+_BANK_FOLDER_RE = re.compile(r"^Bank (\d+)$")
 _UPLOAD_CHUNK_SIZE = 1024 * 1024  # 1 MiB -- streamed, never the whole file in RAM (section 7)
 
 # The shared song library (SPECIFICATION.md's song-reuse design): a flat
-# pool of songs at the USB root, independent of any Show, so the same
-# song can be assigned into any number of Shows/Sets without re-uploading
+# pool of songs at the USB root, independent of any Set, so the same
+# song can be assigned into any number of Sets/Banks without re-uploading
 # it each time. A leading "_" is reserved for folders like this one --
-# list_shows() excludes anything starting with "_" the same way it
-# already excludes dotfiles, so this is invisible to the Show listing
+# list_sets() excludes anything starting with "_" the same way it
+# already excludes dotfiles, so this is invisible to the Set listing
 # (and, since core.library.Library never lists the USB root at all --
-# only ever active_show.txt's one named folder -- it's invisible to the
+# only ever active_set.txt's one named folder -- it's invisible to the
 # base project too, with zero changes needed there).
 _SONGS_FOLDER = "_Songs"
 
@@ -72,7 +72,7 @@ _INVALID_NAME_CHARS = re.compile(r'[/\\:*?"<>|]')
 
 class LibraryOpsError(ValueError):
     """Raised for any invalid input (bad letter, bad extension, name
-    that would break the naming convention, Set/show that doesn't
+    that would break the naming convention, Bank/Set that doesn't
     exist). api.py catches this and turns it into a 400 response with
     the message shown to the user -- these are always meant to be
     readable as-is, not internal details to hide."""
@@ -92,8 +92,8 @@ class TrackInfo:
 
 @dataclass(frozen=True)
 class SongInfo:
-    """A song in the shared library (_Songs/) -- not tied to any Show,
-    Set, or letter, unlike TrackInfo."""
+    """A song in the shared library (_Songs/) -- not tied to any Set,
+    Bank, or letter, unlike TrackInfo."""
     display_name: str
     extension: str
     is_audio_only: bool
@@ -104,13 +104,13 @@ class SongInfo:
 
 
 # ---------------------------------------------------------------------------
-# Shows
+# Sets
 # ---------------------------------------------------------------------------
 
-def list_shows(usb_root: str) -> List[str]:
+def list_sets(usb_root: str) -> List[str]:
     """Every top-level folder under the USB root, except this app's own
     dotfile directory and the shared song library -- i.e. every folder
-    LIBRARY.md's Show convention would recognize."""
+    LIBRARY.md's Set convention would recognize."""
     try:
         entries = os.listdir(usb_root)
     except OSError:
@@ -122,8 +122,8 @@ def list_shows(usb_root: str) -> List[str]:
     )
 
 
-def get_active_show(usb_root: str) -> Optional[str]:
-    pointer_path = os.path.join(usb_root, "active_show.txt")
+def get_active_set(usb_root: str) -> Optional[str]:
+    pointer_path = os.path.join(usb_root, "active_set.txt")
     try:
         with open(pointer_path, "r", encoding="utf-8") as f:
             name = f.read().strip()
@@ -132,82 +132,82 @@ def get_active_show(usb_root: str) -> Optional[str]:
     return name or None
 
 
-def set_active_show(usb_root: str, show_name: str) -> None:
-    show_path = os.path.join(usb_root, show_name)
-    if not os.path.isdir(show_path):
-        raise LibraryOpsError(f'Show "{show_name}" does not exist')
+def set_active_set(usb_root: str, set_name: str) -> None:
+    set_path = os.path.join(usb_root, set_name)
+    if not os.path.isdir(set_path):
+        raise LibraryOpsError(f'Set "{set_name}" does not exist')
 
-    pointer_path = os.path.join(usb_root, "active_show.txt")
+    pointer_path = os.path.join(usb_root, "active_set.txt")
     with open(pointer_path, "w", encoding="utf-8") as f:
-        f.write(show_name)
+        f.write(set_name)
 
 
-def create_show(usb_root: str, show_name: str) -> None:
-    _validate_display_name(show_name, what="show name")
-    show_path = os.path.join(usb_root, show_name)
-    if os.path.isdir(show_path):
-        raise LibraryOpsError(f'Show "{show_name}" already exists')
-    os.makedirs(show_path)
+def create_set(usb_root: str, set_name: str) -> None:
+    _validate_display_name(set_name, what="Set name")
+    set_path = os.path.join(usb_root, set_name)
+    if os.path.isdir(set_path):
+        raise LibraryOpsError(f'Set "{set_name}" already exists')
+    os.makedirs(set_path)
 
 
 # ---------------------------------------------------------------------------
-# Sets
+# Banks
 # ---------------------------------------------------------------------------
 
-def list_sets(usb_root: str, show_name: str) -> List[int]:
-    show_path = _require_show(usb_root, show_name)
+def list_banks(usb_root: str, set_name: str) -> List[int]:
+    set_path = _require_set(usb_root, set_name)
     try:
-        entries = os.listdir(show_path)
+        entries = os.listdir(set_path)
     except OSError:
         return []
     numbers = []
     for entry in entries:
-        match = _SET_FOLDER_RE.match(entry)
-        if match and os.path.isdir(os.path.join(show_path, entry)):
+        match = _BANK_FOLDER_RE.match(entry)
+        if match and os.path.isdir(os.path.join(set_path, entry)):
             numbers.append(int(match.group(1)))
     return sorted(numbers)
 
 
-def create_set(usb_root: str, show_name: str, set_number: int) -> None:
-    show_path = _require_show(usb_root, show_name)
-    _validate_set_number(set_number)
-    set_path = os.path.join(show_path, f"Set {set_number}")
-    if os.path.isdir(set_path):
-        raise LibraryOpsError(f"Set {set_number} already exists")
-    os.makedirs(set_path)
+def create_bank(usb_root: str, set_name: str, bank_number: int) -> None:
+    set_path = _require_set(usb_root, set_name)
+    _validate_bank_number(bank_number)
+    bank_path = os.path.join(set_path, f"Bank {bank_number}")
+    if os.path.isdir(bank_path):
+        raise LibraryOpsError(f"Bank {bank_number} already exists")
+    os.makedirs(bank_path)
 
 
-def rename_set(usb_root: str, show_name: str, old_number: int, new_number: int) -> None:
-    show_path = _require_show(usb_root, show_name)
-    _validate_set_number(new_number)
-    old_path = _require_set(show_path, old_number)
-    new_path = os.path.join(show_path, f"Set {new_number}")
+def rename_bank(usb_root: str, set_name: str, old_number: int, new_number: int) -> None:
+    set_path = _require_set(usb_root, set_name)
+    _validate_bank_number(new_number)
+    old_path = _require_bank(set_path, old_number)
+    new_path = os.path.join(set_path, f"Bank {new_number}")
     if os.path.exists(new_path):
-        raise LibraryOpsError(f"Set {new_number} already exists")
+        raise LibraryOpsError(f"Bank {new_number} already exists")
     os.rename(old_path, new_path)
 
 
-def delete_set(usb_root: str, show_name: str, set_number: int) -> None:
-    show_path = _require_show(usb_root, show_name)
-    set_path = _require_set(show_path, set_number)
-    shutil.rmtree(set_path)
+def delete_bank(usb_root: str, set_name: str, bank_number: int) -> None:
+    set_path = _require_set(usb_root, set_name)
+    bank_path = _require_bank(set_path, bank_number)
+    shutil.rmtree(bank_path)
 
 
 # ---------------------------------------------------------------------------
 # Tracks
 # ---------------------------------------------------------------------------
 
-def list_tracks(usb_root: str, show_name: str, set_number: int) -> Dict[str, Optional[TrackInfo]]:
+def list_tracks(usb_root: str, set_name: str, bank_number: int) -> Dict[str, Optional[TrackInfo]]:
     """Returns all 3 letters, mapping to a TrackInfo if that slot is
     filled or None if it's an empty slot -- the caller always gets a
     complete A/B/C picture, matching how Library.resolve() treats a
     missing letter as normal, not an error."""
-    show_path = _require_show(usb_root, show_name)
-    set_path = _require_set(show_path, set_number)
+    set_path = _require_set(usb_root, set_name)
+    bank_path = _require_bank(set_path, bank_number)
 
     result: Dict[str, Optional[TrackInfo]] = {letter: None for letter in sorted(_VALID_LETTERS)}
     try:
-        entries = sorted(os.listdir(set_path))
+        entries = sorted(os.listdir(bank_path))
     except OSError:
         return result
 
@@ -225,35 +225,35 @@ def list_tracks(usb_root: str, show_name: str, set_number: int) -> Dict[str, Opt
 
 def assign_track(
     usb_root: str,
-    show_name: str,
-    set_number: int,
+    set_name: str,
+    bank_number: int,
     letter: str,
     display_name: str,
     extension: str,
     source: BinaryIO,
 ) -> TrackInfo:
     """Streams `source` to "<Letter> - <display_name>.<extension>" in
-    the given Set, replacing whatever was there for that letter, if
+    the given Bank, replacing whatever was there for that letter, if
     anything. Streamed in chunks (never the whole file read into
     memory at once) -- required given this runs on a 1GB-RAM Pi 2,
     matching section 7.
 
-    Also becomes available for reuse in future Shows: best-effort added
+    Also becomes available for reuse in future Sets: best-effort added
     to the shared song library too (skipped, never an error, if a song
     with that exact name is already there -- see _add_to_library_if_new)."""
-    show_path = _require_show(usb_root, show_name)
-    set_path = _require_set(show_path, set_number)
+    set_path = _require_set(usb_root, set_name)
+    bank_path = _require_bank(set_path, bank_number)
     letter = _validate_letter(letter)
     extension = _validate_extension(extension)
     _validate_display_name(display_name, what="track name")
 
-    _remove_existing_track(set_path, letter)
+    _remove_existing_track(bank_path, letter)
 
     info = TrackInfo(
         letter=letter, display_name=display_name, extension=extension,
         is_audio_only=extension in _AUDIO_ONLY_EXTENSIONS,
     )
-    dest_path = os.path.join(set_path, info.filename)
+    dest_path = os.path.join(bank_path, info.filename)
 
     # Write to a temp name first, rename into place at the end -- so a
     # failed/interrupted upload (dropped connection mid-transfer, the
@@ -266,43 +266,43 @@ def assign_track(
     return info
 
 
-def rename_track(usb_root: str, show_name: str, set_number: int, letter: str, new_display_name: str) -> TrackInfo:
+def rename_track(usb_root: str, set_name: str, bank_number: int, letter: str, new_display_name: str) -> TrackInfo:
     """Renames the display-name part only -- the letter (its "position")
     and extension stay the same. To move a track to a different letter,
     see swap_tracks()."""
-    show_path = _require_show(usb_root, show_name)
-    set_path = _require_set(show_path, set_number)
+    set_path = _require_set(usb_root, set_name)
+    bank_path = _require_bank(set_path, bank_number)
     letter = _validate_letter(letter)
     _validate_display_name(new_display_name, what="track name")
 
-    tracks = list_tracks(usb_root, show_name, set_number)
+    tracks = list_tracks(usb_root, set_name, bank_number)
     current = tracks.get(letter)
     if current is None:
         raise LibraryOpsError(f"Track {letter} is empty, nothing to rename")
 
-    old_path = os.path.join(set_path, current.filename)
+    old_path = os.path.join(bank_path, current.filename)
     new_info = TrackInfo(
         letter=letter, display_name=new_display_name,
         extension=current.extension, is_audio_only=current.is_audio_only,
     )
-    new_path = os.path.join(set_path, new_info.filename)
+    new_path = os.path.join(bank_path, new_info.filename)
     os.rename(old_path, new_path)
     return new_info
 
 
-def swap_tracks(usb_root: str, show_name: str, set_number: int, letter_a: str, letter_b: str) -> None:
+def swap_tracks(usb_root: str, set_name: str, bank_number: int, letter_a: str, letter_b: str) -> None:
     """Swaps which physical file is assigned to each of two letters --
-    this *is* "reordering" a Set, since a track's letter is its position
+    this *is* "reordering" a Bank, since a track's letter is its position
     (LIBRARY.md). Either slot may be empty; swapping with an empty slot
     is just "move this track to the other letter"."""
-    show_path = _require_show(usb_root, show_name)
-    set_path = _require_set(show_path, set_number)
+    set_path = _require_set(usb_root, set_name)
+    bank_path = _require_bank(set_path, bank_number)
     letter_a = _validate_letter(letter_a)
     letter_b = _validate_letter(letter_b)
     if letter_a == letter_b:
         return
 
-    tracks = list_tracks(usb_root, show_name, set_number)
+    tracks = list_tracks(usb_root, set_name, bank_number)
     track_a, track_b = tracks.get(letter_a), tracks.get(letter_b)
 
     # Stage both moves through temp names first -- doing a direct
@@ -310,32 +310,32 @@ def swap_tracks(usb_root: str, show_name: str, set_number: int, letter_a: str, l
     # on POSIX, destroying a track instead of swapping it.
     if track_a is not None:
         os.rename(
-            os.path.join(set_path, track_a.filename),
-            os.path.join(set_path, track_a.filename + ".swaptmp"),
+            os.path.join(bank_path, track_a.filename),
+            os.path.join(bank_path, track_a.filename + ".swaptmp"),
         )
     if track_b is not None:
         os.rename(
-            os.path.join(set_path, track_b.filename),
-            os.path.join(set_path, TrackInfo(letter_a, track_b.display_name, track_b.extension, track_b.is_audio_only).filename),
+            os.path.join(bank_path, track_b.filename),
+            os.path.join(bank_path, TrackInfo(letter_a, track_b.display_name, track_b.extension, track_b.is_audio_only).filename),
         )
     if track_a is not None:
         os.rename(
-            os.path.join(set_path, track_a.filename + ".swaptmp"),
-            os.path.join(set_path, TrackInfo(letter_b, track_a.display_name, track_a.extension, track_a.is_audio_only).filename),
+            os.path.join(bank_path, track_a.filename + ".swaptmp"),
+            os.path.join(bank_path, TrackInfo(letter_b, track_a.display_name, track_a.extension, track_a.is_audio_only).filename),
         )
 
 
-def delete_track(usb_root: str, show_name: str, set_number: int, letter: str) -> None:
-    show_path = _require_show(usb_root, show_name)
-    set_path = _require_set(show_path, set_number)
+def delete_track(usb_root: str, set_name: str, bank_number: int, letter: str) -> None:
+    set_path = _require_set(usb_root, set_name)
+    bank_path = _require_bank(set_path, bank_number)
     letter = _validate_letter(letter)
-    _remove_existing_track(set_path, letter)
+    _remove_existing_track(bank_path, letter)
 
 
 # ---------------------------------------------------------------------------
-# Song library (_Songs/) -- reusable across every Show. A Show's
-# Set/Letter slot is always a *copy* of a song here, never a reference,
-# so each Show stays exactly as self-contained as it always was (nothing
+# Song library (_Songs/) -- reusable across every Set. A Set's
+# Bank/Letter slot is always a *copy* of a song here, never a reference,
+# so each Set stays exactly as self-contained as it always was (nothing
 # about core.library.Library's boot-time resolution changes) and a human
 # without this app could recreate the same convention by hand over SSH
 # with a plain `cp`.
@@ -359,7 +359,7 @@ def upload_song(usb_root: str, display_name: str, extension: str, source: Binary
     """Streams `source` straight into the shared library as
     "<display_name>.<extension>". Rejects a name that's already taken --
     delete_song() or rename_song() first to replace it; no silent
-    overwrites, same rule as create_show()/create_set()."""
+    overwrites, same rule as create_set()/create_bank()."""
     extension = _validate_extension(extension)
     _validate_display_name(display_name, what="song name")
 
@@ -384,11 +384,22 @@ def rename_song(usb_root: str, filename: str, new_display_name: str) -> SongInfo
         raise LibraryOpsError(f'"{filename}" is not a song in the library')
     _validate_display_name(new_display_name, what="song name")
 
+    old_path = os.path.join(songs_path, current.filename)
+    # Real bug found on real hardware: unlike every other function here
+    # (assign_song_to_slot(), _require_set()/_require_bank(),
+    # rename_track()'s fresh list_tracks() re-check), this never
+    # verified the file was still actually there before touching it --
+    # a stale UI reference to a song someone deleted by hand directly on
+    # the USB (a workflow this project explicitly supports/recommends
+    # against but can't prevent) hit a raw, unhandled FileNotFoundError
+    # instead of a clean error message.
+    if not os.path.isfile(old_path):
+        raise LibraryOpsError(f'"{current.filename}" is not in the library')
+
     new_info = SongInfo(
         display_name=new_display_name, extension=current.extension,
         is_audio_only=current.is_audio_only,
     )
-    old_path = os.path.join(songs_path, current.filename)
     new_path = os.path.join(songs_path, new_info.filename)
     if os.path.exists(new_path):
         raise LibraryOpsError(f'A song named "{new_info.filename}" already exists in the library')
@@ -398,25 +409,30 @@ def rename_song(usb_root: str, filename: str, new_display_name: str) -> SongInfo
 
 def delete_song(usb_root: str, filename: str) -> None:
     """Removes a song from the shared library only -- copies already
-    assigned into a Show's Set are independent files, untouched by this."""
+    assigned into a Set's Bank are independent files, untouched by this."""
     songs_path = _songs_path(usb_root)
     info = _parse_song_filename(filename)
     if info is None:
         raise LibraryOpsError(f'"{filename}" is not a song in the library')
-    os.remove(os.path.join(songs_path, info.filename))
+    target_path = os.path.join(songs_path, info.filename)
+    # Same real bug as rename_song() above -- a stale reference to an
+    # already-manually-deleted song must not hit a raw FileNotFoundError.
+    if not os.path.isfile(target_path):
+        raise LibraryOpsError(f'"{info.filename}" is not in the library')
+    os.remove(target_path)
 
 
 def assign_song_to_slot(
-    usb_root: str, show_name: str, set_number: int, letter: str, song_filename: str,
+    usb_root: str, set_name: str, bank_number: int, letter: str, song_filename: str,
 ) -> TrackInfo:
-    """Copies a song from the shared library into a Show's Set/Letter
+    """Copies a song from the shared library into a Set's Bank/Letter
     slot, replacing whatever was there before -- the library's own copy
-    is untouched, so the same song stays available for the next Show.
+    is untouched, so the same song stays available for the next Set.
     This is the "reuse an existing song" path; assign_track() is the
     "upload a new one" path (which also adds it to the library as a
     side effect, so both paths converge)."""
-    show_path = _require_show(usb_root, show_name)
-    set_path = _require_set(show_path, set_number)
+    set_path = _require_set(usb_root, set_name)
+    bank_path = _require_bank(set_path, bank_number)
     letter = _validate_letter(letter)
 
     song = _parse_song_filename(song_filename)
@@ -426,31 +442,31 @@ def assign_song_to_slot(
     if not os.path.isfile(source_path):
         raise LibraryOpsError(f'"{song.filename}" is not in the library')
 
-    _remove_existing_track(set_path, letter)
+    _remove_existing_track(bank_path, letter)
 
     info = TrackInfo(
         letter=letter, display_name=song.display_name,
         extension=song.extension, is_audio_only=song.is_audio_only,
     )
-    dest_path = os.path.join(set_path, info.filename)
+    dest_path = os.path.join(bank_path, info.filename)
     _atomic_copy_file(source_path, dest_path)
     return info
 
 
-def save_track_to_library(usb_root: str, show_name: str, set_number: int, letter: str) -> SongInfo:
+def save_track_to_library(usb_root: str, set_name: str, bank_number: int, letter: str) -> SongInfo:
     """The reverse direction: copies whatever is already assigned to a
-    Set/Letter slot into the shared library, so it becomes available for
-    future Shows too. Meant for content assigned before this feature
+    Bank/Letter slot into the shared library, so it becomes available for
+    future Sets too. Meant for content assigned before this feature
     existed (or from a different Pi/USB) -- no automatic migration or
     dedup is attempted; this is always an explicit, one-track-at-a-time
-    action, since guessing whether two files across different Shows are
+    action, since guessing whether two files across different Sets are
     "the same song" is exactly the kind of fragile heuristic this
     project avoids (SPECIFICATION.md)."""
-    show_path = _require_show(usb_root, show_name)
-    set_path = _require_set(show_path, set_number)
+    set_path = _require_set(usb_root, set_name)
+    bank_path = _require_bank(set_path, bank_number)
     letter = _validate_letter(letter)
 
-    tracks = list_tracks(usb_root, show_name, set_number)
+    tracks = list_tracks(usb_root, set_name, bank_number)
     track = tracks.get(letter)
     if track is None:
         raise LibraryOpsError(f"Track {letter} is empty, nothing to save")
@@ -465,7 +481,7 @@ def save_track_to_library(usb_root: str, show_name: str, set_number: int, letter
         raise LibraryOpsError(f'A song named "{info.filename}" already exists in the library')
 
     os.makedirs(songs_path, exist_ok=True)
-    source_path = os.path.join(set_path, track.filename)
+    source_path = os.path.join(bank_path, track.filename)
     _atomic_copy_file(source_path, dest_path)
     return info
 
@@ -490,7 +506,7 @@ def _add_to_library_if_new(
     usb_root: str, source_path: str, display_name: str, extension: str, is_audio_only: bool,
 ) -> None:
     """Best-effort only: a fresh upload also becomes reusable in future
-    Shows, unless a song with that exact name is already in the library
+    Sets, unless a song with that exact name is already in the library
     -- never overwritten, and this never fails the caller's own write
     over it (a convenience side effect, not something the primary
     assign_track() operation should ever fail because of)."""
@@ -532,27 +548,55 @@ def _atomic_copy_file(source_path: str, dest_path: str) -> None:
         raise
 
 
+def cleanup_stale_temp_files(usb_root: str) -> int:
+    """Removes any leftover `.part`/`.swaptmp` file anywhere under
+    `usb_root`. These only ever exist mid-write, as a `_atomic_write_stream`/
+    `_atomic_copy_file`/`swap_tracks()` in-progress artifact, and normally
+    clean themselves up (on success via `os.replace()`, on a caught
+    exception via the `except` blocks above) -- but a write killed
+    abruptly by a SIGTERM skips that cleanup entirely, since a signal
+    doesn't run Python's except/finally blocks. Confirmed on real
+    hardware: unplugging a phone mid-upload makes
+    `usb-tether-watchdog.service` stop this service the moment the
+    tethered interface disappears, killing an in-progress upload before
+    its own cleanup could run and leaving its `.part` file behind
+    (harmless -- never promoted to a real filename, so never picked up
+    as real data -- but permanent clutter otherwise). Never represents
+    valid data by construction, so always safe to remove; called once at
+    server startup. Returns the count removed."""
+    removed = 0
+    for root, _dirs, files in os.walk(usb_root):
+        for name in files:
+            if name.endswith(".part") or name.endswith(".swaptmp"):
+                try:
+                    os.remove(os.path.join(root, name))
+                    removed += 1
+                except OSError:
+                    pass
+    return removed
+
+
 # ---------------------------------------------------------------------------
 # Internals
 # ---------------------------------------------------------------------------
 
-def _require_show(usb_root: str, show_name: str) -> str:
-    show_path = os.path.join(usb_root, show_name)
-    if not os.path.isdir(show_path):
-        raise LibraryOpsError(f'Show "{show_name}" does not exist')
-    return show_path
-
-
-def _require_set(show_path: str, set_number: int) -> str:
-    set_path = os.path.join(show_path, f"Set {set_number}")
+def _require_set(usb_root: str, set_name: str) -> str:
+    set_path = os.path.join(usb_root, set_name)
     if not os.path.isdir(set_path):
-        raise LibraryOpsError(f"Set {set_number} does not exist")
+        raise LibraryOpsError(f'Set "{set_name}" does not exist')
     return set_path
 
 
-def _validate_set_number(set_number: int) -> None:
-    if not isinstance(set_number, int) or set_number < 1:
-        raise LibraryOpsError("Set number must be a positive integer")
+def _require_bank(set_path: str, bank_number: int) -> str:
+    bank_path = os.path.join(set_path, f"Bank {bank_number}")
+    if not os.path.isdir(bank_path):
+        raise LibraryOpsError(f"Bank {bank_number} does not exist")
+    return bank_path
+
+
+def _validate_bank_number(bank_number: int) -> None:
+    if not isinstance(bank_number, int) or bank_number < 1:
+        raise LibraryOpsError("Bank number must be a positive integer")
 
 
 def _validate_letter(letter: str) -> str:
@@ -616,10 +660,10 @@ def _parse_track_filename(filename: str) -> Optional[TrackInfo]:
     return None
 
 
-def _remove_existing_track(set_path: str, letter: str) -> None:
+def _remove_existing_track(bank_path: str, letter: str) -> None:
     tracks_by_letter = {}
     try:
-        entries = os.listdir(set_path)
+        entries = os.listdir(bank_path)
     except OSError:
         return
     for entry in entries:
@@ -628,4 +672,4 @@ def _remove_existing_track(set_path: str, letter: str) -> None:
             tracks_by_letter[info.letter] = entry
     existing = tracks_by_letter.get(letter)
     if existing is not None:
-        os.remove(os.path.join(set_path, existing))
+        os.remove(os.path.join(bank_path, existing))

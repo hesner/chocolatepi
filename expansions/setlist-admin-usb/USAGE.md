@@ -4,14 +4,14 @@
 
 This is one **expansion** (`expansions/setlist-admin-usb/`) -- see the
 repo root's `expansions/README.md` for what that means. It's the
-optional web app for managing the library USB (shows, Sets, tracks)
+optional web app for managing the library USB (Sets, Banks, tracks)
 from a phone's browser, reachable by plugging the phone into the Pi
 with a USB cable -- instead of SSH + `nano` + copying files by hand.
 Design and rationale: [`SPECIFICATION.md`](SPECIFICATION.md). Not
 installed by default -- see "Installing" below.
 
-**Pre/post-show only.** This isn't designed or tested for editing the
-library while a show is in progress -- the app shows a warning if it
+**Pre/post-Set only.** This isn't designed or tested for editing the
+library while a Set is in progress -- the app shows a warning if it
 detects the pedal is actively playing, but doesn't block you; treat
 that warning as a real one, not a formality.
 
@@ -92,11 +92,11 @@ to set a new PIN.
 
 ## Using it
 
-Pick or create a show, create/delete `Set` folders, and for each track
+Pick or create a Set, create/delete `Bank` folders, and for each track
 slot (A/B/C):
 - **Upload new** uploads a file straight into that letter, replacing
   whatever was there. It's also automatically added to the **song
-  library** (see below), so it's ready to reuse in a future show
+  library** (see below), so it's ready to reuse in a future Set
   without uploading it again.
 - **Assign** (next to the song-picker dropdown) puts an existing song
   from the library into that letter instead, without uploading
@@ -118,31 +118,50 @@ gets a warning, not a block, pointing at `LIBRARY.md`'s encoding
 guidance. It still uploads; playback may not work until you re-encode
 it, same as if you'd copied it in by hand.
 
-### Song library: reuse songs across setlists
+### Export Set: a large-print running order to read on stage
+
+The **"Export Set"** button (next to the Set selector) opens a
+full-screen, large-print list of every track currently assigned in that
+Set, in order (Bank 1 A, B, C, then Bank 2, and so on) -- each line
+shows the track's exact stored filename and extension, so what you see
+here always matches what's really on the USB. Meant to be glanced at
+while performing, not read up close.
+
+Close it with the **✕** in the corner, the Escape key, or your phone's
+own back gesture/button.
+
+**Share** renders the list as a PNG image and hands it to your phone's
+own share sheet (WhatsApp, Messages, email, save to Photos -- whatever
+you have installed); on a desktop browser without that sharing support
+it downloads the PNG directly instead (support from a PC browser is
+still being verified separately).
+
+### Song library: reuse songs across Sets
 
 The **"Song library"** section at the top of the app (tap to expand)
 lists every song available for reuse -- this is the on-disk `_Songs/`
 folder at the USB root (`LIBRARY.md` documents the same convention for
 editing the USB by hand, without this app). It's meant to hold **every
-song the band has**, not just the ones in the setlist you're currently
-building, so that starting a setlist for the next show is a matter of
-picking from what's already there instead of re-uploading everything.
+song the band has**, not just the ones in the Set you're currently
+building, so that starting a Set for the next performance is a matter
+of picking from what's already there instead of re-uploading
+everything.
 
 From here you can upload a new song directly into the library (without
-assigning it to any Set yet), rename one, or delete one. **Deleting a
+assigning it to any Bank yet), rename one, or delete one. **Deleting a
 song from the library is discouraged -- if you're not sure, don't.**
 `LIBRARY.md` recommends treating it as a permanent record of everything
-the band has ready to play, even songs not currently used in any show,
+the band has ready to play, even songs not currently used in any Set,
 so the library stays an honest answer to "how many songs do we
 actually have." Once deleted, a song can no longer be chosen when
-building a Set (it won't show up in the picker for any future show) --
-but deleting it does **not** remove it from any Set it's already
+building a Bank (it won't show up in the picker for any future Set) --
+but deleting it does **not** remove it from any Bank it's already
 assigned to; those keep playing normally, since assigning a song
 already made an independent copy. The app's delete confirmation spells
 this out too. Uninstalling either `setlist-admin` expansion never
 deletes `_Songs/` either, by default -- only an explicit
 `--purge-library` flag does (see "Uninstalling" below). And in the
-other direction: assigning a song to a Set never removes it from the
+other direction: assigning a song to a Bank never removes it from the
 library -- every assignment is a copy, the library's own copy always
 stays put.
 

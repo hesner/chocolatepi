@@ -33,24 +33,24 @@ _ROUTES = [
     ("POST", re.compile(r"^/api/pin$"), "set_pin"),
     ("POST", re.compile(r"^/api/login$"), "login"),
     ("GET", re.compile(r"^/api/status$"), "status"),
-    ("GET", re.compile(r"^/api/shows$"), "list_shows"),
-    ("POST", re.compile(r"^/api/shows$"), "create_show"),
-    ("POST", re.compile(r"^/api/shows/active$"), "set_active_show"),
-    ("GET", re.compile(r"^/api/shows/(?P<show>[^/]+)/sets$"), "list_sets"),
-    ("POST", re.compile(r"^/api/shows/(?P<show>[^/]+)/sets$"), "create_set"),
-    ("PUT", re.compile(r"^/api/shows/(?P<show>[^/]+)/sets/(?P<set>\d+)$"), "rename_set"),
-    ("DELETE", re.compile(r"^/api/shows/(?P<show>[^/]+)/sets/(?P<set>\d+)$"), "delete_set"),
-    ("GET", re.compile(r"^/api/shows/(?P<show>[^/]+)/sets/(?P<set>\d+)/tracks$"), "list_tracks"),
-    ("POST", re.compile(r"^/api/shows/(?P<show>[^/]+)/sets/(?P<set>\d+)/tracks/(?P<letter>[A-Za-z])$"), "assign_track"),
-    ("PUT", re.compile(r"^/api/shows/(?P<show>[^/]+)/sets/(?P<set>\d+)/tracks/(?P<letter>[A-Za-z])$"), "rename_track"),
-    ("DELETE", re.compile(r"^/api/shows/(?P<show>[^/]+)/sets/(?P<set>\d+)/tracks/(?P<letter>[A-Za-z])$"), "delete_track"),
-    ("POST", re.compile(r"^/api/shows/(?P<show>[^/]+)/sets/(?P<set>\d+)/swap$"), "swap_tracks"),
+    ("GET", re.compile(r"^/api/sets$"), "list_sets"),
+    ("POST", re.compile(r"^/api/sets$"), "create_set"),
+    ("POST", re.compile(r"^/api/sets/active$"), "set_active_set"),
+    ("GET", re.compile(r"^/api/sets/(?P<set>[^/]+)/banks$"), "list_banks"),
+    ("POST", re.compile(r"^/api/sets/(?P<set>[^/]+)/banks$"), "create_bank"),
+    ("PUT", re.compile(r"^/api/sets/(?P<set>[^/]+)/banks/(?P<bank>\d+)$"), "rename_bank"),
+    ("DELETE", re.compile(r"^/api/sets/(?P<set>[^/]+)/banks/(?P<bank>\d+)$"), "delete_bank"),
+    ("GET", re.compile(r"^/api/sets/(?P<set>[^/]+)/banks/(?P<bank>\d+)/tracks$"), "list_tracks"),
+    ("POST", re.compile(r"^/api/sets/(?P<set>[^/]+)/banks/(?P<bank>\d+)/tracks/(?P<letter>[A-Za-z])$"), "assign_track"),
+    ("PUT", re.compile(r"^/api/sets/(?P<set>[^/]+)/banks/(?P<bank>\d+)/tracks/(?P<letter>[A-Za-z])$"), "rename_track"),
+    ("DELETE", re.compile(r"^/api/sets/(?P<set>[^/]+)/banks/(?P<bank>\d+)/tracks/(?P<letter>[A-Za-z])$"), "delete_track"),
+    ("POST", re.compile(r"^/api/sets/(?P<set>[^/]+)/banks/(?P<bank>\d+)/swap$"), "swap_tracks"),
     ("GET", re.compile(r"^/api/songs$"), "list_songs"),
     ("POST", re.compile(r"^/api/songs$"), "upload_song"),
     ("PUT", re.compile(r"^/api/songs/(?P<filename>[^/]+)$"), "rename_song"),
     ("DELETE", re.compile(r"^/api/songs/(?P<filename>[^/]+)$"), "delete_song"),
-    ("POST", re.compile(r"^/api/shows/(?P<show>[^/]+)/sets/(?P<set>\d+)/tracks/(?P<letter>[A-Za-z])/assign-from-library$"), "assign_song_to_slot"),
-    ("POST", re.compile(r"^/api/shows/(?P<show>[^/]+)/sets/(?P<set>\d+)/tracks/(?P<letter>[A-Za-z])/save-to-library$"), "save_track_to_library"),
+    ("POST", re.compile(r"^/api/sets/(?P<set>[^/]+)/banks/(?P<bank>\d+)/tracks/(?P<letter>[A-Za-z])/assign-from-library$"), "assign_song_to_slot"),
+    ("POST", re.compile(r"^/api/sets/(?P<set>[^/]+)/banks/(?P<bank>\d+)/tracks/(?P<letter>[A-Za-z])/save-to-library$"), "save_track_to_library"),
     ("GET", re.compile(r"^/api/wifi$"), "wifi_status"),
     ("POST", re.compile(r"^/api/wifi/home$"), "set_home_wifi"),
 ]
@@ -111,12 +111,12 @@ class Handler(BaseHTTPRequestHandler):
             if not match:
                 continue
             # Path segments arrive percent-encoded (the frontend calls
-            # encodeURIComponent() on show/song names before building
+            # encodeURIComponent() on Set/song names before building
             # the URL, so spaces/accents/etc. round-trip correctly) --
             # decode them here, once, so every _action_* handler and
-            # library_ops.py always see the real name, never "My%20Show".
+            # library_ops.py always see the real name, never "My%20Set".
             # Found as a real, pre-existing bug: nothing decoded these
-            # before, so any show/song name needing encoding at all
+            # before, so any Set/song name needing encoding at all
             # (any space or accented character) silently failed.
             path_params = {k: unquote(v) if v is not None else v for k, v in match.groupdict().items()}
             self._handle_action(action_name, path_params, parse_qs(parsed.query))
@@ -146,7 +146,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(e.status, {"error": e.message})
         except ValueError as e:
             # library_ops.LibraryOpsError (invalid input, name collision,
-            # "Show/Set doesn't exist", etc.) is a ValueError -- catching
+            # "Bank/Set doesn't exist", etc.) is a ValueError -- catching
             # it here, generically, is what actually turns its carefully
             # written user-facing messages into a real 400 response
             # instead of falling through to the 500 below. Found as a
@@ -174,38 +174,38 @@ class Handler(BaseHTTPRequestHandler):
         playback_active = False if first_run else self.api.is_playback_likely_active()
         return 200, {"first_run": first_run, "playback_active": playback_active}
 
-    def _action_list_shows(self, path_params, query):
-        return 200, self.api.list_shows()
-
-    def _action_create_show(self, path_params, query):
-        body = self._read_json_body()
-        self.api.create_show(body.get("name", ""))
-        return 201, {"ok": True}
-
-    def _action_set_active_show(self, path_params, query):
-        body = self._read_json_body()
-        self.api.set_active_show(body.get("name", ""))
-        return 200, {"ok": True}
-
     def _action_list_sets(self, path_params, query):
-        return 200, self.api.list_sets(path_params["show"])
+        return 200, self.api.list_sets()
 
     def _action_create_set(self, path_params, query):
         body = self._read_json_body()
-        self.api.create_set(path_params["show"], self._parse_set_number(body))
+        self.api.create_set(body.get("name", ""))
         return 201, {"ok": True}
 
-    def _action_rename_set(self, path_params, query):
+    def _action_set_active_set(self, path_params, query):
         body = self._read_json_body()
-        self.api.rename_set(path_params["show"], int(path_params["set"]), self._parse_set_number(body))
+        self.api.set_active_set(body.get("name", ""))
         return 200, {"ok": True}
 
-    def _action_delete_set(self, path_params, query):
-        self.api.delete_set(path_params["show"], int(path_params["set"]))
+    def _action_list_banks(self, path_params, query):
+        return 200, self.api.list_banks(path_params["set"])
+
+    def _action_create_bank(self, path_params, query):
+        body = self._read_json_body()
+        self.api.create_bank(path_params["set"], self._parse_bank_number(body))
+        return 201, {"ok": True}
+
+    def _action_rename_bank(self, path_params, query):
+        body = self._read_json_body()
+        self.api.rename_bank(path_params["set"], int(path_params["bank"]), self._parse_bank_number(body))
+        return 200, {"ok": True}
+
+    def _action_delete_bank(self, path_params, query):
+        self.api.delete_bank(path_params["set"], int(path_params["bank"]))
         return 200, {"ok": True}
 
     def _action_list_tracks(self, path_params, query):
-        return 200, self.api.list_tracks(path_params["show"], int(path_params["set"]))
+        return 200, self.api.list_tracks(path_params["set"], int(path_params["bank"]))
 
     def _action_assign_track(self, path_params, query):
         display_name, extension = self._parse_upload_filename()
@@ -217,23 +217,23 @@ class Handler(BaseHTTPRequestHandler):
         # actually terminates.
         bounded_source = _LimitedReader(self.rfile, length)
         warning = self.api.assign_track(
-            path_params["show"], int(path_params["set"]), path_params["letter"],
+            path_params["set"], int(path_params["bank"]), path_params["letter"],
             display_name, extension, bounded_source,
         )
         return 200, {"ok": True, "warning": warning}
 
     def _action_rename_track(self, path_params, query):
         body = self._read_json_body()
-        self.api.rename_track(path_params["show"], int(path_params["set"]), path_params["letter"], body.get("display_name", ""))
+        self.api.rename_track(path_params["set"], int(path_params["bank"]), path_params["letter"], body.get("display_name", ""))
         return 200, {"ok": True}
 
     def _action_delete_track(self, path_params, query):
-        self.api.delete_track(path_params["show"], int(path_params["set"]), path_params["letter"])
+        self.api.delete_track(path_params["set"], int(path_params["bank"]), path_params["letter"])
         return 200, {"ok": True}
 
     def _action_swap_tracks(self, path_params, query):
         body = self._read_json_body()
-        self.api.swap_tracks(path_params["show"], int(path_params["set"]), body.get("letter_a", ""), body.get("letter_b", ""))
+        self.api.swap_tracks(path_params["set"], int(path_params["bank"]), body.get("letter_a", ""), body.get("letter_b", ""))
         return 200, {"ok": True}
 
     def _action_list_songs(self, path_params, query):
@@ -258,13 +258,13 @@ class Handler(BaseHTTPRequestHandler):
     def _action_assign_song_to_slot(self, path_params, query):
         body = self._read_json_body()
         self.api.assign_song_to_slot(
-            path_params["show"], int(path_params["set"]), path_params["letter"],
+            path_params["set"], int(path_params["bank"]), path_params["letter"],
             body.get("song_filename", ""),
         )
         return 200, {"ok": True}
 
     def _action_save_track_to_library(self, path_params, query):
-        self.api.save_track_to_library(path_params["show"], int(path_params["set"]), path_params["letter"])
+        self.api.save_track_to_library(path_params["set"], int(path_params["bank"]), path_params["letter"])
         return 200, {"ok": True}
 
     def _action_wifi_status(self, path_params, query):
@@ -301,7 +301,7 @@ class Handler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             raise ApiError(400, "Invalid JSON body")
 
-    def _parse_set_number(self, body: dict) -> int:
+    def _parse_bank_number(self, body: dict) -> int:
         """Real, pre-existing bug found on real hardware: a plain
         `int(body.get("number", 0))` crashes with an unhandled 500 if
         the client ever sends `{"number": null}` -- which JSON.stringify()
@@ -313,7 +313,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             return int(value)
         except (TypeError, ValueError):
-            raise ApiError(400, "Set number is required and must be a number")
+            raise ApiError(400, "Bank number is required and must be a number")
 
     def _parse_upload_filename(self):
         """Track uploads are sent as a raw file body with the display
@@ -395,6 +395,15 @@ def main():
     )
     config = AdminConfig(usb_root=args.usb_root, mount_point=args.mount_point, usb_uuid=args.usb_uuid)
     api = AdminAPI(config)
+    try:
+        removed = api.cleanup_stale_temp_files()
+        if removed:
+            logger.info("Removed %d stale .part/.swaptmp file(s) from an interrupted write", removed)
+    except Exception:
+        # Not fatal -- worst case a future write's own .part collides
+        # and gets cleaned up then instead. Never block startup over
+        # housekeeping.
+        logger.exception("Could not clean up stale .part/.swaptmp files at startup")
     server = ThreadingHTTPServer((args.host, args.port), make_handler_class(api))
     logger.info("setlist-admin listening on %s:%d", args.host, args.port)
     server.serve_forever()

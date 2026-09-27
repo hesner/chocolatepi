@@ -48,12 +48,12 @@ library USB already are.
 ## 1. What this is
 
 A web app, running on the Raspberry Pi itself, for managing the
-library USB's content (shows, Sets, tracks) from a phone's browser --
+library USB's content (Sets, Banks, tracks) from a phone's browser --
 instead of the manual SSH + `nano`/file-copy workflow this project has
 used until now. Reachable by plugging the phone into the Pi with a USB
-cable before or after a show.
+cable before or after a Set.
 
-Non-goals (unchanged from the WiFi design): no live show control (that
+Non-goals (unchanged from the WiFi design): no live Set control (that
 stays MIDI-only, per `MASTER_SPECIFICATION.md`), no editing while a
 track is actively playing without a warning, no touching
 `pedal-core.service` or anything in `src/core/`, `src/adapter/`,
@@ -95,7 +95,7 @@ underneath. Concretely:
 
 - The frontend (`static/index.html`, `style.css`, `app.js`) is ported
   from `explore/setlist-admin` **as-is** for every library-management
-  screen (shows/Sets/tracks CRUD, PIN entry, PIN recovery messaging).
+  screen (Sets/Banks/tracks CRUD, PIN entry, PIN recovery messaging).
   The only removal is the WiFi-settings page/section, which has no
   equivalent here. No redesign of the CRUD screens themselves.
 - `library_ops.py`, `usb_mount.py` (including the `ntfs-3g`
@@ -232,8 +232,8 @@ What this design *does* add for convenience: a "Reboot now to apply"
 button in the admin UI itself (`sudo systemctl reboot`, same privilege
 model as every other write this app makes), so the person doesn't need
 SSH just to restart the Pi after editing. The reboot only needs to
-happen once the phone is done editing (create the show, arrange the
-Sets, rename tracks, then one reboot) -- not once per edit.
+happen once the phone is done editing (create the Set, arrange the
+Banks, rename tracks, then one reboot) -- not once per edit.
 
 If live-reload is ever revisited, that is its own, separate design
 question that touches `src/core/library.py` and the already-documented
@@ -306,28 +306,28 @@ can't collaterally affect any other expansion).
   we're building this track, given section 3 otherwise keeps them
   identical on purpose?
 
-## 13. Song library (reuse across Shows) -- approved 2026-09-26
+## 13. Song library (reuse across Sets) -- approved 2026-09-26
 
 **Problem**: originally, a song only ever existed as a copy physically
-inside one specific `<Show>/Set N/<Letter> - name.ext`. Building a new
-setlist (a new Show) for the next concert meant re-uploading every song
-from scratch, even ones already used in a previous Show.
+inside one specific `<Set>/Bank N/<Letter> - name.ext`. Building a new
+Set for the next concert meant re-uploading every song from scratch,
+even ones already used in a previous Set.
 
 **Design**: a shared, flat pool of songs at the USB root, `_Songs/`,
-independent of any Show -- now documented as a base-project convention
+independent of any Set -- now documented as a base-project convention
 in `LIBRARY.md`, not just an implementation detail of this expansion
 (a human without any expansion installed can and should use the same
-convention by hand, per that document). A Show's `Set`/Letter slot is
+convention by hand, per that document). A Set's `Bank`/Letter slot is
 still always a real, physical copy -- never a symlink or reference --
 so `core.library.Library`'s boot-time resolution needs zero changes,
-and each Show stays exactly as self-contained as it always was.
+and each Set stays exactly as self-contained as it always was.
 Rejected the symlink/reference alternative specifically because it
 would have required `core.library.Library` itself to learn to resolve
 them, and this project already had one `ntfs-3g` surprise this month
 where an operation that "should just work" didn't.
 
 Two ways a song ends up in `_Songs/`:
-1. **Uploading directly into a Set slot** (the original flow,
+1. **Uploading directly into a Bank slot** (the original flow,
    unchanged) now *also* copies the result into `_Songs/` automatically
    (`library_ops._add_to_library_if_new`) -- best-effort, silently
    skipped (never an error) if a song with that exact name is already
@@ -336,17 +336,17 @@ Two ways a song ends up in `_Songs/`:
    new "Song library" section of the UI, without assigning it anywhere
    yet.
 
-Assigning a Set slot from the library (`assign_song_to_slot`) is a
+Assigning a Bank slot from the library (`assign_song_to_slot`) is a
 same-USB file copy, not a re-upload -- fast, and the library's own copy
-is left untouched for the next Show. `save_track_to_library` is the
+is left untouched for the next Set. `save_track_to_library` is the
 reverse direction, for content that predates this feature or was
 assigned before being added to the library -- always an explicit,
-one-track-at-a-time action; no automatic cross-Show dedup/migration is
-attempted (guessing whether two files in different Shows are "the same
+one-track-at-a-time action; no automatic cross-Set dedup/migration is
+attempted (guessing whether two files in different Sets are "the same
 song" is exactly the kind of fragile heuristic this project avoids).
 
-`list_shows()` now excludes anything starting with `_` (previously only
-excluded dotfiles) so `_Songs/` never appears in the Shows list.
+`list_sets()` now excludes anything starting with `_` (previously only
+excluded dotfiles) so `_Songs/` never appears in the Sets list.
 
 Two real, pre-existing bugs (present since the WiFi design, unrelated
 to this feature) were found and fixed while building this: `server.py`
@@ -354,7 +354,7 @@ never translated `library_ops.LibraryOpsError` into a proper HTTP
 response (fell through to a generic 500 "Internal error" instead of the
 400 with a helpful message it should have been -- fixed by catching
 `ValueError` generically in `_handle_action`), and URL path segments
-(show names, now also song filenames) were never percent-decoded
+(Set names, now also song filenames) were never percent-decoded
 server-side despite the frontend percent-encoding them, so any name
 actually needing encoding (any space) silently failed.
 

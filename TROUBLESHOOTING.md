@@ -47,9 +47,9 @@ or this bug comes back.
 This is almost always a silent "empty slot" match failure in
 `Library.resolve()`, not a hardware or MIDI problem. Check, in order:
 
-1. **`active_show.txt`** on the USB root -- does its content exactly
+1. **`active_set.txt`** on the USB root -- does its content exactly
    match a real folder name under the USB root?
-2. **The `Set N` folder** -- does it exist for the group this footswitch
+2. **The `Bank N` folder** -- does it exist for the group this footswitch
    maps to? (See `MAVAVE_ANALYSIS.md` for the M-VAVE PD41's group
    numbering if that's the controller in use.)
 3. **The filename itself** -- `LIBRARY.md` has the full rule, but the

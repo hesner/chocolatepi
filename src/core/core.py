@@ -52,7 +52,7 @@ class Core:
         if resolved is None:
             logger.warning(
                 "SelectTrack(setlist=%d, track=%d) has no matching file "
-                "-- ignoring (empty slot, or missing show/Set)",
+                "-- ignoring (empty slot, or missing Set/Bank)",
                 setlist, track,
             )
             return

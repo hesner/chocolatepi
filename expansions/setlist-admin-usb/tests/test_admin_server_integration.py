@@ -34,6 +34,10 @@ class ServerIntegrationTestCase(unittest.TestCase):
         remount_patcher.start()
         self.addCleanup(remount_patcher.stop)
 
+        ensure_mounted_patcher = patch("admin.usb_mount.ensure_mounted")
+        ensure_mounted_patcher.start()
+        self.addCleanup(ensure_mounted_patcher.stop)
+
         self.tmpdir = tempfile.TemporaryDirectory()
         api = AdminAPI(AdminConfig(usb_root=self.tmpdir.name))
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler_class(api))
@@ -71,7 +75,7 @@ class TestAuthFlow(ServerIntegrationTestCase):
 
     def test_protected_endpoint_without_session_is_401(self):
         conn = self._conn()
-        resp, body = self._json(conn, "GET", "/api/shows")
+        resp, body = self._json(conn, "GET", "/api/sets")
         self.assertEqual(resp.status, 401)
 
     def test_full_pin_then_login_then_authenticated_request(self):
@@ -85,9 +89,9 @@ class TestAuthFlow(ServerIntegrationTestCase):
         self.assertIsNotNone(set_cookie)
         cookie_value = set_cookie.split(";")[0]
 
-        resp, body = self._json(conn, "GET", "/api/shows", headers={"Cookie": cookie_value})
+        resp, body = self._json(conn, "GET", "/api/sets", headers={"Cookie": cookie_value})
         self.assertEqual(resp.status, 200)
-        self.assertEqual(body["shows"], [])
+        self.assertEqual(body["sets"], [])
 
     def test_login_with_wrong_pin_is_401(self):
         conn = self._conn()
@@ -104,26 +108,26 @@ class TestLibraryFlow(ServerIntegrationTestCase):
         cookie_value = resp.getheader("Set-Cookie").split(";")[0]
         return conn, {"Cookie": cookie_value}
 
-    def test_create_show_and_list_it(self):
+    def test_create_set_and_list_it(self):
         conn, headers = self._authenticated_conn()
 
-        resp, _ = self._json(conn, "POST", "/api/shows", {"name": "Live"}, headers)
+        resp, _ = self._json(conn, "POST", "/api/sets", {"name": "Live"}, headers)
         self.assertEqual(resp.status, 201)
 
-        resp, body = self._json(conn, "GET", "/api/shows", headers=headers)
-        self.assertEqual(body["shows"], ["Live"])
+        resp, body = self._json(conn, "GET", "/api/sets", headers=headers)
+        self.assertEqual(body["sets"], ["Live"])
 
     def test_upload_track_via_raw_body_with_headers(self):
         conn, headers = self._authenticated_conn()
-        self._json(conn, "POST", "/api/shows", {"name": "Live"}, headers)
-        self._json(conn, "POST", "/api/shows/Live/sets", {"number": 1}, headers)
+        self._json(conn, "POST", "/api/sets", {"name": "Live"}, headers)
+        self._json(conn, "POST", "/api/sets/Live/banks", {"number": 1}, headers)
 
         file_bytes = b"fake mp3 bytes" * 1000
         upload_headers = dict(headers)
         upload_headers["X-Track-Name"] = "My Song"
         upload_headers["X-Track-Extension"] = "mp3"
         upload_headers["Content-Length"] = str(len(file_bytes))
-        conn.request("POST", "/api/shows/Live/sets/1/tracks/A", body=file_bytes, headers=upload_headers)
+        conn.request("POST", "/api/sets/Live/banks/1/tracks/A", body=file_bytes, headers=upload_headers)
         resp = conn.getresponse()
         body = json.loads(resp.read())
 
@@ -131,7 +135,7 @@ class TestLibraryFlow(ServerIntegrationTestCase):
         self.assertTrue(body["ok"])
         self.assertIsNone(body["warning"])  # mp3 has no video codec to warn about
 
-        resp, tracks = self._json(conn, "GET", "/api/shows/Live/sets/1/tracks", headers=headers)
+        resp, tracks = self._json(conn, "GET", "/api/sets/Live/banks/1/tracks", headers=headers)
         self.assertEqual(tracks["A"]["display_name"], "My Song")
 
     def test_static_index_is_served_at_root(self):
@@ -148,22 +152,22 @@ class TestLibraryFlow(ServerIntegrationTestCase):
         resp.read()
         self.assertNotEqual(resp.status, 200)
 
-    def test_show_name_needing_url_encoding_round_trips_correctly(self):
+    def test_set_name_needing_url_encoding_round_trips_correctly(self):
         # Real, pre-existing bug found while adding the song library:
-        # the frontend calls encodeURIComponent() on show names, but
+        # the frontend calls encodeURIComponent() on Set names, but
         # nothing decoded them server-side, so any name actually
         # needing encoding (any space, in practice) silently broke.
         conn, headers = self._authenticated_conn()
-        show_name = "Gira Verano 2026"
+        set_name = "Gira Verano 2026"
 
-        resp, _ = self._json(conn, "POST", "/api/shows", {"name": show_name}, headers)
+        resp, _ = self._json(conn, "POST", "/api/sets", {"name": set_name}, headers)
         self.assertEqual(resp.status, 201)
 
         import urllib.parse
-        encoded = urllib.parse.quote(show_name, safe="")
-        resp, body = self._json(conn, "GET", f"/api/shows/{encoded}/sets", headers=headers)
+        encoded = urllib.parse.quote(set_name, safe="")
+        resp, body = self._json(conn, "GET", f"/api/sets/{encoded}/banks", headers=headers)
         self.assertEqual(resp.status, 200)
-        self.assertEqual(body["sets"], [])
+        self.assertEqual(body["banks"], [])
 
     def test_validation_error_from_library_ops_is_a_400_not_a_500(self):
         # Real, pre-existing bug: LibraryOpsError (raised for almost
@@ -172,14 +176,14 @@ class TestLibraryFlow(ServerIntegrationTestCase):
         # server.py's generic 500 "Internal error" -- none of its
         # carefully written user-facing messages ever reached a client.
         conn, headers = self._authenticated_conn()
-        self._json(conn, "POST", "/api/shows", {"name": "Live"}, headers)
+        self._json(conn, "POST", "/api/sets", {"name": "Live"}, headers)
 
-        resp, body = self._json(conn, "POST", "/api/shows", {"name": "Live"}, headers)
+        resp, body = self._json(conn, "POST", "/api/sets", {"name": "Live"}, headers)
 
         self.assertEqual(resp.status, 400)
         self.assertIn("already exists", body["error"])
 
-    def test_create_set_with_null_number_is_a_400_not_a_500(self):
+    def test_create_bank_with_null_number_is_a_400_not_a_500(self):
         # Real, pre-existing bug found on real hardware: the frontend's
         # parseInt() can return NaN on unexpected prompt() input (e.g. a
         # stray invisible character from a mobile keyboard), which
@@ -188,9 +192,9 @@ class TestLibraryFlow(ServerIntegrationTestCase):
         # TypeError/500, since .get()'s default only applies when the
         # key is missing, not when it's present but null.
         conn, headers = self._authenticated_conn()
-        self._json(conn, "POST", "/api/shows", {"name": "Live"}, headers)
+        self._json(conn, "POST", "/api/sets", {"name": "Live"}, headers)
 
-        resp, body = self._json(conn, "POST", "/api/shows/Live/sets", {"number": None}, headers)
+        resp, body = self._json(conn, "POST", "/api/sets/Live/banks", {"number": None}, headers)
 
         self.assertEqual(resp.status, 400)
         self.assertIn("number", body["error"])
@@ -220,7 +224,7 @@ class TestSongLibraryFlow(ServerIntegrationTestCase):
         self.assertEqual(resp.status, 200)
         self.assertEqual([s["filename"] for s in body["songs"]], ["My Song.mp3"])
 
-    def test_assign_from_library_then_appears_in_the_set(self):
+    def test_assign_from_library_then_appears_in_the_bank(self):
         conn, headers = self._authenticated_conn()
         upload_headers = dict(headers)
         upload_headers["X-Track-Name"] = "Reusable"
@@ -230,44 +234,44 @@ class TestSongLibraryFlow(ServerIntegrationTestCase):
         conn.request("POST", "/api/songs", body=body_bytes, headers=upload_headers)
         conn.getresponse().read()
 
-        self._json(conn, "POST", "/api/shows", {"name": "Live"}, headers)
-        self._json(conn, "POST", "/api/shows/Live/sets", {"number": 1}, headers)
+        self._json(conn, "POST", "/api/sets", {"name": "Live"}, headers)
+        self._json(conn, "POST", "/api/sets/Live/banks", {"number": 1}, headers)
 
         resp, _ = self._json(
-            conn, "POST", "/api/shows/Live/sets/1/tracks/A/assign-from-library",
+            conn, "POST", "/api/sets/Live/banks/1/tracks/A/assign-from-library",
             {"song_filename": "Reusable.wav"}, headers,
         )
         self.assertEqual(resp.status, 200)
 
-        resp, tracks = self._json(conn, "GET", "/api/shows/Live/sets/1/tracks", headers=headers)
+        resp, tracks = self._json(conn, "GET", "/api/sets/Live/banks/1/tracks", headers=headers)
         self.assertEqual(tracks["A"]["display_name"], "Reusable")
 
-        # And the library's own copy is still there for the next Show.
+        # And the library's own copy is still there for the next Set.
         resp, body = self._json(conn, "GET", "/api/songs", headers=headers)
         self.assertEqual([s["filename"] for s in body["songs"]], ["Reusable.wav"])
 
     def test_save_track_to_library_then_reusable_elsewhere(self):
         conn, headers = self._authenticated_conn()
-        self._json(conn, "POST", "/api/shows", {"name": "OldShow"}, headers)
-        self._json(conn, "POST", "/api/shows/OldShow/sets", {"number": 1}, headers)
+        self._json(conn, "POST", "/api/sets", {"name": "OldSet"}, headers)
+        self._json(conn, "POST", "/api/sets/OldSet/banks", {"number": 1}, headers)
         upload_headers = dict(headers)
-        upload_headers["X-Track-Name"] = "From Old Show"
+        upload_headers["X-Track-Name"] = "From Old Set"
         upload_headers["X-Track-Extension"] = "mp3"
         # Delete it from the library first so this test exercises
         # save-to-library in isolation, not assign_track()'s automatic add.
         body_bytes = b"data"
         upload_headers["Content-Length"] = str(len(body_bytes))
-        conn.request("POST", "/api/shows/OldShow/sets/1/tracks/A", body=body_bytes, headers=upload_headers)
+        conn.request("POST", "/api/sets/OldSet/banks/1/tracks/A", body=body_bytes, headers=upload_headers)
         conn.getresponse().read()
-        self._json(conn, "DELETE", "/api/songs/From%20Old%20Show.mp3", headers=headers)
+        self._json(conn, "DELETE", "/api/songs/From%20Old%20Set.mp3", headers=headers)
 
         resp, _ = self._json(
-            conn, "POST", "/api/shows/OldShow/sets/1/tracks/A/save-to-library", headers=headers,
+            conn, "POST", "/api/sets/OldSet/banks/1/tracks/A/save-to-library", headers=headers,
         )
         self.assertEqual(resp.status, 200)
 
         resp, body = self._json(conn, "GET", "/api/songs", headers=headers)
-        self.assertEqual([s["filename"] for s in body["songs"]], ["From Old Show.mp3"])
+        self.assertEqual([s["filename"] for s in body["songs"]], ["From Old Set.mp3"])
 
 
 if __name__ == "__main__":

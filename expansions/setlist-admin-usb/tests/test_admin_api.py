@@ -34,6 +34,10 @@ class ApiTestCase(unittest.TestCase):
         self.mock_remount = remount_patcher.start()
         self.addCleanup(remount_patcher.stop)
 
+        ensure_mounted_patcher = patch("admin.usb_mount.ensure_mounted")
+        self.mock_ensure_mounted = ensure_mounted_patcher.start()
+        self.addCleanup(ensure_mounted_patcher.stop)
+
     def tearDown(self):
         self.tmpdir.cleanup()
 
@@ -45,6 +49,19 @@ class TestFirstRunAndPin(ApiTestCase):
     def test_is_first_run_false_after_pin_set(self):
         self.api.set_pin("1234")
         self.assertFalse(self.api.is_first_run())
+
+    def test_is_first_run_raises_503_if_usb_unreachable(self):
+        # Real anomaly seen on hardware: the library USB turns up
+        # spontaneously unmounted with a PIN already set on it -- without
+        # this, is_first_run() would just see an empty directory and
+        # wrongly report "first run," prompting to set a new PIN over one
+        # that's still there, just unreachable.
+        from admin import usb_mount
+        self.mock_ensure_mounted.side_effect = usb_mount.RemountError("nope")
+
+        with self.assertRaises(ApiError) as ctx:
+            self.api.is_first_run()
+        self.assertEqual(ctx.exception.status, 503)
 
     def test_set_pin_wraps_the_write_in_a_remount(self):
         self.api.set_pin("1234")
@@ -104,15 +121,23 @@ class TestFirstRunAndPin(ApiTestCase):
             self.api.require_session(old_token)
 
 
-class TestShowsSetsTracks(ApiTestCase):
-    def test_create_and_list_show(self):
-        self.api.create_show("Live")
-        self.assertEqual(self.api.list_shows()["shows"], ["Live"])
+class TestSetsBanksTracks(ApiTestCase):
+    def test_cleanup_stale_temp_files_wraps_in_a_remount(self):
+        removed = self.api.cleanup_stale_temp_files()
 
-    def test_full_flow_show_set_track(self):
-        self.api.create_show("Live")
-        self.api.set_active_show("Live")
-        self.api.create_set("Live", 1)
+        self.assertEqual(removed, 0)  # nothing stale on a fresh USB
+        modes = [call.args[1] for call in self.mock_remount.call_args_list]
+        self.assertIn("rw", modes)
+        self.assertIn("ro", modes)
+
+    def test_create_and_list_set(self):
+        self.api.create_set("Live")
+        self.assertEqual(self.api.list_sets()["sets"], ["Live"])
+
+    def test_full_flow_set_bank_track(self):
+        self.api.create_set("Live")
+        self.api.set_active_set("Live")
+        self.api.create_bank("Live", 1)
         self.api.assign_track("Live", 1, "A", "My Song", "mp3", io.BytesIO(b"data"))
 
         tracks = self.api.list_tracks("Live", 1)
@@ -121,8 +146,8 @@ class TestShowsSetsTracks(ApiTestCase):
         self.assertIsNone(tracks["B"])
 
     def test_swap_tracks_through_the_api(self):
-        self.api.create_show("Live")
-        self.api.create_set("Live", 1)
+        self.api.create_set("Live")
+        self.api.create_bank("Live", 1)
         self.api.assign_track("Live", 1, "A", "Song A", "mp3", io.BytesIO(b"a"))
         self.api.assign_track("Live", 1, "B", "Song B", "mp3", io.BytesIO(b"b"))
 
@@ -133,12 +158,12 @@ class TestShowsSetsTracks(ApiTestCase):
         self.assertEqual(tracks["B"]["display_name"], "Song A")
 
     def test_every_mutating_method_remounts_rw_then_ro(self):
-        self.api.create_show("Live")
-        self.api.create_set("Live", 1)
+        self.api.create_set("Live")
+        self.api.create_bank("Live", 1)
         self.api.assign_track("Live", 1, "A", "Song", "mp3", io.BytesIO(b"data"))
         self.api.rename_track("Live", 1, "A", "New Name")
         self.api.delete_track("Live", 1, "A")
-        self.api.delete_set("Live", 1)
+        self.api.delete_bank("Live", 1)
 
         modes = [call.args[1] for call in self.mock_remount.call_args_list]
         # Every single logical operation above got its own rw+ro pair --

@@ -9,15 +9,94 @@ fecha hasta que eso cambie.
 
 ## [Sin publicar]
 
+- Se renombró la terminología de la biblioteca en todo el proyecto
+  (código, pruebas y documentación): la carpeta de nivel superior, antes
+  llamada "Show", ahora es un **Set** (un grupo de Banks + canciones
+  utilizables en su totalidad en una única presentación en vivo); lo que
+  antes se llamaba "Set" (la carpeta de nivel medio con hasta tres
+  pistas `A`/`B`/`C`) ahora es un **Bank** (banco), en línea con la
+  propia terminología de bancos/grupos del M-VAVE PD41. Las letras de
+  pista (`A`/`B`/`C`) no cambian. `active_show.txt` ahora es
+  `active_set.txt`; las carpetas pasan de `<Nombre del Show>/Set N/` a
+  `<Nombre del Set>/Bank N/`. Las rutas REST de las dos expansiones de
+  `setlist-admin` pasaron de `/api/shows` y
+  `/api/shows/{show}/sets/...` a `/api/sets` y
+  `/api/sets/{set}/banks/...`. El parámetro interno del protocolo
+  Mapper/Core `setlist` (`Library.resolve(setlist, track)`,
+  `src/core/library.py`) **no** forma parte de este renombrado a
+  propósito — es un detalle interno de implementación que nunca se le
+  muestra al usuario, y se mantiene igual deliberadamente. Los USB de
+  biblioteca ya existentes necesitan que sus carpetas/archivos se
+  renombren a mano para calzar (ver `LIBRARY.md`) antes de que el código
+  de esta versión encuentre algo en ellos.
+- Validación en hardware real de `expansions/setlist-admin-usb/`
+  (tethering USB con iPhone), que encontró y corrigió varios bugs
+  reales:
+  - Fallos transitorios de `umount` (el mpv de `pedal-core.service`
+    mantiene `/media/usb` abierto continuamente) ahora tienen un
+    reintento acotado en vez de fallar toda la escritura.
+  - Se observó que el USB de biblioteca a veces se desmonta solo, sin
+    ninguna evidencia correspondiente en ningún registro — la causa raíz
+    no está confirmada, pero se capturó una caída real de voltaje
+    (`vcgencmd get_throttled` mostró subvoltaje) durante la misma
+    sesión, la pista más fuerte hasta ahora. `usb_mount.py` ahora se
+    autorepara: `_remount()` trata "ya no está montado" como éxito en
+    vez de fallar, y el nuevo `usb_mount.ensure_mounted()` (usado por
+    `is_first_run()`) intenta un montaje de recuperación antes de que
+    una verificación de solo lectura saque una conclusión equivocada de
+    un directorio vacío (antes se reportaba falsamente como "primera
+    vez", pidiendo sobrescribir un PIN que ya existía).
+  - Dos peticiones simultáneas (ej. un doble toque real en un botón)
+    chocaban entre sí sus propios llamados crudos de `umount`/`mount`
+    sin ninguna coordinación, corrompiendo ocasionalmente el estado del
+    remontaje. `writable_usb()` ahora se ejecuta bajo un candado de
+    todo el proceso, serializando cada escritura.
+  - Que el teléfono se desconecte a mitad de una subida
+    (`usb-tether-watchdog.service` detiene el servidor de admin con
+    SIGTERM en el instante en que la interfaz conectada desaparece)
+    nunca corrompió datos reales (el diseño de escritura atómica por
+    archivo temporal funcionó), pero sí dejaba archivos huérfanos
+    grandes `.part`/`.swaptmp` para siempre, ya que SIGTERM se salta el
+    camino normal de limpieza por excepciones de Python. El nuevo
+    `library_ops.cleanup_stale_temp_files()` los limpia en cada arranque
+    del servidor.
+  - `rename_song()`/`delete_song()` no verificaban que el archivo de la
+    canción siguiera existiendo antes de tocarlo (a diferencia de todas
+    las demás funciones de `library_ops.py`) — una referencia
+    desactualizada a una canción borrada a mano directamente del USB
+    producía un `FileNotFoundError` crudo, sin manejar, en vez de un
+    mensaje de error claro.
+  - Frontend: varios manejadores de botones no tenían ningún manejo de
+    errores (un error del servidor era una promesa rechazada invisible,
+    sin manejar); el manejador de subida por pista nunca revisaba el
+    estado de la respuesta; recargar las listas devolvía el scroll al
+    inicio de la página después de cada guardar/asignar/renombrar (causa
+    raíz: el contenedor quedaba genuinamente vacío, a veces durante
+    varias idas y vueltas de red seguidas, obligando al navegador a
+    recortar el scroll — corregido construyendo el contenido nuevo fuera
+    de pantalla primero e intercambiándolo en un solo paso); y el
+    destello verde de "esto funcionó" en los botones aparecía solo
+    después de que el servidor respondía en vez de en el instante en que
+    se tocaba el botón, así que una subida lenta se veía sin respuesta
+    durante toda su duración.
+- Se agregó una vista **Export Set** a las dos expansiones de
+  `setlist-admin`: una vista a pantalla completa, en letra grande, con
+  el repertorio del Set seleccionado (el nombre de archivo exacto de
+  cada pista + su extensión, en orden de Bank/letra), con un aviso de
+  los formatos soportados y un botón "Share" que convierte la lista en
+  una imagen PNG y la entrega al menú nativo de compartir del teléfono
+  (alternativa en escritorio/navegador sin soporte: descarga directa).
+  Se cierra con una ✕ en pantalla, con Escape, o con el gesto de
+  retroceso del navegador.
 - Se agregó una biblioteca compartida de canciones (`_Songs/` en la raíz
   del USB) a las dos expansiones de `setlist-admin`, para que una
   canción solo se suba una vez y se pueda reutilizar en cualquier
-  cantidad de setlists en vez de volver a subirla en cada show nuevo.
+  cantidad de Sets en vez de volver a subirla en cada Set nuevo.
   Documentada como convención del proyecto base en `LIBRARY.md` (en/es)
   — también funciona a mano por SSH, no solo a través de alguna de las
   dos apps — con una advertencia explícita de no borrar canciones de
   ahí, ya que borrar solo las quita de futuras selecciones, nunca de un
-  Set donde ya estén asignadas (eso siempre es una copia independiente).
+  Bank donde ya estén asignadas (eso siempre es una copia independiente).
   Las funciones nuevas de `library_ops.py`
   (`list_songs`/`upload_song`/`rename_song`/`delete_song`/
   `assign_song_to_slot`/`save_track_to_library`) son idénticas entre las
@@ -30,7 +109,7 @@ fecha hasta que eso cambie.
   canciones en sí): `library_ops.LibraryOpsError` nunca se traducía a
   una respuesta HTTP apropiada (caía en el 500 "Internal error" genérico
   en vez del 400 con mensaje útil que debía ser), y los segmentos de
-  ruta de la URL (nombres de show, ahora también de canciones) nunca se
+  ruta de la URL (nombres de Set, ahora también de canciones) nunca se
   decodificaban del lado del servidor pese a que el frontend sí los
   codifica, así que cualquier nombre que realmente necesitara
   codificación (cualquier espacio o tilde) fallaba en silencio.
@@ -50,7 +129,7 @@ fecha hasta que eso cambie.
   el mismo checkout sin necesitar cambiar de rama para verla.
 - Se agregó `setlist-admin` (diseño por USB): un segundo intento de la
   app web complementaria para administrar el USB de biblioteca
-  (shows/Sets/pistas, CRUD completo) desde el navegador de un teléfono,
+  (Sets/Banks/pistas, CRUD completo) desde el navegador de un teléfono,
   esta vez conectando el teléfono a la Pi con un cable USB (compartir
   conexión por USB en Android, o Compartir Internet por cable en
   iPhone) en vez de que la Pi necesite su propio radio WiFi — ver
@@ -118,7 +197,7 @@ fecha hasta que eso cambie.
 - Se agregó `LIBRARY.md` (en/es): cómo nombrar carpetas/archivos del USB
   de biblioteca, y el error exacto de espaciado en el nombre de archivo
   (`A  - x.mov` vs `A - x.mov`) que falla completamente en silencio —
-  encontrado en vivo probando un video del Set 5 que no se reproducía.
+  encontrado en vivo probando un video del Bank 5 que no se reproducía.
 - Proyecto renombrado de "Sequence Pedal" / "Pedal de Secuencias" a
   **Chocolate Pi** -- un nombre de producto propio (juego de palabras
   con el pedal M-VAVE Chocolate + la Raspberry Pi que realmente se usan)

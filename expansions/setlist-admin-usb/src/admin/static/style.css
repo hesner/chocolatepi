@@ -98,8 +98,43 @@ button.danger {
 
 button:active { opacity: 0.8; }
 
+/* Brief "this worked" flash -- added after a button whose whole card/row
+   gets torn down and rebuilt right after a successful action (e.g.
+   assign/rename/delete), since :active alone stops being visible the
+   instant the element is replaced. */
+button.btn-flash-success {
+  background: var(--success) !important;
+  color: #06210f !important;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
 .error { color: var(--danger); font-size: 0.9rem; }
 .success { color: var(--success); font-size: 0.9rem; }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.25rem;
+  transform: translateX(-50%) translateY(6px);
+  background: var(--success);
+  color: #06210f;
+  padding: 0.7rem 1.1rem;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  max-width: calc(100vw - 2.5rem);
+  text-align: center;
+}
+
+.toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
 
 .warning {
   background: #3a2a10;
@@ -130,7 +165,7 @@ button:active { opacity: 0.8; }
 .row label { color: var(--text-dim); font-size: 0.9rem; }
 .row select { flex: 1; min-width: 140px; }
 
-.set-card {
+.bank-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -138,7 +173,7 @@ button:active { opacity: 0.8; }
   margin-bottom: 1rem;
 }
 
-.set-card-header {
+.bank-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -216,6 +251,84 @@ button:active { opacity: 0.8; }
 }
 
 .song-row button { font-size: 0.85rem; padding: 0.45rem 0.7rem; }
+
+/* Export Set: a large-print, full-screen "cheat sheet" view of one
+   Set's whole running order -- meant to be readable at a glance on
+   stage, not a dense admin screen. */
+.export-view {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  padding: 1.25rem;
+  overflow-y: auto;
+}
+
+/* Real bug found on real hardware: an unconditional `display: flex`
+   above overrides the browser's own `[hidden] { display: none }` rule
+   (author styles beat the user-agent stylesheet even at equal
+   specificity) -- the `hidden` attribute set/cleared from app.js was
+   silently having no effect at all, so this view showed, empty, from
+   the very first page load. Matches the `.view[hidden]`/
+   `.tab-panel[hidden]` pattern already used elsewhere in this file --
+   should have followed it here too from the start. */
+.export-view[hidden] {
+  display: none;
+}
+
+.export-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.export-header h2 {
+  font-size: 1.4rem;
+  margin: 0;
+}
+
+.export-close {
+  font-size: 1.3rem;
+  line-height: 1;
+  padding: 0.5rem 0.8rem;
+  flex-shrink: 0;
+}
+
+.export-list {
+  list-style: none;
+  counter-reset: export-line;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  flex: 1;
+}
+
+.export-list li {
+  counter-increment: export-line;
+  font-size: clamp(1.15rem, 4.5vw, 1.6rem);
+  font-weight: 600;
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 0.6rem;
+}
+
+.export-list li:first-child { border-top: none; }
+
+.export-list li::before {
+  content: counter(export-line) ".";
+  color: var(--accent);
+  flex-shrink: 0;
+  min-width: 1.6em;
+}
+
+.export-disclaimer { margin-bottom: 1rem; }
+
+.export-actions { display: flex; justify-content: flex-end; }
 
 /* Wider screens (a PC on the home network, section 1) -- more breathing
    room, side-by-side controls, but nothing about the layout is
