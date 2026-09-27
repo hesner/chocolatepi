@@ -99,12 +99,26 @@ de biblioteca — un error de nombre de archivo fácil de cometer ahí falla
 completamente en silencio. ¿Algo no se comporta como dice la
 documentación? Revisa primero [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
 ¿Vas a montar esto en hardware nuevo desde cero (incluso con un agente
-de IA haciendo el trabajo)? Ver [`REBUILD.md`](REBUILD.md). ¿Quieres
-administrar la biblioteca desde el teléfono en vez de SSH? Ver
-[`expansions/`](../../expansions/) — addons opcionales,
-instalables/removibles de forma independiente, empezando por
-[`setlist-admin-usb`](../../expansions/setlist-admin-usb/docs/es/USAGE.md)
-(conecta el teléfono a la Pi por USB, sin necesitar hardware de WiFi).
+de IA haciendo el trabajo)? Ver [`REBUILD.md`](REBUILD.md).
+
+## Expansiones opcionales
+
+El pedal de arriba funciona de forma independiente — nada de lo
+siguiente es obligatorio. Para administrar el USB de biblioteca desde
+el navegador de un teléfono en vez de por SSH, ver
+[`expansions/`](../../expansions/): addons opcionales, autocontenidos,
+instalables/removibles de forma independiente, que nunca modifican el
+sistema base del pedal y se pueden desinstalar por completo de vuelta a
+él en cualquier momento.
+
+| Expansión | Qué hace | Estado |
+|---|---|---|
+| [`setlist-admin-usb`](../../expansions/setlist-admin-usb/docs/es/USAGE.md) | Administra Sets/Banks/pistas desde el navegador de un teléfono, conectando el teléfono a la Pi por USB (tethering de Android / Personal Hotspot por cable en iPhone), sin necesitar hardware de WiFi | Implementada y validada de punta a punta en hardware real |
+| [`setlist-admin-wifi`](../../expansions/setlist-admin-wifi/docs/es/USAGE.md) | La misma administración de biblioteca, más configuración del WiFi de la Pi, alcanzable por WiFi | Implementada; validación en hardware real en pausa por un dongle USB de WiFi muerto |
+
+Ver [`expansions/README.md`](expansions/README.md) para el modelo
+completo (instalador/desinstalador propio de cada expansión, las
+reglas de independencia entre ellas).
 
 ## Estructura del proyecto
 
@@ -122,6 +136,7 @@ src/
 tests/          Tests unitarios (no requieren hardware)
 systemd/        Servicio de arranque automático, notas de udev/fstab
 scripts/        Scripts de configuración puntuales (ej. el video de standby de respaldo)
+expansions/     Addons opcionales (ver "Expansiones opcionales" arriba)
 docs/es/        Traducciones al español de la documentación del proyecto
 ```
 

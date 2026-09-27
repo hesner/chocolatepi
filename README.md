@@ -92,12 +92,24 @@ on the library USB -- one easy-to-make filename mistake there fails
 completely silently. Something not behaving as documented? Check
 [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) first. Setting this up on new
 hardware from scratch (including with an AI coding agent doing the
-work) -- see [`REBUILD.md`](REBUILD.md). Want to manage the library
-from a phone instead of SSH? See the optional
-[`expansions/`](expansions/) -- self-contained, independently
-installable/removable addons, starting with
-[`setlist-admin-usb`](expansions/setlist-admin-usb/USAGE.md) (plug the
-phone into the Pi over USB, no WiFi hardware required).
+work) -- see [`REBUILD.md`](REBUILD.md).
+
+## Optional expansions
+
+The pedal above works standalone -- nothing below is required. For
+managing the library USB from a phone's browser instead of SSH, see
+[`expansions/`](expansions/): self-contained, independently
+installable/removable addons that never modify the base pedal system,
+and can be fully uninstalled back to it at any time.
+
+| Expansion | What it does | Status |
+|---|---|---|
+| [`setlist-admin-usb`](expansions/setlist-admin-usb/USAGE.md) | Manage Sets/Banks/tracks from a phone's browser, reachable by plugging the phone into the Pi over USB (Android tethering / iPhone Personal Hotspot over cable), no WiFi hardware required | Implemented and validated end-to-end on real hardware |
+| [`setlist-admin-wifi`](expansions/setlist-admin-wifi/USAGE.md) | The same library management, plus Pi WiFi configuration, reachable over WiFi | Implemented; real-hardware validation shelved on a dead USB WiFi dongle |
+
+See [`expansions/README.md`](expansions/README.md) for the full model
+(each expansion's own installer/rollback script, the independence
+rules between them).
 
 ## Project layout
 
@@ -115,6 +127,7 @@ src/
 tests/          Unit tests (no hardware required)
 systemd/        Auto-boot service, udev/fstab notes
 scripts/        One-off setup scripts (e.g. the fallback standby video)
+expansions/     Optional addons (see "Optional expansions" above)
 docs/es/        Spanish translations of the project documentation
 ```
 
