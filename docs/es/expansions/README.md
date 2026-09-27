@@ -64,7 +64,7 @@ Consecuencias de esta forma, a propósito:
 
 | Expansión | Qué hace | Estado |
 |---|---|---|
-| [`setlist-admin-usb`](../../../expansions/setlist-admin-usb/docs/es/USAGE.md) | Administra el USB de biblioteca (Sets/Banks/pistas) desde el navegador de un teléfono, conectando el teléfono a la Pi por USB (tethering de Android / Personal Hotspot por cable en iPhone) | Implementada, todavía no validada en hardware real |
+| [`setlist-admin-usb`](../../../expansions/setlist-admin-usb/docs/es/USAGE.md) | Administra el USB de biblioteca (Sets/Banks/pistas) desde el navegador de un teléfono, conectando el teléfono a la Pi por USB (tethering de Android / Personal Hotspot por cable en iPhone) | Implementada y validada de punta a punta en hardware real (iPhone) |
 | [`setlist-admin-wifi`](../../../expansions/setlist-admin-wifi/docs/es/USAGE.md) | La misma administración de biblioteca, más configuración del WiFi de la Pi (red de casa / respaldo de hotspot del celular), alcanzable por WiFi | Implementada y con tests unitarios; validación en hardware real en pausa por un dongle USB de WiFi muerto (hardware, no diseño/código) |
 
 Ambas se diseñaron para quedar convergibles: `setlist-admin-usb`

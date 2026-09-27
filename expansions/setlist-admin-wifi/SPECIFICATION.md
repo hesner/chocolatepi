@@ -35,6 +35,19 @@ starting point (or reference) once a working WiFi adapter is available
 again, but section 8a's protocol should be re-run from the top on real
 hardware before trusting it again.
 
+**Kept in sync, 2026-09-27**: everything found and fixed on
+`setlist-admin-usb`'s real-hardware pass that day (the Set/Bank rename,
+`usb_mount.py`'s remount hardening, the stale-temp-file cleanup, the
+`rename_song`/`delete_song` fix, the frontend error-handling/scroll/
+tap-feedback fixes, and the new Export Set view -- see `CHANGELOG.md`)
+was ported here too, identically, for parity -- but **none of it has
+been exercised on real hardware in this expansion specifically**, since
+that still needs a working WiFi adapter this project doesn't have yet.
+Treat the WiFi-specific parts (sections 4-8a) as still only as trusted
+as they were before; only the CRUD backend/frontend shared with
+`setlist-admin-usb` benefits from that expansion's real-hardware
+mileage.
+
 ---
 
 ## 1. What this is
@@ -459,3 +472,11 @@ with a helpful message), and URL path segments (Set names, now also
 song filenames) were never percent-decoded server-side despite the
 frontend percent-encoding them, so any name actually needing encoding
 (any space) silently failed.
+
+## 13. Export Set (large-print running order + share-as-image) -- approved 2026-09-27
+
+Same feature, same implementation, as
+`expansions/setlist-admin-usb/SPECIFICATION.md` section 14 -- ported
+here for parity (see that section for the full design/reasoning). Not
+yet exercised on real hardware in this expansion specifically, per the
+status note above.

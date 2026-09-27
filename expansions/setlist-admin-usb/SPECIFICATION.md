@@ -1,13 +1,30 @@
 # SETLIST ADMIN USB SPECIFICATION — "Chocolate Pi" companion admin app (USB-tether design)
 
-**Status: implemented and passing its first real-hardware test
-(2026-09-26 -- PIN setup, login, and a track rename all confirmed
-working end-to-end over an iPhone's Personal Hotspot connection).**
+**Status: implemented and extensively validated on real hardware
+(2026-09-26/27, over an iPhone's Personal Hotspot connection) --
+covering PIN setup/login, the full Set/Bank/track CRUD flow, the shared
+song library (upload/assign/save/rename/delete), mid-upload USB-cable
+disconnection, and reboot-to-apply -- plus the terminology rename
+(section 0 note below) and section 14's Export Set feature.**
 Mirrors `MASTER_SPECIFICATION.md`'s own process: this document was
 proposed, discussed, and approved before any code was written (section
-6 of that file). Section 13 (song library) was approved and added the
-same day, after the initial hardware test, in response to a real
+6 of that file). Section 13 (song library) was approved and added
+2026-09-26, after the initial hardware test, in response to a real
 workflow gap noticed once real songs were actually being assigned.
+Real-hardware testing on 2026-09-27 found and fixed several bugs not
+caught by the unit-test suite alone -- see `CHANGELOG.md` for the full
+list (a transient `umount` race, a library USB that has been observed
+to spontaneously unmount itself with no corresponding log evidence
+anywhere -- root cause not confirmed, a real power-supply brownout is
+the strongest lead so far -- a concurrency race between overlapping
+writes, orphaned temp files left behind by a SIGTERM'd upload, and
+several frontend issues around error handling, scroll position, and
+button feedback timing).
+
+Terminology note: this document and the app it describes now use
+**Set** (top-level, was "Show") and **Bank** (mid-level, was "Set") --
+see `CHANGELOG.md`'s rename entry and `LIBRARY.md` for the full
+rationale and folder-naming details.
 
 This is a **separate design track** from the earlier WiFi-based
 attempt (preserved, unfinished, on the `explore/setlist-admin` branch
@@ -370,3 +387,52 @@ small PIN file) -- deleting actual song files is a bigger, more
 deliberate action than resetting a PIN, and `_Songs/` is shared with
 `setlist-admin-wifi` too (same USB, same convention), so purging it
 here removes it there as well.
+
+## 14. Export Set (large-print running order + share-as-image) -- approved 2026-09-27
+
+**Problem**: on stage, reading a Set's running order means opening each
+Bank card in turn in the normal admin UI -- workable while editing, but
+not something a musician wants to be doing mid-performance, and there
+was no way to hand the list to someone else (another band member, a
+sound engineer) without them opening the app themselves.
+
+**Design**: a new "Export Set" button next to the Set selector opens a
+full-screen, large-print view of the selected Set's entire running
+order, built purely client-side from data the app already has (no new
+API endpoints) -- one `GET` per Bank's tracks, same calls the normal
+Bank cards already make, just aggregated into a flat numbered list
+instead of per-Bank cards. Each line shows the track's **exact stored
+filename and extension** (`display_name.extension`, deliberately not a
+"prettied up" name) plus its Bank/letter, e.g. `Perro.wav — Bank 1 A` --
+approved specifically so what's on screen always matches what a person
+editing the USB by hand over SSH would see, per `LIBRARY.md`'s existing
+philosophy of exposing the real on-disk convention rather than hiding
+it. A supported-formats disclaimer is shown at the bottom of the view
+for the same reason (LIBRARY.md's "Recommended encoding" table,
+summarized).
+
+Closes via an on-screen ✕, the Escape key, or the phone's own back
+gesture/button -- the latter via a `history.pushState()` when the view
+opens and a `popstate` listener, so leaving via back doesn't navigate
+the phone's browser away from the app entirely.
+
+**Share**: renders the same data onto an off-screen `<canvas>` (hand-
+drawn text, not a screenshot of the DOM -- keeps this dependency-free,
+consistent with section 2's "no build step, no framework" decision) and
+hands the resulting PNG to `navigator.share()` with `files:` so the
+phone's native share sheet appears (WhatsApp among the options, per the
+original request) when the browser supports sharing files; falls back
+to a plain download otherwise. Desktop-browser share support is
+explicitly **not yet certified** -- planned as a separate verification
+pass once a PC is available to test against.
+
+Real bug found building this, unrelated to the feature's own logic: the
+view's CSS set an unconditional `display: flex` on the container, which
+overrides the browser's own `[hidden] { display: none }` rule (author
+styles beat the user-agent stylesheet at equal specificity) -- the
+`hidden` attribute this view is shown/hidden with was silently having
+no effect, so it appeared, empty, on every page load. Fixed with an
+explicit `.export-view[hidden] { display: none; }` override, matching
+the `.view[hidden]`/`.tab-panel[hidden]` pattern already used elsewhere
+in `style.css` -- worth following that existing pattern from the start
+for any future full-screen overlay added here.
