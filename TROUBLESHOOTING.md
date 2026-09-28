@@ -42,6 +42,54 @@ for future development, `do_overlayfs 0` resets the parameter to bare
 `overlayroot=tmpfs` -- you have to redo the `:recurse=0` edit each time,
 or this bug comes back.
 
+## Is it safe to just unplug the Pi / what happens on a power cut?
+
+**Short answer: yes, during normal band use.** Right now (confirmed
+against the live Pi's `/etc/fstab` and `mount` output), all three
+filesystems that matter are either read-only or RAM-backed during
+normal operation:
+
+- `/` is an `overlay` whose `upperdir` is `tmpfs` (RAM) -- see
+  `systemd/README.md` section 4. Nothing written during normal use ever
+  touches the SD card.
+- `/boot/firmware` is mounted `ro`.
+- `/media/usb` (the library) is mounted `ro`.
+
+Since nothing is actually being written to physical storage while the
+band is playing, an abrupt power loss at that moment has nothing to
+corrupt.
+
+**The real risk windows** -- all brief, and all outside normal
+show-time use:
+
+1. **Editing the library from the admin app (USB or WiFi expansion).**
+   The one risk window that happens during ordinary use, not just
+   maintenance: `/media/usb` gets remounted `rw` for a fraction of a
+   second per write. Already well-mitigated (atomic temp-file writes,
+   so the real file is never touched mid-write; self-healing remounts;
+   a process-wide lock) -- but a power cut in that exact instant could
+   still leave the NTFS volume needing a `chkdsk`, even though song
+   content itself stays safe. See "Library changes don't show up" and
+   `library_ops.py`'s module docstring.
+2. **Deploying/maintaining code on the Pi with the overlay temporarily
+   disabled.** The only time `/` becomes a real, writable ext4 instead
+   of RAM. Only happens during development, never during band use --
+   see "Code/config changes on the Pi disappear after a reboot" below
+   and `systemd/README.md` section 4.
+3. **Hand-editing `/boot/firmware/cmdline.txt`.** Requires remounting
+   `/boot/firmware` `rw` briefly. Same profile as #2 -- maintenance
+   only, and already flagged as "the single riskiest edit in this whole
+   guide" in `systemd/README.md` section 4.
+
+**The more likely real-world trigger isn't a clean unplug at all --
+it's an underpowered supply.** This project directly observed
+`vcgencmd get_throttled` showing real under-voltage plus at least one
+spontaneous reboot during a single testing session (see "Random freeze,
+Undervoltage detected!" below). A marginal power supply can cause
+erratic behavior with nobody touching the plug. Use a genuine 5V/2.5A+
+supply, and avoid charging a phone from the Pi's own USB port while
+it's under load.
+
 ## A footswitch does nothing -- no video, no audio, no error
 
 This is almost always a silent "empty slot" match failure in

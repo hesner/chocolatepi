@@ -68,6 +68,20 @@ corrección equivalente ahí necesitaría su propia decisión de diseño
 ya que no hay un momento de "aplicar" del cual colgarse) — todavía no
 diseñada, ni mucho menos construida.
 
+**También documentado (2026-09-27, sin cambio de código)**: una
+respuesta consolidada a "¿está la Pi protegida ante un corte de luz, y
+cuáles son las ventanas de riesgo reales?" en `TROUBLESHOOTING.md`/
+`docs/es/TROUBLESHOOTING.md` (sección nueva cerca del inicio) y
+`systemd/README.md` sección 4. Versión corta: segura durante el uso
+normal en un show (root/`boot`/USB están respaldados en RAM o en
+solo-lectura en ese momento); las ventanas reales son el remontaje `rw`
+breve de `/media/usb` durante una edición de biblioteca, el overlay
+desactivado para desarrollo, y la edición a mano de `cmdline.txt` — las
+últimas dos solo de mantenimiento. Se señala una fuente de poder
+insuficiente (no un desenchufe limpio) como el disparador más probable
+en la práctica, según un evento de under-voltage observado directamente
+por este proyecto.
+
 ## Lo que sigue genuinamente sin confirmar — haz esto antes de confiar en ello
 
 1. **La corrección visual de Export Set está desplegada pero no

@@ -99,6 +99,18 @@ fecha hasta que eso cambie.
   también es el momento correcto para confirmarlo. (Todavía no
   trasladado a `setlist-admin-wifi`, que no tiene botón propio de
   reinicio — ver `expansions/setlist-admin-usb/NEXT_STEPS.md`.)
+- Documentada (en `TROUBLESHOOTING.md` en/es, más `systemd/README.md`
+  sección 4) una respuesta consolidada a "¿está la Pi protegida ante un
+  corte de luz, y cuáles son las ventanas de riesgo reales?": durante el
+  uso normal en un show, `/`, `/boot/firmware` y `/media/usb` están
+  respaldados en RAM o en solo-lectura, así que no hay nada que un corte
+  de luz pueda corromper; las ventanas reales (breves) son el remontaje
+  `rw` de `/media/usb` durante una edición de biblioteca, el overlay
+  desactivado para desarrollo, y la edición a mano de `cmdline.txt` —
+  las últimas dos son solo de mantenimiento, nunca durante un show.
+  También señala que una fuente de poder insuficiente, no un desenchufe
+  limpio, es el disparador más probable en la práctica, según un evento
+  de under-voltage observado directamente por este proyecto.
 - Se agregó una biblioteca compartida de canciones (`_Songs/` en la raíz
   del USB) a las dos expansiones de `setlist-admin`, para que una
   canción solo se suba una vez y se pueda reutilizar en cualquier

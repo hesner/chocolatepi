@@ -60,6 +60,17 @@ equivalent fix there would need its own UI decision (e.g. set-active
 immediately on dropdown selection, since there's no "apply" moment to
 hook into) -- not yet designed, let alone built.
 
+**Also documented (2026-09-27, no code change)**: a consolidated answer
+to "is the Pi safe against a power cut, and where are the real risk
+windows" in `TROUBLESHOOTING.md`/`docs/es/TROUBLESHOOTING.md` (new
+section near the top) and `systemd/README.md` section 4. Short version:
+safe during normal band use (root/`boot`/USB are all RAM-backed or `ro`
+at that point); the real windows are a library edit's brief
+`/media/usb` `rw` remount, the overlay disabled for development, and
+hand-editing `cmdline.txt` -- the last two maintenance-only. An
+underpowered supply (not a clean unplug) is flagged as the more likely
+real-world trigger, per this project's own observed under-voltage event.
+
 ## What's genuinely unconfirmed -- do these before trusting them
 
 1. **Export Set's visual fix is deployed but not re-confirmed.** It

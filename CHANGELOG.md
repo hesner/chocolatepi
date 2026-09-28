@@ -86,6 +86,16 @@ date instead until that changes.
   confirm intent, so also the right moment to commit to it. (Not yet
   ported to `setlist-admin-wifi`, which has no reboot button of its own
   -- see `expansions/setlist-admin-usb/NEXT_STEPS.md`.)
+- Documented (en/es `TROUBLESHOOTING.md`, plus `systemd/README.md`
+  section 4) a consolidated answer to "is the Pi safe against a power
+  cut, and what are the actual risk windows": during normal band use,
+  `/`, `/boot/firmware`, and `/media/usb` are all RAM-backed or `ro`, so
+  there's nothing for a power loss to corrupt; the real (brief) windows
+  are a library edit's `/media/usb` `rw` remount, the overlay being
+  disabled for development, and hand-editing `cmdline.txt` -- the last
+  two are maintenance-only, never during a show. Also calls out that an
+  underpowered supply, not a clean unplug, is the more likely real-world
+  trigger, per this project's own directly-observed under-voltage event.
 - Added a shared song library (`_Songs/` at the USB root) to both
   `setlist-admin` expansions, so a song only needs to be uploaded once
   and can be reused across any number of Sets instead of

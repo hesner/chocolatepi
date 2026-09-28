@@ -228,6 +228,21 @@ After reboot, `/` is an `overlay` (`mount | grep ' / '` shows
 normal operation lands in RAM and is discarded on every reboot; the SD
 card itself is never touched, so an abrupt power loss can't corrupt it.
 
+**Risk windows, for the record** (see `TROUBLESHOOTING.md`'s "Is it
+safe to just unplug the Pi?" entry for the full explanation aimed at a
+non-developer reader): during normal band use, `/`, `/boot/firmware`,
+and `/media/usb` are all either RAM-backed or `ro`, so there is nothing
+for a power loss to corrupt. The only real writable windows are (1) a
+library edit from the admin app briefly remounting `/media/usb` `rw`
+(mitigated by atomic writes, a lock, and self-healing remounts, but not
+literally zero-risk to the NTFS volume's own metadata), and (2)/(3) this
+overlay being disabled for development, or `cmdline.txt` being
+hand-edited -- both maintenance-only, never during a show. Separately,
+an underpowered supply (not a clean power-loss event at all) has been
+directly observed causing real under-voltage and at least one
+spontaneous reboot -- see "Random freeze, Undervoltage detected!" in
+`TROUBLESHOOTING.md`.
+
 **Apply this last, once there's no more Pi-side development expected**:
 anything written to the Pi while the overlay is active (including
 syncing a new version of this code) is lost on the next reboot, since it

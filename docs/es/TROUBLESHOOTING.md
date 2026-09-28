@@ -6,6 +6,56 @@ Referencia organizada por síntoma. Encuentra lo que estás viendo, salta
 directo ahí. Cada entrada acá es una falla real que este proyecto tuvo
 alguna vez durante su propio desarrollo o pruebas — no algo hipotético.
 
+## ¿Es seguro simplemente desenchufar la Pi / qué pasa ante un corte de luz?
+
+**Respuesta corta: sí, durante el uso normal en un show.** Ahora mismo
+(confirmado contra el `/etc/fstab` y `mount` reales de la Pi), los tres
+sistemas de archivos que importan están en solo-lectura o respaldados
+en RAM durante la operación normal:
+
+- `/` es un `overlay` cuyo `upperdir` es `tmpfs` (RAM) — ver
+  `systemd/README.md` sección 4. Nada de lo que se escribe en uso
+  normal toca jamás la tarjeta SD.
+- `/boot/firmware` está montado `ro`.
+- `/media/usb` (la biblioteca) está montado `ro`.
+
+Como no hay absolutamente nada escribiéndose en almacenamiento físico
+mientras la banda toca, un corte de luz abrupto en ese momento no tiene
+nada que corromper.
+
+**Las ventanas de riesgo reales** — todas breves, y todas fuera del uso
+normal durante un show:
+
+1. **Editar la biblioteca desde la app de administración (expansión USB
+   o WiFi).** La única ventana de riesgo que ocurre en uso ordinario, no
+   solo en mantenimiento: `/media/usb` se remonta `rw` por una fracción
+   de segundo por cada escritura. Ya está bien mitigado (escrituras
+   atómicas a un archivo temporal, así que el archivo real nunca se toca
+   a medias; remontajes auto-recuperables; un candado de proceso
+   completo) — pero un corte de luz en ese instante exacto todavía
+   podría dejar el volumen NTFS necesitando un `chkdsk`, aunque el
+   contenido de las canciones quede a salvo. Ver "Los cambios en la
+   biblioteca no aparecen" y el docstring del módulo `library_ops.py`.
+2. **Desplegar/mantener código en la Pi con el overlay desactivado
+   temporalmente.** El único momento en que `/` pasa a ser un ext4 real
+   y escribible en vez de RAM. Solo ocurre durante desarrollo, nunca
+   durante uso de la banda — ver "Los cambios de código/config en la Pi
+   desaparecen después de un reinicio" más abajo y `systemd/README.md`
+   sección 4.
+3. **Editar a mano `/boot/firmware/cmdline.txt`.** Requiere remontar
+   `/boot/firmware` en `rw` brevemente. Mismo perfil que el punto 2 —
+   solo mantenimiento, y ya señalado como "la edición más riesgosa de
+   toda esta guía" en `systemd/README.md` sección 4.
+
+**El disparador real más probable no es un desenchufe limpio — es una
+fuente de poder insuficiente.** Este proyecto observó directamente
+`vcgencmd get_throttled` mostrando under-voltage real más al menos un
+reinicio espontáneo durante una sola sesión de pruebas (ver "Se congela
+al azar, 'Undervoltage detected!' en pantalla" más abajo). Una fuente
+de poder marginal puede causar comportamiento errático sin que nadie
+toque el cable. Usa una fuente genuina de 5V/2.5A o más, y evita cargar
+un teléfono desde el propio puerto USB de la Pi mientras está en uso.
+
 ## No se puede conectar a la Pi por SSH
 
 **`ssh: Could not resolve hostname <nombre>.local`, de forma
