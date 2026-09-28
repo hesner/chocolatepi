@@ -1,5 +1,9 @@
 # SETLIST ADMIN WIFI SPECIFICATION — "Chocolate Pi" companion admin app (WiFi hotspot design)
 
+**Current version: [v2026.09.27](VERSION)** (independent of the base
+project's and `setlist-admin-usb`'s own versions -- see the root
+`CHANGELOG.md`'s "Versioning" section).
+
 This is one **expansion** (`expansions/setlist-admin-wifi/`) -- see the
 repo root's `expansions/README.md` for what that means, and
 `expansions/setlist-admin-usb/SPECIFICATION.md` for the sibling design

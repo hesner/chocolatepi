@@ -155,6 +155,13 @@ Two things the user raised and explicitly asked to defer:
 These cost real time to discover this session -- don't re-learn them
 the hard way:
 
+- **Checking versions**: this project and each expansion now track a
+  date-based `VERSION` file (`vYYYY.MM.DD`) -- see the root
+  `CHANGELOG.md`'s "Versioning" section for the scheme. On the real Pi:
+  `ssh -4 pedal "cat ~/chocolatepi-repo/VERSION ~/chocolatepi-repo/expansions/*/VERSION"`.
+  Remember a `VERSION` file only reflects reality if someone bumped it
+  in the same commit as the change -- the git commit hash it's checked
+  out to is always the ultimate source of truth.
 - **SSH**: always `ssh -4 pedal` / `scp -4 ... pedal:...` (force IPv4;
   mixed `eth0`+`eth1`+mDNS otherwise causes multi-minute hangs on
   trivial commands).

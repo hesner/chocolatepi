@@ -5,6 +5,10 @@
 [![Tests](https://github.com/hesner/chocolatepi/actions/workflows/tests.yml/badge.svg)](https://github.com/hesner/chocolatepi/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../../LICENSE)
 
+**Versión actual: [v2026.09.27](../../VERSION)** — ver `CHANGELOG.md`
+para qué incluye, y su sección "Versionado" para cómo cada expansión
+lleva su propia versión de forma independiente.
+
 ![Flujo de señal del hardware: pedalera M-VAVE PD41 hacia la Raspberry Pi 2, hacia una interfaz de audio USB Behringer y una pantalla HDMI, con un USB de biblioteca conectado](../images/hardware-blueprint.svg)
 
 Un controlador de pedalera MIDI basado en Raspberry Pi para disparar
@@ -111,10 +115,10 @@ instalables/removibles de forma independiente, que nunca modifican el
 sistema base del pedal y se pueden desinstalar por completo de vuelta a
 él en cualquier momento.
 
-| Expansión | Qué hace | Estado |
-|---|---|---|
-| [`setlist-admin-usb`](../../expansions/setlist-admin-usb/docs/es/USAGE.md) | Administra Sets/Banks/pistas desde el navegador de un teléfono, conectando el teléfono a la Pi por USB (tethering de Android / Personal Hotspot por cable en iPhone), sin necesitar hardware de WiFi | Implementada y validada de punta a punta en hardware real |
-| [`setlist-admin-wifi`](../../expansions/setlist-admin-wifi/docs/es/USAGE.md) | La misma administración de biblioteca, más configuración del WiFi de la Pi, alcanzable por WiFi | Implementada; validación en hardware real en pausa por un dongle USB de WiFi muerto |
+| Expansión | Qué hace | Estado | Versión |
+|---|---|---|---|
+| [`setlist-admin-usb`](../../expansions/setlist-admin-usb/docs/es/USAGE.md) | Administra Sets/Banks/pistas desde el navegador de un teléfono, conectando el teléfono a la Pi por USB (tethering de Android / Personal Hotspot por cable en iPhone), sin necesitar hardware de WiFi | Implementada y validada de punta a punta en hardware real | [v2026.09.27](../../expansions/setlist-admin-usb/VERSION) |
+| [`setlist-admin-wifi`](../../expansions/setlist-admin-wifi/docs/es/USAGE.md) | La misma administración de biblioteca, más configuración del WiFi de la Pi, alcanzable por WiFi | Implementada; validación en hardware real en pausa por un dongle USB de WiFi muerto | [v2026.09.27](../../expansions/setlist-admin-wifi/VERSION) |
 
 Ver [`expansions/README.md`](expansions/README.md) para el modelo
 completo (instalador/desinstalador propio de cada expansión, las

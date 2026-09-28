@@ -58,10 +58,14 @@ Consequences of this shape, deliberately:
 
 ## Current expansions
 
-| Expansion | What it does | Status |
-|---|---|---|
-| [`setlist-admin-usb`](setlist-admin-usb/USAGE.md) | Manage the library USB (Sets/Banks/tracks) from a phone's browser, reachable by plugging the phone into the Pi over USB (Android tethering / iPhone Personal Hotspot over cable) | Implemented and validated end-to-end on real hardware (iPhone) |
-| [`setlist-admin-wifi`](setlist-admin-wifi/USAGE.md) | The same library management, plus Pi WiFi configuration (home network / phone hotspot fallback), reachable over WiFi | Implemented and unit-tested; real-hardware validation shelved on a dead USB WiFi dongle (hardware, not design/code) |
+| Expansion | What it does | Status | Version |
+|---|---|---|---|
+| [`setlist-admin-usb`](setlist-admin-usb/USAGE.md) | Manage the library USB (Sets/Banks/tracks) from a phone's browser, reachable by plugging the phone into the Pi over USB (Android tethering / iPhone Personal Hotspot over cable) | Implemented and validated end-to-end on real hardware (iPhone) | [v2026.09.27](setlist-admin-usb/VERSION) |
+| [`setlist-admin-wifi`](setlist-admin-wifi/USAGE.md) | The same library management, plus Pi WiFi configuration (home network / phone hotspot fallback), reachable over WiFi | Implemented and unit-tested; real-hardware validation shelved on a dead USB WiFi dongle (hardware, not design/code) | [v2026.09.27](setlist-admin-wifi/VERSION) |
+
+Each expansion's `VERSION` file (`vYYYY.MM.DD`) tracks its own version
+independently of the base project and of each other -- see the root
+`CHANGELOG.md`'s "Versioning" section for the scheme.
 
 Both were designed to stay convergeable: `setlist-admin-usb` reuses
 `setlist-admin-wifi`'s CRUD backend and frontend UX unchanged, only

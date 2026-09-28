@@ -3,11 +3,47 @@
 *[Read in English](../../CHANGELOG.md)*
 
 El formato sigue libremente [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-Este proyecto todavía no usa números de versión — es un aparato dedicado
-único, no una librería versionada — así que las entradas se agrupan por
-fecha hasta que eso cambie.
+
+## Versionado
+
+Este proyecto usa **números de versión basados en fecha** (`vAAAA.MM.DD`),
+no versionado semántico — no hay un contrato de compatibilidad entre
+versiones que rastrear (es un aparato dedicado único desplegado en una
+sola Pi, no una librería versionada con múltiples consumidores
+independientes). Una versión es simplemente "el estado de este
+componente a esta fecha", coincidiendo con la estructura agrupada por
+fecha que este registro de cambios ya usaba antes de introducir el
+versionado.
+
+Cada componente instalable de forma independiente lleva su **propia**
+versión, en su propio archivo `VERSION`, actualizado cada vez que un
+cambio significativo llega a `main`:
+
+- [`VERSION`](../../VERSION) — el sistema base del pedal (`src/`,
+  `systemd/`, documentación raíz).
+- [`expansions/setlist-admin-usb/VERSION`](../../expansions/setlist-admin-usb/VERSION)
+- [`expansions/setlist-admin-wifi/VERSION`](../../expansions/setlist-admin-wifi/VERSION)
+
+**Para saber qué está realmente desplegado en la Pi real**: `ssh -4
+pedal "cat ~/chocolatepi-repo/VERSION
+~/chocolatepi-repo/expansions/*/VERSION"` (compáralo contra el commit
+de git al que está sincronizado, ya que un archivo `VERSION` solo
+cambia cuando alguien se acuerda de actualizarlo — el hash del commit
+siempre es la fuente de verdad definitiva; el número de versión existe
+para darle a una persona una cadena memorable en vez de un hash).
+
+Este registro de cambios sigue siendo la fuente de verdad de *qué*
+cambió y *por qué*; `[Sin publicar]` agrupa cambios que todavía no se
+han "cortado" en una versión con fecha debajo. Cortar una versión
+significa: confirmar que el cambio realmente funciona de punta a punta
+(hardware real para todo lo que lo toque, no solo pruebas unitarias),
+actualizar el/los archivo(s) `VERSION` del/los componente(s) afectado(s),
+y renombrar `[Sin publicar]` a esa fecha — reabriendo un `[Sin
+publicar]` nuevo y vacío arriba para lo que siga.
 
 ## [Sin publicar]
+
+## [v2026.09.27] — Renombre Set/Bank, validación en hardware real, Export Set, corrección de Set activo al reiniciar, documentación de corte de luz
 
 - Se renombró la terminología de la biblioteca en todo el proyecto
   (código, pruebas y documentación): la carpeta de nivel superior, antes

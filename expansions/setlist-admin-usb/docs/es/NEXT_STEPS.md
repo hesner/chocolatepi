@@ -175,6 +175,13 @@ después:
 Estas costaron tiempo real descubrirlas esta sesión — no las
 reaprendas por las malas:
 
+- **Verificar versiones**: este proyecto y cada expansión ahora llevan
+  un archivo `VERSION` basado en fecha (`vAAAA.MM.DD`) — ver la sección
+  "Versionado" del `CHANGELOG.md` raíz para el esquema. En la Pi real:
+  `ssh -4 pedal "cat ~/chocolatepi-repo/VERSION ~/chocolatepi-repo/expansions/*/VERSION"`.
+  Recuerda que un archivo `VERSION` solo refleja la realidad si alguien
+  lo actualizó en el mismo commit que el cambio — el hash del commit al
+  que está sincronizado siempre es la fuente de verdad definitiva.
 - **SSH**: siempre `ssh -4 pedal` / `scp -4 ... pedal:...` (forzar
   IPv4; tener `eth0`+`eth1`+mDNS mezclados causa cuelgues de varios
   minutos en comandos triviales si no).

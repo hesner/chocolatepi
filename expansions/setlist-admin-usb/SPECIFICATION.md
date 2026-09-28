@@ -1,5 +1,9 @@
 # SETLIST ADMIN USB SPECIFICATION — "Chocolate Pi" companion admin app (USB-tether design)
 
+**Current version: [v2026.09.27](VERSION)** (independent of the base
+project's and `setlist-admin-wifi`'s own versions -- see the root
+`CHANGELOG.md`'s "Versioning" section).
+
 **Picking this up cold? Read [`NEXT_STEPS.md`](NEXT_STEPS.md) first --
 current status, what's confirmed vs. still needs re-checking, the
 ordered test plan's next item, and Pi-deployment gotchas that cost real

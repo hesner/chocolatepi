@@ -3,11 +3,44 @@
 *[Leer en español](docs/es/CHANGELOG.md)*
 
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-This project doesn't use version numbers yet -- it's a single dedicated
-appliance build, not a versioned library -- so entries are grouped by
-date instead until that changes.
+
+## Versioning
+
+This project uses **date-based version numbers** (`vYYYY.MM.DD`), not
+semantic versioning -- there is no compatibility contract between
+versions to track (it's a single dedicated appliance build deployed to
+one Pi, not a versioned library with multiple independent consumers).
+A version is just "the state of this component as of this date,"
+matching the date-grouped structure this changelog already used before
+versioning was introduced.
+
+Each independently-installable component tracks its **own** version, in
+its own `VERSION` file, bumped whenever a meaningful change to it lands
+on `main`:
+
+- [`VERSION`](VERSION) -- the base pedal system (`src/`, `systemd/`,
+  root docs).
+- [`expansions/setlist-admin-usb/VERSION`](expansions/setlist-admin-usb/VERSION)
+- [`expansions/setlist-admin-wifi/VERSION`](expansions/setlist-admin-wifi/VERSION)
+
+**To check what's actually deployed on the real Pi**: `ssh -4 pedal
+"cat ~/chocolatepi-repo/VERSION ~/chocolatepi-repo/expansions/*/VERSION"`
+(compare against the git commit it's checked out to, since a `VERSION`
+file only changes when someone remembers to bump it -- the commit hash
+is always the ultimate source of truth; the version number exists to
+give a human a memorable string to reference instead of a hash).
+
+This changelog stays the source of truth for *what* changed and *why*;
+`[Unreleased]` collects changes not yet cut into a dated version below
+it. Cutting a version means: confirm the change actually works
+end-to-end (real hardware for anything touching it, not just unit
+tests), bump the affected component(s)' `VERSION` file(s), and rename
+`[Unreleased]` to that date -- reopening a fresh empty `[Unreleased]`
+above it for whatever comes next.
 
 ## [Unreleased]
+
+## [v2026.09.27] -- Set/Bank rename, real-hardware validation, Export Set, active-Set-on-reboot fix, power-loss documentation
 
 - Renamed the library's terminology throughout the whole project (code,
   tests, and docs): the top-level folder, previously called a "Show", is
