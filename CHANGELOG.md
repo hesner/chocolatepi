@@ -40,6 +40,25 @@ above it for whatever comes next.
 
 ## [Unreleased]
 
+- **Fixed**: a third real incident from the same live certification
+  session -- a validation rejection that happens *before* the request
+  body is read at all (e.g. `upload_song()`'s duplicate-name check,
+  which runs before anything touches the stream) was sending its 400
+  response without first draining the still-unread body. For a real,
+  multi-hundred-MB video, that left the connection in a state the
+  client's own TCP stack treated as reset -- "Load failed" in Safari --
+  even though the server's response, with the correct rejection reason,
+  had been sent. (Also discovered via this: the video *had* actually
+  uploaded successfully on an earlier attempt, during the chaos of the
+  broken-mount incident below -- every retry since was correctly, if
+  confusingly, being rejected as a duplicate.) Fixed: every raw-body
+  upload handler (`assign_track`, `upload_song`, both expansions) now
+  drains any unread body in a `finally`, regardless of success or
+  failure, via a new `_LimitedReader.drain()`. Also: 400 responses are
+  now logged server-side with their exact reason (`server.py`), not
+  just the status code -- a 400 is an expected outcome, not a bug, but
+  not logging it meant no way to find out afterward what was actually
+  rejected and why when a phone's own `alert()` wasn't seen in time.
 - **Fixed**: a real incident, found live while certifying the new
   standby-video feature -- every write in both `setlist-admin`
   expansions (uploading, renaming, assigning, the new standby picker,

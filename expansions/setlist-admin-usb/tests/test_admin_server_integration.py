@@ -13,6 +13,7 @@ Run with: python -m unittest tests/test_admin_server_integration.py
 """
 
 import http.client
+import io
 import json
 import os
 import sys
@@ -24,7 +25,7 @@ from unittest.mock import patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from admin.api import AdminAPI, AdminConfig  # noqa: E402
-from admin.server import make_handler_class  # noqa: E402
+from admin.server import make_handler_class, _LimitedReader  # noqa: E402
 from http.server import ThreadingHTTPServer  # noqa: E402
 
 
@@ -272,6 +273,73 @@ class TestSongLibraryFlow(ServerIntegrationTestCase):
 
         resp, body = self._json(conn, "GET", "/api/songs", headers=headers)
         self.assertEqual([s["filename"] for s in body["songs"]], ["From Old Set.mp3"])
+
+    def test_rejected_duplicate_upload_still_returns_a_clean_response(self):
+        """Real incident found live on real hardware (2026-10-01): a
+        duplicate-name upload is rejected by library_ops.upload_song()
+        *before* it ever reads the request body (the name-collision
+        check runs first) -- for a real multi-hundred-MB video, sending
+        a 400 without first draining the still-unread body left the
+        connection in a state the client's own TCP stack treated as
+        reset ("Load failed" in Safari), even though the server's
+        response itself, with the real rejection reason, was sent
+        correctly. _LimitedReader.drain() (see its own unit tests below
+        for the precise behavior) fixes this; this just confirms the
+        end-to-end response a client actually gets is still well-formed."""
+        conn, headers = self._authenticated_conn()
+        file_bytes = b"x" * (64 * 1024)
+        upload_headers = dict(headers)
+        upload_headers["X-Track-Name"] = "Dup"
+        upload_headers["X-Track-Extension"] = "mp4"
+        upload_headers["Content-Length"] = str(len(file_bytes))
+
+        conn.request("POST", "/api/songs", body=file_bytes, headers=upload_headers)
+        resp = conn.getresponse()
+        resp.read()
+        self.assertEqual(resp.status, 200)
+
+        conn2 = self._conn()
+        conn2.request("POST", "/api/songs", body=file_bytes, headers=upload_headers)
+        resp = conn2.getresponse()
+        body = json.loads(resp.read())
+        self.assertEqual(resp.status, 400)
+        self.assertIn("already exists", body["error"])
+
+
+class TestLimitedReaderDrain(unittest.TestCase):
+    """_LimitedReader.drain() (server.py) in isolation -- the OS-level
+    TCP-reset timing the real incident above depends on isn't reliably
+    reproducible in a fast loopback test, so this pins down the actual
+    logic fix directly instead: an early rejection must still fully
+    consume whatever was left of the request body."""
+
+    def test_drain_consumes_everything_remaining(self):
+        stream = io.BytesIO(b"x" * 1000)
+        reader = _LimitedReader(stream, total_length=1000)
+        reader.read(100)  # a partial read, like an early rejection leaves behind
+
+        reader.drain()
+
+        self.assertEqual(reader.read(1), b"")  # nothing left to read
+        self.assertEqual(stream.tell(), 1000)  # the real stream was fully consumed
+
+    def test_drain_on_an_already_fully_read_stream_is_a_no_op(self):
+        stream = io.BytesIO(b"x" * 100)
+        reader = _LimitedReader(stream, total_length=100)
+        reader.read(100)
+
+        reader.drain()  # must not raise
+
+    def test_drain_swallows_a_broken_underlying_stream(self):
+        class _BrokenStream:
+            def read(self, size):
+                raise OSError("Connection reset by peer")
+
+        reader = _LimitedReader(_BrokenStream(), total_length=1000)
+
+        reader.drain()  # must not raise -- a genuinely dead connection has
+        # nothing left to meaningfully drain, and this must never mask
+        # whatever the real/original error already was
 
 
 if __name__ == "__main__":

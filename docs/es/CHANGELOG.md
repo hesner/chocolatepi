@@ -43,6 +43,28 @@ publicar]` nuevo y vacío arriba para lo que siga.
 
 ## [Sin publicar]
 
+- **Corregido**: un tercer incidente real de la misma sesión de
+  certificación en vivo — un rechazo por validación que ocurre *antes*
+  de leer el cuerpo de la petición (por ejemplo, la verificación de
+  nombre duplicado de `upload_song()`, que corre antes de tocar el
+  stream) mandaba su respuesta 400 sin antes drenar el cuerpo todavía
+  sin leer. Para un video real de varios cientos de MB, eso dejaba la
+  conexión en un estado que el propio stack TCP del cliente trataba
+  como reiniciado — "Load failed" en Safari — aunque la respuesta del
+  servidor, con el motivo correcto del rechazo, sí se había enviado.
+  (También se descubrió por esto: el video **sí** se había subido
+  exitosamente en un intento anterior, durante el caos del incidente
+  del montaje roto de abajo — cada reintento desde entonces estaba
+  siendo rechazado correctamente, aunque de forma confusa, por
+  duplicado.) Corregido: cada manejador de subida de cuerpo crudo
+  (`assign_track`, `upload_song`, las dos expansiones) ahora drena
+  cualquier cuerpo sin leer en un `finally`, sin importar éxito o
+  fallo, vía un nuevo `_LimitedReader.drain()`. También: las respuestas
+  400 ahora quedan registradas en el servidor con su motivo exacto
+  (`server.py`), no solo el código de estado — un 400 es un resultado
+  esperado, no un bug, pero no registrarlo significaba no tener forma
+  de saber después qué se rechazó realmente y por qué cuando no se vio
+  a tiempo la alerta propia del teléfono.
 - **Corregido**: un incidente real, encontrado en vivo certificando la
   nueva función de video de standby — cada escritura en las dos
   expansiones `setlist-admin` (subir, renombrar, asignar, el nuevo

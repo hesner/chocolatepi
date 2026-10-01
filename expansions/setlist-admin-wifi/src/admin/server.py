@@ -79,6 +79,29 @@ class _LimitedReader:
         self._remaining -= len(chunk)
         return chunk
 
+    def drain(self) -> None:
+        """Reads and discards whatever's left unread. Real incident found
+        live (2026-10-01, in the sibling setlist-admin-usb expansion,
+        ported here unchanged): a validation rejection (e.g. a duplicate
+        filename) can reject *before* the body is ever read at all --
+        library_ops.upload_song()'s duplicate-name check runs before
+        _atomic_write_stream() touches the stream. Responding without
+        first consuming a large unread body (hundreds of MB, for a real
+        video) left the connection in a state the client's own TCP stack
+        treated as reset -- "Load failed" in Safari -- even though the
+        server's own response was sent correctly and the rejection
+        reason was right there in it. Every raw-body upload handler
+        drains in a `finally` now, regardless of success or failure, so
+        the connection is always left clean. Swallows its own errors --
+        if the connection is already broken (a genuine client-side
+        disconnect), there's nothing left to drain anyway, and this must
+        never mask whatever the real exception already was."""
+        try:
+            while self.read(65536):
+                pass
+        except OSError:
+            pass
+
 
 class Handler(BaseHTTPRequestHandler):
     api: AdminAPI  # set once via make_handler_class()
@@ -228,10 +251,13 @@ class Handler(BaseHTTPRequestHandler):
         # it here so library_ops.assign_track()'s chunked read loop
         # actually terminates.
         bounded_source = _LimitedReader(self.rfile, length)
-        warning = self.api.assign_track(
-            path_params["set"], int(path_params["bank"]), path_params["letter"],
-            display_name, extension, bounded_source,
-        )
+        try:
+            warning = self.api.assign_track(
+                path_params["set"], int(path_params["bank"]), path_params["letter"],
+                display_name, extension, bounded_source,
+            )
+        finally:
+            bounded_source.drain()
         return 200, {"ok": True, "warning": warning}
 
     def _action_rename_track(self, path_params, query):
@@ -255,7 +281,10 @@ class Handler(BaseHTTPRequestHandler):
         display_name, extension = self._parse_upload_filename()
         length = int(self.headers.get("Content-Length", 0))
         bounded_source = _LimitedReader(self.rfile, length)
-        warning = self.api.upload_song(display_name, extension, bounded_source)
+        try:
+            warning = self.api.upload_song(display_name, extension, bounded_source)
+        finally:
+            bounded_source.drain()
         return 200, {"ok": True, "warning": warning}
 
     def _action_rename_song(self, path_params, query):
