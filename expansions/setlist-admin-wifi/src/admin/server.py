@@ -153,6 +153,16 @@ class Handler(BaseHTTPRequestHandler):
             # written user-facing messages into a real 400 response
             # instead of falling through to the 500 below. Found as a
             # real, pre-existing bug: nothing translated it before this.
+            #
+            # Also logged (not just sent to the client): a 400 is a
+            # normal, expected outcome (bad input, a name collision), not
+            # a bug -- but real incident found live (2026-10-01, in the
+            # sibling setlist-admin-usb expansion, ported here unchanged):
+            # a rejected upload left no trail at all server-side, so when
+            # a phone's own alert() wasn't seen in time, there was no way
+            # to find out afterward what the app actually rejected and
+            # why, short of guessing or reproducing it blind.
+            logger.warning("%s rejected: %s", action_name, e)
             self._send_json(400, {"error": str(e)})
         except Exception:
             logger.exception("Unhandled error handling %s", action_name)
