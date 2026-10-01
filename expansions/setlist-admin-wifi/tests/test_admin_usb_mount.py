@@ -29,6 +29,38 @@ class RemountTests(unittest.TestCase):
         for c in mock_run.call_args_list:
             self.assertNotIn("remount", " ".join(c.args[0]))
 
+    @patch("admin.usb_mount.subprocess.run")
+    def test_remount_syncs_before_the_umount_mount_pair(self, mock_run):
+        """Real incident found live (2026-10-01, in the sibling
+        setlist-admin-usb expansion, ported here unchanged): remounting
+        straight back to ro right after a large write timed out at 10s
+        more than once -- the FUSE layer was apparently still flushing
+        buffered data. A sync up front, before the time-limited
+        umount/mount calls, forces that flush to happen outside their
+        budget."""
+        mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0)
+
+        usb_mount._remount("/media/usb", "ro")
+
+        calls = mock_run.call_args_list
+        sync_idx = next(i for i, c in enumerate(calls) if c.args[0][0] == "sync")
+        umount_idx = next(i for i, c in enumerate(calls) if c.args[0][:2] == ["sudo", "umount"])
+        self.assertLess(sync_idx, umount_idx)
+        self.assertEqual(calls[sync_idx].args[0], ["sync", "-f", "/media/usb"])
+
+    @patch("admin.usb_mount.subprocess.run")
+    def test_sync_failure_is_non_fatal(self, mock_run):
+        """A sync is best-effort -- its own failure must never block the
+        real, checked umount/mount operation that follows."""
+        def side_effect(cmd, **kwargs):
+            if cmd[0] == "sync":
+                raise subprocess.TimeoutExpired(cmd, 15)
+            return subprocess.CompletedProcess(args=cmd, returncode=0)
+
+        mock_run.side_effect = side_effect
+
+        usb_mount._remount("/media/usb", "rw")  # must not raise
+
     @patch("admin.usb_mount.time.sleep")
     @patch("admin.usb_mount.subprocess.run")
     def test_remount_failure_to_unmount_raises_without_attempting_mount(self, mock_run, mock_sleep):
@@ -42,8 +74,9 @@ class RemountTests(unittest.TestCase):
 
         # Every attempt is a real, persistent EBUSY here (never clears), so
         # this exhausts the whole retry budget before giving up -- not just
-        # one immediate failure.
-        self.assertEqual(mock_run.call_count, usb_mount._UMOUNT_MAX_ATTEMPTS)
+        # one immediate failure. +1 for the leading best-effort `sync`
+        # call that now always precedes the umount/mount pair.
+        self.assertEqual(mock_run.call_count, usb_mount._UMOUNT_MAX_ATTEMPTS + 1)
 
     @patch("admin.usb_mount.time.sleep")
     @patch("admin.usb_mount.subprocess.run")
@@ -102,6 +135,8 @@ class RemountTests(unittest.TestCase):
     @patch("admin.usb_mount.subprocess.run")
     def test_remount_failure_to_mount_falls_back_to_ro_then_raises(self, mock_run):
         def side_effect(cmd, **kwargs):
+            if cmd[0] == "sync":
+                return subprocess.CompletedProcess(args=cmd, returncode=0)
             if cmd[:2] == ["sudo", "umount"]:
                 return subprocess.CompletedProcess(args=cmd, returncode=0)
             if cmd == ["sudo", "mount", "-o", "rw", "/media/usb"]:

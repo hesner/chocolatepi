@@ -43,6 +43,23 @@ publicar]` nuevo y vacío arriba para lo que siga.
 
 ## [Sin publicar]
 
+- **Corregido**: encontrado en vivo certificando la función de
+  reemplazo por duplicado de arriba — volver a montar `/media/usb` en
+  `ro` justo después de una escritura grande (un video de varios
+  cientos de MB) expiró por timeout a los 10s más de una vez, aunque la
+  escritura misma ya había terminado exitosamente. El archivo nunca
+  corrió riesgo (confirmado: llegó bien las dos veces que pasó esto),
+  pero la petición igual falló con un 500, y la auto-recuperación de
+  montaje roto de arriba ni siquiera hizo falta (el montaje se mantuvo
+  intacto — esto fue un simple timeout, no el incidente de montaje FUSE
+  muerto de antes). Causa raíz: la capa FUSE parece seguir volcando
+  datos en buffer al dispositivo físico en ese momento, lo cual puede
+  durar más que la propia llamada de escritura que ya había retornado.
+  `usb_mount._remount()` ahora corre un `sync -f <montaje>` de mejor
+  esfuerzo antes del par umount/mount, forzando ese volcado por
+  adelantado en vez de dejar que bloquee dentro de las llamadas con
+  tiempo límite que siguen. Las dos expansiones, mantenidas
+  convergentes.
 - Agregado: subir una canción a la biblioteca compartida con un nombre
   que ya está ocupado ahora ofrece **"... already exists in the
   library. Replace it?"** en vez de simplemente fallar — confirma para

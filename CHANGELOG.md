@@ -40,6 +40,21 @@ above it for whatever comes next.
 
 ## [Unreleased]
 
+- **Fixed**: found live while certifying the replace-on-duplicate
+  feature just above -- remounting `/media/usb` back to `ro` right
+  after a large write (a multi-hundred-MB video) timed out at 10s more
+  than once, even though the write itself had already completed
+  successfully. The file was never at risk (confirmed: it landed
+  correctly both times this happened), but the request still failed
+  with a 500, and once the broken-mount auto-recovery above wasn't even
+  needed (the mount itself stayed intact -- this was a plain timeout,
+  not the dead-FUSE-mount incident from earlier). Root cause: the FUSE
+  layer appears to still be flushing buffered data to the physical
+  device at that point, which can outlast the write call itself having
+  already returned. `usb_mount._remount()` now runs a best-effort
+  `sync -f <mount>` before the umount/mount pair, forcing that flush to
+  happen up front instead of leaving it to block inside the
+  time-limited calls that follow. Both expansions, kept convergent.
 - Added: uploading a song to the shared library with a name that's
   already taken now offers **"... already exists in the library.
   Replace it?"** instead of just failing -- confirm to overwrite it in

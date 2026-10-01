@@ -98,6 +98,22 @@ def writable_usb(mount_point: str = DEFAULT_MOUNT_POINT):
 
 
 def _remount(mount_point: str, mode: str) -> None:
+    # Real incident found live (2026-10-01, in the sibling setlist-admin-usb
+    # expansion -- ported here unchanged): remounting straight back to ro
+    # right after a large write (a multi-hundred-MB video) timed out at
+    # 10s more than once, even though the write itself had already
+    # completed and returned successfully -- the FUSE layer appears to
+    # still be flushing buffered data to the physical device at that
+    # point, and that can outlast the write call itself. A sync first
+    # (best-effort -- failing to sync here isn't itself fatal, the real,
+    # checked operation is still the umount/mount pair below) forces that
+    # flush to happen up front, instead of leaving it to block inside the
+    # time-limited umount/mount calls that follow.
+    try:
+        subprocess.run(["sync", "-f", mount_point], capture_output=True, timeout=15)
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+
     # ntfs-3g (a FUSE filesystem, unlike vfat/ext4's in-kernel drivers) does
     # not support `mount -o remount,X` at all -- it refuses outright with
     # "Remounting is not supported at present. You have to umount volume
