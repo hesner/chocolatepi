@@ -43,6 +43,44 @@ publicar]` nuevo y vacío arriba para lo que siga.
 
 ## [Sin publicar]
 
+- **Corregido**: un incidente real, encontrado en vivo certificando la
+  nueva función de video de standby — cada escritura en las dos
+  expansiones `setlist-admin` (subir, renombrar, asignar, el nuevo
+  selector de standby, todo) empezó a fallar con un 500 apenas
+  `pedal-core.service` corría de forma continua y se mantenía estable
+  (lo cual ahora hace, gracias a la corrección de desconexión MIDI del
+  mismo día de arriba — ver esa entrada). Causa raíz:
+  `usb_mount.writable_usb()` remonta **todo** el volumen `/media/usb`
+  en `rw` para cualquier escritura, sin importar qué archivo — Linux no
+  tiene un modo de lectura/escritura por archivo dentro de un mismo
+  punto de montaje, así que todo el volumen necesita quedar sin ningún
+  archivo abierto en ningún lado. El `mpv` de `pedal-core.service`
+  mantiene abierto de forma continua lo que esté reproduciendo en loop
+  (siempre `standby.mp4` en la práctica) y nunca lo suelta solo —
+  confirmado en hardware real: 30 segundos seguidos de reintentos, cero
+  éxitos, con `pedal-core.service` corriendo normalmente; detenerlo
+  liberó el remontaje al instante, todas las veces. El reintento
+  acotado de `usb_mount._remount()` (0.3s x 5, pensado para una ventana
+  de ocupación breve y transitoria) nunca iba a poder con una retención
+  que no se libera en absoluto. (Explicación más probable de por qué
+  funcionaba en sesiones anteriores: el bug de desconexión MIDI
+  corregido hoy mismo antes solía reiniciar `mpv` con frecuencia por su
+  cuenta, lo cual creaba por accidente las ventanas breves de las que
+  esto dependía — la corrección de estabilidad de hoy las eliminó sin
+  querer.) Corregido en `api.py` (las dos expansiones): cada método que
+  modifica algo ahora pasa por `_writable_usb()`, que primero intenta
+  el camino rápido normal con una prueba barata y sin efectos
+  secundarios (un ciclo inmediato de `rw` y vuelta a `ro`, sin escribir
+  nada) — si el volumen está libre, nada cambia, cero interrupción.
+  Solo si esa prueba falla, detiene `pedal-core.service` (liberando
+  todo archivo abierto, incluido el video de standby en loop — la
+  reproducción se interrumpe brevemente, la pantalla queda en negro
+  unos segundos, igual que cualquier otro reinicio de
+  `pedal-core.service`), hace la escritura real exactamente una vez, y
+  lo reinicia después. El ciclo completo de remontaje de la propia
+  prueba es lo que hace seguro caer a este respaldo sin ningún riesgo
+  de ejecutar la escritura real dos veces.
+
 ## [v2026.10.01] — Resiliencia ante desconexión MIDI, gestión del video de standby
 
 - **Revertido el mismo día**: esta versión registró brevemente el

@@ -40,6 +40,40 @@ above it for whatever comes next.
 
 ## [Unreleased]
 
+- **Fixed**: a real incident, found live while certifying the new
+  standby-video feature -- every write in both `setlist-admin`
+  expansions (uploading, renaming, assigning, the new standby picker,
+  all of it) started failing with a 500 as soon as `pedal-core.service`
+  ran continuously and stayed stable (which it now does, thanks to this
+  same day's MIDI-disconnect fix above -- see that entry). Root cause:
+  `usb_mount.writable_usb()` remounts the *entire* `/media/usb` volume
+  rw for any write at all, no matter which file -- Linux has no
+  per-file read/write mode within one mount, so the whole volume has to
+  have zero open file handles anywhere on it. `pedal-core.service`'s
+  `mpv` keeps whatever it's currently looping (always `standby.mp4` in
+  practice) open continuously and never releases it on its own --
+  confirmed on real hardware: 30 straight seconds of retries, zero
+  successes, while `pedal-core.service` ran normally; stopping it
+  unblocked the remount instantly, every time. `usb_mount._remount()`'s
+  bounded retry (0.3s x 5, built for a brief, transient busy window)
+  was never going to get past a hold that doesn't release at all.
+  (Likely explanation for why this worked in earlier sessions: the
+  MIDI-disconnect bug fixed earlier today used to restart `mpv`
+  frequently on its own, which incidentally created the brief gaps
+  this depended on -- today's stability fix removed those by accident.)
+  Fixed in `api.py` (both expansions): every mutating method now goes
+  through `_writable_usb()`, which tries the normal fast path first via
+  a cheap, side-effect-free probe (an immediate rw-then-ro round trip,
+  nothing written) -- if the volume is free, nothing changes, zero
+  disruption. Only if that probe itself fails does it stop
+  `pedal-core.service` (releasing every open handle, including the
+  looping standby video -- playback briefly interrupts, screen goes
+  black for a few seconds, same as any other `pedal-core.service`
+  restart), perform the real write exactly once, then restart it
+  afterward. The probe's own full remount cycle is what makes this
+  safe to fall back from without any risk of running the actual write
+  twice.
+
 ## [v2026.10.01] -- MIDI-disconnect resilience, standby video management
 
 - **Reverted same day**: this version briefly logged `mpv`'s own

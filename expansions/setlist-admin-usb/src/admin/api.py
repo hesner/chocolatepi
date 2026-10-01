@@ -5,10 +5,11 @@ mocked filesystem/subprocess layer -- no real HTTP server, no real USB
 needed to exercise this (SPECIFICATION.md section 10).
 
 Every method that mutates the library wraps its single filesystem
-operation in `usb_mount.writable_usb()` -- the rw window is exactly one
+operation in `self._writable_usb()` -- the rw window is exactly one
 operation wide, never the whole request, matching section 6.
 """
 
+import contextlib
 import logging
 import os
 import subprocess
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 PIN_FILENAME = ".setlist-admin/pin.hash"
 SESSION_KEY_FILENAME = ".setlist-admin/session.key"
+_PEDAL_CORE_SERVICE_NAME = "pedal-core.service"
 
 
 class ApiError(Exception):
@@ -69,7 +71,7 @@ class AdminAPI:
             raise ApiError(400, "PIN must be at least 4 characters")
         record = auth.hash_pin(pin)
         session_key = os.urandom(32)
-        with usb_mount.writable_usb(self.config.mount_point):
+        with self._writable_usb():
             os.makedirs(os.path.dirname(self.pin_path()), exist_ok=True)
             with open(self.pin_path(), "w", encoding="utf-8") as f:
                 f.write(record.to_line())
@@ -99,6 +101,99 @@ class AdminAPI:
                 self._sessions = auth.SessionManager(f.read())
         return self._sessions
 
+    # -- Writable-USB access, with a fallback for when pedal-core.service's
+    # mpv won't let go ----------------------------------------------------
+
+    @contextlib.contextmanager
+    def _writable_usb(self):
+        """Every mutating method below uses this instead of calling
+        `usb_mount.writable_usb()` directly.
+
+        Real incident found on real hardware (2026-10-01): `pedal-core.service`'s
+        `mpv` keeps whatever it's currently looping (in practice, always
+        `standby.mp4`) open for as long as it runs -- confirmed to never
+        let go on its own, not even briefly, for as long as the service
+        keeps running without being restarted. `usb_mount._remount()`'s own
+        bounded retry (built for a genuinely brief, transient busy window)
+        can't get past that: it isn't brief here, so every write failed
+        with a 500 the whole time the service ran continuously and stayed
+        stable -- which directly contradicts the "once playing, don't touch
+        it" design: the system staying *more* stable (not restarting `mpv`
+        on every MIDI hiccup, see `CHANGELOG.md`) is exactly what exposed
+        this, since restarts used to create brief incidental gaps.
+
+        Fixed here, not in `usb_mount.py` (which is deliberately
+        mount-only, with no idea `pedal-core.service` exists): try the
+        normal fast path first with a cheap, side-effect-free probe (an
+        immediate rw-then-ro round trip, nothing written) -- if the mount
+        is free, every existing call site's behavior is unchanged,
+        no disruption. Only if that probe itself fails does this stop
+        `pedal-core.service` (releasing every file it has open, including
+        the looping standby video -- briefly interrupting playback,
+        screen goes black for a few seconds) before the real write, then
+        restarts it afterward. The probe runs as a fully separate,
+        no-op remount cycle specifically so the real write never has to
+        be attempted twice -- retrying the actual operation after a
+        partial failure would risk doing it twice over (e.g. a duplicate
+        write, or in the worst case the "ro" remount itself being what
+        failed, which would mean the write had already happened)."""
+        stopped = False
+        if not self._can_remount_rw_quickly():
+            stopped = self._stop_pedal_core()
+        try:
+            with usb_mount.writable_usb(self.config.mount_point):
+                yield
+        finally:
+            if stopped:
+                self._start_pedal_core()
+
+    def _can_remount_rw_quickly(self) -> bool:
+        """A cheap, side-effect-free probe: can `/media/usb` be remounted
+        rw right now without anything holding it busy? Immediately
+        remounts back to `ro` either way -- nothing is written in
+        between. Used only to decide whether `_writable_usb()` needs to
+        stop `pedal-core.service` first."""
+        try:
+            with usb_mount.writable_usb(self.config.mount_point):
+                pass
+            return True
+        except usb_mount.RemountError:
+            return False
+
+    def _stop_pedal_core(self) -> bool:
+        """Returns True only if the service was actually running (and is
+        now stopped by this call) -- False if it was already stopped, or
+        if stopping it failed, so `_writable_usb()`'s `finally` never
+        "helpfully" starts a service back up that this call didn't
+        actually stop itself."""
+        try:
+            was_active = subprocess.run(
+                ["systemctl", "is-active", _PEDAL_CORE_SERVICE_NAME],
+                capture_output=True, text=True, timeout=5,
+            ).stdout.strip() == "active"
+            if not was_active:
+                return False
+            subprocess.run(
+                ["sudo", "systemctl", "stop", _PEDAL_CORE_SERVICE_NAME],
+                capture_output=True, timeout=15,
+            )
+            return True
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return False
+
+    def _start_pedal_core(self) -> None:
+        try:
+            subprocess.run(
+                ["sudo", "systemctl", "start", _PEDAL_CORE_SERVICE_NAME],
+                capture_output=True, timeout=15,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            logger.error(
+                "Could not restart %s after a library write -- it may need "
+                "a manual 'sudo systemctl start %s' over SSH: %s",
+                _PEDAL_CORE_SERVICE_NAME, _PEDAL_CORE_SERVICE_NAME, e,
+            )
+
     # -- Sets ------------------------------------------------------------
 
     def list_sets(self) -> dict:
@@ -108,11 +203,11 @@ class AdminAPI:
         }
 
     def create_set(self, set_name: str) -> None:
-        with usb_mount.writable_usb(self.config.mount_point):
+        with self._writable_usb():
             library_ops.create_set(self.config.usb_root, set_name)
 
     def set_active_set(self, set_name: str) -> None:
-        with usb_mount.writable_usb(self.config.mount_point):
+        with self._writable_usb():
             library_ops.set_active_set(self.config.usb_root, set_name)
 
     # -- Banks ---------------------------------------------------------------
@@ -121,15 +216,15 @@ class AdminAPI:
         return {"banks": library_ops.list_banks(self.config.usb_root, set_name)}
 
     def create_bank(self, set_name: str, bank_number: int) -> None:
-        with usb_mount.writable_usb(self.config.mount_point):
+        with self._writable_usb():
             library_ops.create_bank(self.config.usb_root, set_name, bank_number)
 
     def rename_bank(self, set_name: str, old_number: int, new_number: int) -> None:
-        with usb_mount.writable_usb(self.config.mount_point):
+        with self._writable_usb():
             library_ops.rename_bank(self.config.usb_root, set_name, old_number, new_number)
 
     def delete_bank(self, set_name: str, bank_number: int) -> None:
-        with usb_mount.writable_usb(self.config.mount_point):
+        with self._writable_usb():
             library_ops.delete_bank(self.config.usb_root, set_name, bank_number)
 
     # -- Tracks -------------------------------------------------------------
@@ -149,7 +244,7 @@ class AdminAPI:
         """Returns a codec warning string if the upload is a video that
         isn't H.264, or None if it's fine (or not a video). The warning
         never blocks the upload -- see codec_check.py's docstring."""
-        with usb_mount.writable_usb(self.config.mount_point):
+        with self._writable_usb():
             info = library_ops.assign_track(
                 self.config.usb_root, set_name, bank_number, letter,
                 display_name, extension, source,
@@ -158,15 +253,15 @@ class AdminAPI:
         return codec_check.check_video_codec(os.path.join(bank_path, info.filename), extension)
 
     def rename_track(self, set_name: str, bank_number: int, letter: str, new_display_name: str) -> None:
-        with usb_mount.writable_usb(self.config.mount_point):
+        with self._writable_usb():
             library_ops.rename_track(self.config.usb_root, set_name, bank_number, letter, new_display_name)
 
     def swap_tracks(self, set_name: str, bank_number: int, letter_a: str, letter_b: str) -> None:
-        with usb_mount.writable_usb(self.config.mount_point):
+        with self._writable_usb():
             library_ops.swap_tracks(self.config.usb_root, set_name, bank_number, letter_a, letter_b)
 
     def delete_track(self, set_name: str, bank_number: int, letter: str) -> None:
-        with usb_mount.writable_usb(self.config.mount_point):
+        with self._writable_usb():
             library_ops.delete_track(self.config.usb_root, set_name, bank_number, letter)
 
     # -- Song library (reuse across Sets) -------------------------------------
@@ -182,25 +277,25 @@ class AdminAPI:
 
     def upload_song(self, display_name: str, extension: str, source: BinaryIO) -> Optional[str]:
         """Same codec-warning contract as assign_track()."""
-        with usb_mount.writable_usb(self.config.mount_point):
+        with self._writable_usb():
             info = library_ops.upload_song(self.config.usb_root, display_name, extension, source)
         songs_path = os.path.join(self.config.usb_root, "_Songs")
         return codec_check.check_video_codec(os.path.join(songs_path, info.filename), extension)
 
     def rename_song(self, filename: str, new_display_name: str) -> None:
-        with usb_mount.writable_usb(self.config.mount_point):
+        with self._writable_usb():
             library_ops.rename_song(self.config.usb_root, filename, new_display_name)
 
     def delete_song(self, filename: str) -> None:
-        with usb_mount.writable_usb(self.config.mount_point):
+        with self._writable_usb():
             library_ops.delete_song(self.config.usb_root, filename)
 
     def assign_song_to_slot(self, set_name: str, bank_number: int, letter: str, song_filename: str) -> None:
-        with usb_mount.writable_usb(self.config.mount_point):
+        with self._writable_usb():
             library_ops.assign_song_to_slot(self.config.usb_root, set_name, bank_number, letter, song_filename)
 
     def save_track_to_library(self, set_name: str, bank_number: int, letter: str) -> None:
-        with usb_mount.writable_usb(self.config.mount_point):
+        with self._writable_usb():
             library_ops.save_track_to_library(self.config.usb_root, set_name, bank_number, letter)
 
     # -- Standby video (the looped idle screen) --------------------------------
@@ -210,7 +305,7 @@ class AdminAPI:
         return {"exists": info.exists, "size_bytes": info.size_bytes, "modified_at": info.modified_at}
 
     def set_standby(self, song_filename: str) -> None:
-        with usb_mount.writable_usb(self.config.mount_point):
+        with self._writable_usb():
             library_ops.set_standby_video(self.config.usb_root, song_filename)
 
     def cleanup_stale_temp_files(self) -> int:
@@ -219,7 +314,7 @@ class AdminAPI:
         is needed (a SIGTERM mid-upload, e.g. from usb-tether-watchdog
         stopping this service the instant a phone disconnects, skips the
         normal per-write cleanup)."""
-        with usb_mount.writable_usb(self.config.mount_point):
+        with self._writable_usb():
             return library_ops.cleanup_stale_temp_files(self.config.usb_root)
 
     # -- Playback status (advisory warning, section 1) -----------------------

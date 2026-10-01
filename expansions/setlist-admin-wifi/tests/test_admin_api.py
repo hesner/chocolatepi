@@ -17,7 +17,9 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
+from admin import library_ops  # noqa: E402
 from admin.api import AdminAPI, AdminConfig, ApiError  # noqa: E402
+from admin.usb_mount import RemountError  # noqa: E402
 
 
 class ApiTestCase(unittest.TestCase):
@@ -167,11 +169,65 @@ class TestSetsBanksTracks(ApiTestCase):
         self.api.delete_bank("Live", 1)
 
         modes = [call.args[1] for call in self.mock_remount.call_args_list]
-        # Every single logical operation above got its own rw+ro pair --
-        # the number of "rw" calls equals the number of mutations, none
-        # of them share or extend a window (specification section 6).
-        self.assertEqual(modes.count("rw"), 6)
-        self.assertEqual(modes.count("ro"), 6)
+        # Every single logical operation above gets its own rw+ro pair for
+        # the real write -- but _writable_usb() (api.py) now also does a
+        # cheap, side-effect-free rw+ro probe cycle first (to decide
+        # whether pedal-core.service needs stopping -- see its docstring),
+        # so each mutation shows up as *two* rw+ro pairs here when the
+        # probe succeeds (as it does with _remount mocked to always
+        # succeed), not one. None of them share or extend a window either
+        # way (specification section 6).
+        self.assertEqual(modes.count("rw"), 12)
+        self.assertEqual(modes.count("ro"), 12)
+
+
+class TestWritableUsbFallback(ApiTestCase):
+    """_writable_usb() (api.py): real incident found on real hardware
+    2026-10-01 (in the sibling setlist-admin-usb expansion, ported here
+    unchanged) -- pedal-core.service's mpv can hold /media/usb's
+    currently-looping file open indefinitely (confirmed: never releases
+    on its own), which the bounded retry inside usb_mount._remount()
+    (built for a brief, transient busy window) can't get past. These
+    test the fallback: a cheap probe first; if it fails, stop
+    pedal-core.service, do the real write, then restart it -- without
+    ever attempting the real write itself more than once."""
+
+    @patch("admin.api.subprocess.run")
+    def test_fast_path_never_touches_pedal_core(self, mock_run):
+        self.api.create_set("Live")
+        mock_run.assert_not_called()
+
+    @patch("admin.api.subprocess.run")
+    def test_falls_back_to_stopping_pedal_core_when_probe_fails(self, mock_run):
+        mock_run.return_value = MagicMock(stdout="active\n", returncode=0)
+        self.mock_remount.side_effect = [RemountError("busy")] + [None] * 10
+
+        self.api.create_set("Live")
+
+        commands = [call.args[0] for call in mock_run.call_args_list]
+        self.assertIn(["systemctl", "is-active", "pedal-core.service"], commands)
+        self.assertIn(["sudo", "systemctl", "stop", "pedal-core.service"], commands)
+        self.assertIn(["sudo", "systemctl", "start", "pedal-core.service"], commands)
+        self.assertEqual(library_ops.list_sets(self.usb_root), ["Live"])
+
+    @patch("admin.api.subprocess.run")
+    def test_does_not_restart_pedal_core_if_it_was_not_running(self, mock_run):
+        mock_run.return_value = MagicMock(stdout="inactive\n", returncode=0)
+        self.mock_remount.side_effect = [RemountError("busy")] + [None] * 10
+
+        self.api.create_set("Live")
+
+        commands = [call.args[0] for call in mock_run.call_args_list]
+        self.assertIn(["systemctl", "is-active", "pedal-core.service"], commands)
+        self.assertNotIn(["sudo", "systemctl", "stop", "pedal-core.service"], commands)
+        self.assertNotIn(["sudo", "systemctl", "start", "pedal-core.service"], commands)
+
+    @patch("admin.api.subprocess.run")
+    def test_probe_failure_alone_does_not_raise_to_the_caller(self, mock_run):
+        mock_run.return_value = MagicMock(stdout="active\n", returncode=0)
+        self.mock_remount.side_effect = [RemountError("busy")] + [None] * 10
+
+        self.api.create_set("Live")  # must not raise
 
 
 class TestPlaybackWarning(ApiTestCase):
