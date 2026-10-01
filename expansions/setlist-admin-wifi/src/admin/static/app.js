@@ -8,6 +8,7 @@ const state = {
   activeSet: null,
   selectedSet: null,
   songs: [], // the shared library (_Songs/) -- reusable across every Set/Bank
+  standby: null, // { exists, size_bytes, modified_at } -- current standby.mp4
 };
 
 async function apiFetch(path, options = {}) {
@@ -107,6 +108,7 @@ async function boot() {
   // 401s, which means "show the login screen", not an error to surface.
   try {
     await loadSongs();
+    await loadStandby();
     await loadSets();
     show("view-main");
     initTabs();
@@ -147,6 +149,7 @@ document.getElementById("form-login").addEventListener("submit", async (ev) => {
     await apiFetch("/api/login", { method: "POST", body: JSON.stringify({ pin }) });
     hide("view-login");
     await loadSongs();
+    await loadStandby();
     await loadSets();
     show("view-main");
     initTabs();
@@ -219,7 +222,65 @@ async function loadSongs() {
   // the current song list too -- done after the swap/restore above so
   // this page-wide sweep is never what's keeping songs-container empty.
   document.querySelectorAll(".track-song-select").forEach(populateSongSelect);
+  populateStandbySelect();
 }
+
+// -- Standby video (the looped idle screen) -----------------------------------
+
+async function loadStandby() {
+  const data = await apiFetch("/api/standby");
+  state.standby = data;
+  const el = document.getElementById("standby-current");
+  if (data.exists) {
+    const sizeMb = (data.size_bytes / (1024 * 1024)).toFixed(1);
+    const when = new Date(data.modified_at * 1000).toLocaleString();
+    setText(el, `Current: standby.mp4 (${sizeMb} MB, last changed ${when})`);
+  } else {
+    setText(el, "No standby video set yet -- the pedal shows its local fallback until one is chosen here.");
+  }
+  populateStandbySelect();
+}
+
+function populateStandbySelect() {
+  const select = document.getElementById("standby-song-select");
+  if (!select) return;
+  const previousValue = select.value;
+  select.innerHTML = "";
+  const videos = state.songs.filter((s) => !s.is_audio_only);
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = videos.length ? "-- choose a video --" : "-- no videos in the library yet --";
+  select.appendChild(placeholder);
+  for (const song of videos) {
+    const opt = document.createElement("option");
+    opt.value = song.filename;
+    opt.textContent = `${song.display_name}.${song.extension}`;
+    select.appendChild(opt);
+  }
+  select.value = previousValue || "";
+}
+
+document.getElementById("btn-set-standby").addEventListener("click", async () => {
+  const select = document.getElementById("standby-song-select");
+  const btn = document.getElementById("btn-set-standby");
+  const errEl = document.getElementById("standby-error");
+  errEl.hidden = true;
+  if (!select.value) {
+    setText(errEl, "Choose a video from the library first.");
+    errEl.hidden = false;
+    return;
+  }
+  flashSuccess(btn);
+  try {
+    await apiFetch("/api/standby", { method: "POST", body: JSON.stringify({ song_filename: select.value }) });
+    await loadStandby();
+    showToast("Standby video updated -- reboot to apply.");
+  } catch (e) {
+    clearFlash(btn);
+    setText(errEl, e.message);
+    errEl.hidden = false;
+  }
+});
 
 function populateSongSelect(select) {
   const previousValue = select.value;

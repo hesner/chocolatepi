@@ -62,6 +62,21 @@
           </div>
         </details>
 
+        <details id="standby-section">
+          <summary>Standby video</summary>
+          <p class="hint">
+            Loops silently on screen whenever nothing is playing. Pick any
+            video already in the song library above -- to use a new file,
+            upload it there first, then choose it here.
+          </p>
+          <p id="standby-current" class="hint"></p>
+          <div class="row">
+            <select id="standby-song-select"></select>
+            <button id="btn-set-standby" class="secondary">Set as standby</button>
+          </div>
+          <p id="standby-error" class="error" hidden></p>
+        </details>
+
         <div class="row">
           <label for="set-select">Set</label>
           <select id="set-select"></select>

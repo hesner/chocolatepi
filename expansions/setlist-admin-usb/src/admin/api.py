@@ -203,6 +203,16 @@ class AdminAPI:
         with usb_mount.writable_usb(self.config.mount_point):
             library_ops.save_track_to_library(self.config.usb_root, set_name, bank_number, letter)
 
+    # -- Standby video (the looped idle screen) --------------------------------
+
+    def get_standby(self) -> dict:
+        info = library_ops.get_standby_info(self.config.usb_root)
+        return {"exists": info.exists, "size_bytes": info.size_bytes, "modified_at": info.modified_at}
+
+    def set_standby(self, song_filename: str) -> None:
+        with usb_mount.writable_usb(self.config.mount_point):
+            library_ops.set_standby_video(self.config.usb_root, song_filename)
+
     def cleanup_stale_temp_files(self) -> int:
         """Called once at server startup -- see
         library_ops.cleanup_stale_temp_files()'s docstring for why this

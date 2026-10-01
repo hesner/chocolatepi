@@ -15,6 +15,10 @@ de que un Set salga mal.
 <raíz del USB>/
 ├── active_set.txt            -- texto plano, una línea: el nombre de la carpeta del Set activo
 ├── standby.mp4               -- en loop cuando no hay nada reproduciéndose
+│                                 (reemplazable desde la sección "Standby
+│                                 video" de cualquiera de las dos apps
+│                                 setlist-admin -- no hace falta tocarlo a
+│                                 mano salvo que no uses ninguna)
 ├── _Songs/                    -- recomendado: la biblioteca maestra de canciones de la banda (ver abajo)
 │   ├── nombre de canción.mp3
 │   └── otra canción.mp4

@@ -203,6 +203,36 @@ is a startup-order race (the Python process starts slightly before
 normally succeeds on the second attempt. Only worth investigating
 further if it keeps failing repeatedly rather than recovering.
 
+## Audio (and video) stop completely after a while, screen flickering
+
+Real incident, reproduced live while investigating: check first whether
+the M-VAVE is actually powered on and connected -- `ssh pedal "lsusb"`
+should show a `Jieli Technology SINCO` device (that's the string the
+M-VAVE reports, not "M-VAVE" -- see `MAVAVE_ANALYSIS.md`). If it's
+missing, `sudo journalctl -u pedal-core.service` will show repeating
+`No MIDI input port containing 'SINCO' was found` errors.
+
+**Before this was fixed**, that exact condition (controller off at
+startup, or disconnected mid-session -- a loose cable, a USB hub
+glitch, or the kind of brief dropout a real undervoltage event causes,
+see "Random freeze, Undervoltage detected!" below) made `main.py` exit
+entirely, relying on `systemd` to blindly restart the whole process
+every 5 seconds -- which also killed and relaunched both `mpv` lanes
+each cycle (the screen flickering back to black), with total silence
+and nothing to explain why, for as long as the controller stayed
+missing. **Now**, `main.py` retries the MIDI connection in-process
+without tearing `mpv` down -- standby keeps playing solidly while
+waiting, and a footswitch works again the instant the controller
+reappears, with no reboot needed. If you still see this behavior,
+you're on an older deployed version; redeploy `src/main.py` and
+`src/core/player.py` (see `NEXT_STEPS.md`'s "checking versions" note).
+
+If the M-VAVE **is** connected and this still happens, check
+`pedal-core.log` for `mpv (...): ...` lines -- `mpv`'s own stderr is now
+logged there instead of being silently discarded, so a real ALSA/audio
+error (device busy, underrun) should show up directly instead of
+leaving no trail.
+
 ## `chocolatepi.org` doesn't load / no HTTPS
 
 1. Confirm DNS has actually propagated (https://dnschecker.org) before

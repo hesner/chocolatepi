@@ -172,6 +172,22 @@ bottom of the app instead of needing SSH. It's fine to make several
 edits first and reboot once at the end -- no need to reboot after every
 single change.
 
+### Standby video: what loops when nothing is playing
+
+The **"Standby video"** section shows what's currently looping on
+screen (file size and when it was last changed) and lets you replace
+it: pick any video from the **song library** above and tap **"Set as
+standby"**. To use a video that isn't in the library yet, upload it
+there first (the same "+ Upload song to library" button used for
+regular songs), then choose it here.
+
+Only videos can be set as standby (audio-only files won't show up in
+the picker) -- standby has no footswitch pointing at it, so there'd be
+nothing to see or hear from an audio-only file looping silently.
+Renaming or deleting it afterward works exactly like any other song in
+the library (see above). Same rule as everything else here: **needs a
+reboot to apply.**
+
 ## How the connection works
 
 `usb-tether-watchdog.service` checks every few seconds whether a phone

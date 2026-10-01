@@ -214,6 +214,16 @@ class AdminAPI:
         with usb_mount.writable_usb(self.config.mount_point):
             return library_ops.cleanup_stale_temp_files(self.config.usb_root)
 
+    # -- Standby video (the looped idle screen) --------------------------------
+
+    def get_standby(self) -> dict:
+        info = library_ops.get_standby_info(self.config.usb_root)
+        return {"exists": info.exists, "size_bytes": info.size_bytes, "modified_at": info.modified_at}
+
+    def set_standby(self, song_filename: str) -> None:
+        with usb_mount.writable_usb(self.config.mount_point):
+            library_ops.set_standby_video(self.config.usb_root, song_filename)
+
     # -- Playback status (advisory warning, section 6) -----------------------
 
     def is_playback_likely_active(self) -> bool:

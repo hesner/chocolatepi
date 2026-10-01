@@ -63,6 +63,17 @@ _UPLOAD_CHUNK_SIZE = 1024 * 1024  # 1 MiB -- streamed, never the whole file in R
 # base project too, with zero changes needed there).
 _SONGS_FOLDER = "_Songs"
 
+# The looped idle video (core/player.py's --standby) -- a single fixed
+# filename at the USB root, not inside any Set/Bank and not subject to
+# the "<Letter> - <name>.<ext>" naming convention, since nothing ever
+# selects it by letter; Player.start() reads this exact path once at
+# boot (see LIBRARY.md). Always written as this exact name regardless of
+# the source file's own name/extension -- mpv plays by sniffing content,
+# not by file extension, so re-pointing this at a copy of any video file
+# works the same way assign_track()/assign_song_to_slot() already does
+# for a Bank/Letter slot.
+_STANDBY_FILENAME = "standby.mp4"
+
 # What a "display name" may contain -- deliberately conservative (no " - ",
 # no path separators, no leading/trailing dots or spaces) so it can never
 # combine with the "<Letter> - " prefix to accidentally produce something
@@ -101,6 +112,17 @@ class SongInfo:
     @property
     def filename(self) -> str:
         return f"{self.display_name}.{self.extension}"
+
+
+@dataclass(frozen=True)
+class StandbyInfo:
+    """Whatever's currently serving as standby.mp4 -- there's no metadata
+    file recording which library song it was copied from (it's always
+    just a plain file copy, same as a Bank/Letter slot), so this can only
+    describe the file itself, not "where it came from" once set."""
+    exists: bool
+    size_bytes: int
+    modified_at: float  # os.stat().st_mtime -- seconds since epoch
 
 
 # ---------------------------------------------------------------------------
@@ -484,6 +506,41 @@ def save_track_to_library(usb_root: str, set_name: str, bank_number: int, letter
     source_path = os.path.join(bank_path, track.filename)
     _atomic_copy_file(source_path, dest_path)
     return info
+
+
+def get_standby_info(usb_root: str) -> StandbyInfo:
+    path = os.path.join(usb_root, _STANDBY_FILENAME)
+    try:
+        st = os.stat(path)
+    except OSError:
+        return StandbyInfo(exists=False, size_bytes=0, modified_at=0.0)
+    return StandbyInfo(exists=True, size_bytes=st.st_size, modified_at=st.st_mtime)
+
+
+def set_standby_video(usb_root: str, song_filename: str) -> SongInfo:
+    """Copies a song already in the shared library to become the new
+    standby.mp4 -- the "pick one you already uploaded" path. To use a
+    brand new file instead, upload_song() it into the library first (also
+    gives it a codec check, same as any other upload), then call this.
+
+    Must be a video: standby has no footswitch pointing at it, so an
+    audio-only file here would mean Player.start() loops a track nobody
+    can ever see or hear anything of (there's no Bank/Letter slot
+    involved for standby.mp4 -- Library.resolve() is never consulted for
+    it, only Player.start() resolves this path directly, once, at boot)."""
+    song = _parse_song_filename(song_filename)
+    if song is None:
+        raise LibraryOpsError(f'"{song_filename}" is not a song in the library')
+    if song.is_audio_only:
+        raise LibraryOpsError("The standby video must be a video file, not audio-only")
+
+    source_path = os.path.join(_songs_path(usb_root), song.filename)
+    if not os.path.isfile(source_path):
+        raise LibraryOpsError(f'"{song.filename}" is not in the library')
+
+    dest_path = os.path.join(usb_root, _STANDBY_FILENAME)
+    _atomic_copy_file(source_path, dest_path)
+    return song
 
 
 def _songs_path(usb_root: str) -> str:

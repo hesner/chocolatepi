@@ -177,6 +177,23 @@ ahora para aplicar"** al final de la app en vez de necesitar SSH. Está
 bien hacer varios cambios primero y reiniciar una sola vez al final —
 no hace falta reiniciar después de cada cambio individual.
 
+### Video de standby: qué se repite cuando no hay nada sonando
+
+La sección **"Standby video"** muestra qué está en loop ahora mismo
+(tamaño del archivo y cuándo se cambió por última vez) y te permite
+reemplazarlo: elige cualquier video de la **biblioteca de canciones** de
+arriba y toca **"Set as standby"**. Para usar un video que todavía no
+está en la biblioteca, súbelo primero ahí (el mismo botón "+ Upload song
+to library" que se usa para canciones normales) y luego elígelo acá.
+
+Solo se pueden usar videos como standby (los archivos de solo audio no
+aparecen en el selector) — el standby no tiene ningún pedal apuntándole,
+así que no habría nada que ver ni escuchar de un archivo de solo audio
+repitiéndose en silencio. Renombrarlo o borrarlo después funciona
+exactamente igual que cualquier otra canción de la biblioteca (ver
+arriba). Misma regla que todo lo demás acá: **necesita un reinicio para
+aplicarse.**
+
 ## Cómo funciona la conexión
 
 `usb-tether-watchdog.service` revisa cada pocos segundos si hay un

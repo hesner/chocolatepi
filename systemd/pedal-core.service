@@ -31,9 +31,12 @@ User=<YOUR_USER>
 # See TESTING.md.
 ExecStart=/usr/bin/python3 /home/<YOUR_USER>/chocolatepi/src/main.py --usb-root /media/usb --standby /media/usb/standby.mp4 --fallback-standby /home/<YOUR_USER>/pedal-assets/fallback-standby.mp4 --usb-uuid=<YOUR_USB_UUID> --log-file /home/<YOUR_USER>/pedal-core.log
 # Appliance behavior (section 1 of MASTER_SPECIFICATION.md): no one is
-# available to restart this by hand if it exits -- e.g. the M-VAVE not
-# being enumerated yet at the exact moment this starts. Keep retrying
-# indefinitely rather than giving up.
+# available to restart this by hand if it exits. The M-VAVE not being
+# found no longer causes an exit at all -- main.py retries that
+# in-process now (see its _run_midi_loop()) -- so this is the fallback
+# for a genuinely unexpected crash, not the primary recovery path for a
+# missing controller anymore. Keep retrying indefinitely rather than
+# giving up.
 Restart=always
 RestartSec=5
 

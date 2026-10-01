@@ -10,13 +10,17 @@ repo root's `expansions/README.md` for what that means, and
 that reuses this one's CRUD backend and frontend UX (kept convergeable
 on purpose).
 
-**Status: approved and implemented (135 tests, all passing), but
+**Status: approved and implemented (158 tests, all passing), but
 shelved after real-hardware testing hit a hardware blocker, not a
 design or code one.** This expansion preserves the full attempt for
 reference and future use; it is not installed by default (same as
 every expansion), and `expansions/setlist-admin-usb/` was built
 afterward specifically to sidestep this blocker with a different
-connectivity approach.
+connectivity approach. Kept in code parity with `setlist-admin-usb`'s
+own real-hardware-driven fixes, including its most recent addition,
+standby video management (`USAGE.md`, `CHANGELOG.md`'s Unreleased
+section) -- ported here too, though (like everything else in this
+expansion) not independently hardware-tested.
 
 What happened during hardware validation (section 8a): install and the
 staged network-testing protocol worked correctly through the watchdog

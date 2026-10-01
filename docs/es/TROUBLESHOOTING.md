@@ -220,6 +220,38 @@ después de 5 segundos y normalmente tiene éxito en el segundo intento.
 Solo vale la pena investigar más si sigue fallando repetidamente en vez
 de recuperarse.
 
+## El audio (y el video) se detienen por completo tras un rato, pantalla parpadeando
+
+Incidente real, reproducido en vivo durante una investigación: primero
+revisa si el M-VAVE está realmente encendido y conectado — `ssh pedal
+"lsusb"` debería mostrar un dispositivo `Jieli Technology SINCO` (esa es
+la cadena que reporta el M-VAVE, no "M-VAVE" — ver `MAVAVE_ANALYSIS.md`).
+Si no aparece, `sudo journalctl -u pedal-core.service` mostrará errores
+repetidos de `No MIDI input port containing 'SINCO' was found`.
+
+**Antes de que esto se corrigiera**, esa misma condición (controlador
+apagado al arrancar, o desconectado a mitad de sesión — un cable flojo,
+un glitch del hub USB, o el tipo de corte breve que un evento real de
+undervoltage causa, ver "Cuelgue aleatorio, 'Undervoltage detected!'"
+más abajo) hacía que `main.py` saliera por completo, dependiendo de que
+`systemd` reiniciara el proceso entero a ciegas cada 5 segundos — lo
+cual además mataba y volvía a levantar los dos procesos `mpv` en cada
+ciclo (la pantalla parpadeando a negro), con silencio total y nada que
+explicara por qué, mientras el controlador siguiera ausente. **Ahora**,
+`main.py` reintenta la conexión MIDI dentro del mismo proceso sin tumbar
+`mpv` — el standby sigue reproduciéndose sólido mientras espera, y un
+pedal vuelve a funcionar en el instante en que el controlador reaparece,
+sin necesitar reiniciar. Si sigues viendo este comportamiento, estás en
+una versión desplegada más antigua; vuelve a desplegar `src/main.py` y
+`src/core/player.py` (ver la nota "verificar versiones" de
+`NEXT_STEPS.md`).
+
+Si el M-VAVE **sí** está conectado y esto sigue pasando, revisa
+`pedal-core.log` en busca de líneas `mpv (...): ...` — el propio stderr
+de `mpv` ahora queda registrado ahí en vez de descartarse en silencio,
+así que un error real de ALSA/audio (dispositivo ocupado, underrun)
+debería aparecer directamente en vez de no dejar rastro.
+
 ## `chocolatepi.org` no carga / sin HTTPS
 
 1. Confirma que el DNS realmente propagó (https://dnschecker.org) antes

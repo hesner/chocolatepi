@@ -15,12 +15,19 @@ import argparse
 import logging
 import os
 import sys
+import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 from adapter import MVaveAdapter, DeviceNotFoundError  # noqa: E402
 from mapper import Mapper  # noqa: E402
 from core import Library, Player, AudioPlayer, Core  # noqa: E402
+
+# How often to retry connecting to the M-VAVE while it isn't found (at
+# startup, or after a mid-session disconnect) -- see _run_midi_loop()'s
+# docstring for why this no longer relies on systemd restarting the whole
+# process for this specific, expected-to-happen case.
+_MIDI_RETRY_INTERVAL_S = 3.0
 
 
 def parse_args():
@@ -110,19 +117,63 @@ def main():
     core.start()
 
     try:
-        with MVaveAdapter(port_name_pattern="SINCO") as adapter:
-            logger.info("Connected to the controller. Listening for actions...")
-            for channel, program in adapter.program_changes():
-                action = mapper.map_program_change(program)
-                logger.info("[channel %d] PC=%d -> %r", channel, program, action)
-                core.handle_action(action)
-    except DeviceNotFoundError as e:
-        logger.error("%s", e)
-        sys.exit(1)
+        _run_midi_loop(core, mapper, logger)
     except KeyboardInterrupt:
         logger.info("Exiting.")
     finally:
         core.stop()
+
+
+def _run_midi_loop(core: Core, mapper: Mapper, logger: logging.Logger) -> None:
+    """(Re)connects to the M-VAVE for as long as the process runs, without
+    tearing Core/mpv down in between attempts -- a real, reproduced gap
+    found during intensive real-hardware testing (TROUBLESHOOTING.md):
+    the controller being off/disconnected at the exact moment this starts
+    (or going quiet mid-session -- a loose cable, a USB hub glitch, the
+    kind of brief dropout a real undervoltage event can cause, see
+    TESTING.md) used to be treated as fatal. The whole process exited and
+    depended entirely on systemd (`Restart=always`, `RestartSec=5`)
+    blindly trying again -- which also killed and relaunched both mpv
+    lanes every single cycle (visible as the screen flickering back to
+    black) for as long as the controller stayed missing, with total
+    silence (no footswitch can do anything with no process running) and
+    zero on-screen indication of why. Retrying in-process instead means
+    Core/mpv only ever start once; standby keeps looping solidly the
+    whole time a reconnect is pending, and a footswitch press works again
+    the instant the controller reappears -- confirmed live: powering the
+    M-VAVE back on mid-session was picked up on the very next retry.
+
+    Only a genuinely unexpected failure (anything that isn't "controller
+    not currently reachable") still propagates up and lets the process
+    exit -- systemd's restart stays as the fallback for that case, not
+    the primary mechanism for this one anymore."""
+    warned = False
+    while True:
+        try:
+            with MVaveAdapter(port_name_pattern="SINCO") as adapter:
+                logger.info("Connected to the controller. Listening for actions...")
+                warned = False
+                for channel, program in adapter.program_changes():
+                    action = mapper.map_program_change(program)
+                    logger.info("[channel %d] PC=%d -> %r", channel, program, action)
+                    core.handle_action(action)
+                # The generator above only returns (instead of blocking
+                # forever) if the MIDI port itself closed out from under
+                # it -- i.e. the controller went away mid-session, not a
+                # normal way for this loop to end.
+                logger.warning("MIDI connection closed -- retrying.")
+        except DeviceNotFoundError as e:
+            if not warned:
+                logger.error("%s -- will keep retrying every %.0fs.", e, _MIDI_RETRY_INTERVAL_S)
+                warned = True
+        except OSError as e:
+            # Defense-in-depth for a disconnect that surfaces as a lower-
+            # level I/O error instead of the generator just ending (not
+            # independently confirmed against real hardware which of the
+            # two actually happens -- handling both is cheap insurance).
+            logger.warning("MIDI connection lost (%s) -- retrying.", e)
+            warned = False
+        time.sleep(_MIDI_RETRY_INTERVAL_S)
 
 
 if __name__ == "__main__":

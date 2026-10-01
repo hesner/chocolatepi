@@ -43,6 +43,52 @@ publicar]` nuevo y vacío arriba para lo que siga.
 
 ## [Sin publicar]
 
+- **Corregido**: un incidente real y reproducido — que el M-VAVE
+  estuviera apagado o desconectado (al arrancar, o a mitad de sesión:
+  un cable flojo, un glitch del hub USB, el tipo de corte breve que un
+  evento real de undervoltage puede causar, ver `TESTING.md`) se trataba
+  como fatal en `src/main.py`: el proceso completo salía y dependía por
+  completo de que `systemd` lo reiniciara a ciegas cada `RestartSec=5`,
+  lo cual además mataba y volvía a levantar los dos procesos `mpv` en
+  cada ciclo (visible como la pantalla parpadeando a negro) mientras el
+  controlador siguiera ausente — silencio total, ningún pedal podía
+  hacer nada, y nada en pantalla indicaba por qué. `main.py` ahora
+  reintenta la conexión MIDI dentro del mismo proceso, sin tumbar
+  Core/`mpv` entre intentos: el standby sigue en loop sólido todo el
+  tiempo que dura la reconexión, y un pedal vuelve a funcionar en el
+  instante en que el controlador reaparece. Confirmado en vivo:
+  encender el M-VAVE de nuevo a mitad de sesión se detectó en el
+  siguiente intento (unos segundos después), sin necesitar reiniciar.
+- Los dos procesos `mpv` de `core/player.py` antes mandaban tanto
+  `stdout` como `stderr` a `DEVNULL` — cualquier error real de
+  ALSA/hardware de audio (dispositivo ocupado, underrun, etc.) se
+  descartaba en silencio, sin dejar rastro para diagnosticar una falla
+  de audio real después del hecho. `stderr` ahora se drena
+  continuamente con un hilo de fondo y se registra con el logger propio
+  de este proyecto, cayendo en `pedal-core.log` como todo lo demás.
+  Ambos encontrados investigando un reporte real de que el sonido se
+  detuvo por completo tras aproximadamente una hora de pruebas
+  intensivas en hardware real — ver la entrada nueva de
+  `TROUBLESHOOTING.md` para el detalle completo (el hueco del M-VAVE de
+  arriba es la pista más confirmada; no se encontró evidencia directa
+  en los logs de que el Behringer mismo se quedara sin energía, ya que
+  los logs de ese arranque no sobrevivieron un reinicio).
+- Se agregó **gestión del video de standby** a las dos expansiones
+  `setlist-admin`: un panel nuevo "Standby video" muestra qué está en
+  loop ahora mismo (tamaño/última modificación de `standby.mp4`) y
+  permite elegir cualquier video ya presente en la biblioteca compartida
+  de canciones (`_Songs/`) para que se vuelva el nuevo. Para usar un
+  archivo nuevo: súbelo primero a la biblioteca (ya soportado), luego
+  elígelo aquí — reutiliza la interfaz existente de subir/renombrar/
+  borrar de la biblioteca de canciones en vez de duplicarla, así que
+  "guardarlo en la biblioteca, renombrarlo o borrarlo" ya funcionan para
+  candidatos a standby igual que para cualquier otra canción. Nuevas
+  `library_ops.set_standby_video()`/`get_standby_info()`, siempre
+  escribiendo el archivo elegido con el nombre fijo `standby.mp4` sin
+  importar la extensión original — mpv reproduce detectando el
+  contenido, no por el nombre del archivo, igual que cualquier otra
+  asignación en esta app.
+
 ## [v2026.09.27] — Renombre Set/Bank, validación en hardware real, Export Set, corrección de Set activo al reiniciar, documentación de corte de luz
 
 - Se renombró la terminología de la biblioteca en todo el proyecto

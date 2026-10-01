@@ -163,6 +163,18 @@ la estructura de la biblioteca cuando arranca (`MASTER_SPECIFICATION.md`)
 sudo reboot` cuando termines (la interfaz de esta expansión no tiene un
 botón de reinicio integrado como sí tiene `setlist-admin-usb`).
 
+### Video de standby: qué se repite cuando no hay nada sonando
+
+La sección **"Standby video"** muestra qué está en loop ahora mismo
+(tamaño del archivo y cuándo se cambió por última vez) y te permite
+reemplazarlo: elige cualquier video de la **biblioteca de canciones** de
+arriba y toca **"Set as standby"**. Para usar un video que todavía no
+está en la biblioteca, súbelo primero ahí y luego elígelo acá. Solo se
+pueden usar videos como standby (los archivos de solo audio no aparecen
+en el selector). Renombrarlo o borrarlo después funciona exactamente
+igual que cualquier otra canción de la biblioteca. Misma regla que todo
+lo demás acá: necesita un reinicio para aplicarse.
+
 **Pestaña WiFi**: opcionalmente define el WiFi de casa de la Pi (SSID +
 contraseña). Si está definido y alcanzable, la Pi lo prefiere sobre el
 hotspot del celular; si no es alcanzable, cae al hotspot

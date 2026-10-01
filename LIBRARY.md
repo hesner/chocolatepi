@@ -14,7 +14,10 @@ wrong.
 ```
 <USB root>/
 ├── active_set.txt            -- plain text, one line: the active Set's folder name
-├── standby.mp4               -- looped when nothing is playing
+├── standby.mp4               -- looped when nothing is playing (replaceable
+│                                 from either setlist-admin app's "Standby
+│                                 video" section -- no need to touch this by
+│                                 hand unless you're not using one)
 ├── _Songs/                    -- recommended: the band's master song library (see below)
 │   ├── song name.mp3
 │   └── another song.mp4

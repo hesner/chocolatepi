@@ -158,6 +158,17 @@ doesn't change that; edit as much as you need, then `ssh pedal sudo
 reboot` once you're done (this expansion's UI doesn't have a built-in
 reboot button the way `setlist-admin-usb`'s does).
 
+### Standby video: what loops when nothing is playing
+
+The **"Standby video"** section shows what's currently looping on
+screen (file size and when it was last changed) and lets you replace
+it: pick any video from the **song library** above and tap **"Set as
+standby"**. To use a video that isn't in the library yet, upload it
+there first, then choose it here. Only videos can be set as standby
+(audio-only files won't show up in the picker). Renaming or deleting it
+afterward works exactly like any other song in the library. Same rule
+as everything else here: needs a reboot to apply.
+
 **WiFi tab**: optionally set the Pi's home WiFi (SSID + password). If
 set and reachable, the Pi prefers it over the phone hotspot; if not
 reachable, it falls back to the hotspot automatically. See "How the

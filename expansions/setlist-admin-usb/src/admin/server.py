@@ -51,6 +51,8 @@ _ROUTES = [
     ("DELETE", re.compile(r"^/api/songs/(?P<filename>[^/]+)$"), "delete_song"),
     ("POST", re.compile(r"^/api/sets/(?P<set>[^/]+)/banks/(?P<bank>\d+)/tracks/(?P<letter>[A-Za-z])/assign-from-library$"), "assign_song_to_slot"),
     ("POST", re.compile(r"^/api/sets/(?P<set>[^/]+)/banks/(?P<bank>\d+)/tracks/(?P<letter>[A-Za-z])/save-to-library$"), "save_track_to_library"),
+    ("GET", re.compile(r"^/api/standby$"), "get_standby"),
+    ("POST", re.compile(r"^/api/standby$"), "set_standby"),
     ("POST", re.compile(r"^/api/reboot$"), "reboot"),
 ]
 
@@ -264,6 +266,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def _action_save_track_to_library(self, path_params, query):
         self.api.save_track_to_library(path_params["set"], int(path_params["bank"]), path_params["letter"])
+        return 200, {"ok": True}
+
+    def _action_get_standby(self, path_params, query):
+        return 200, self.api.get_standby()
+
+    def _action_set_standby(self, path_params, query):
+        body = self._read_json_body()
+        self.api.set_standby(body.get("song_filename", ""))
         return 200, {"ok": True}
 
     def _action_reboot(self, path_params, query):

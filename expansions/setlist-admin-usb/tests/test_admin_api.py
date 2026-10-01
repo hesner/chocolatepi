@@ -210,5 +210,24 @@ class TestReboot(ApiTestCase):
         self.assertEqual(ctx.exception.status, 500)
 
 
+class TestStandby(ApiTestCase):
+    def test_get_standby_when_none_set(self):
+        result = self.api.get_standby()
+        self.assertEqual(result, {"exists": False, "size_bytes": 0, "modified_at": 0.0})
+
+    def test_set_standby_from_an_uploaded_library_video(self):
+        self.api.upload_song("My Loop", "mp4", io.BytesIO(b"video bytes"))
+
+        self.api.set_standby("My Loop.mp4")
+
+        result = self.api.get_standby()
+        self.assertTrue(result["exists"])
+        self.assertEqual(result["size_bytes"], len(b"video bytes"))
+
+    def test_set_standby_raises_api_error_for_unknown_song(self):
+        with self.assertRaises(ValueError):
+            self.api.set_standby("Does Not Exist.mp4")
+
+
 if __name__ == "__main__":
     unittest.main()

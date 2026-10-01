@@ -588,5 +588,68 @@ class TestCleanupStaleTempFiles(LibraryOpsTestCase):
         self.assertEqual(removed, 0)
 
 
+class TestStandbyVideo(LibraryOpsTestCase):
+    def test_get_standby_info_when_none_set(self):
+        info = library_ops.get_standby_info(self.usb_root)
+
+        self.assertFalse(info.exists)
+        self.assertEqual(info.size_bytes, 0)
+
+    def test_set_standby_video_copies_from_the_library(self):
+        library_ops.upload_song(self.usb_root, "My Loop", "mp4", io.BytesIO(b"video bytes"))
+
+        library_ops.set_standby_video(self.usb_root, "My Loop.mp4")
+
+        standby_path = os.path.join(self.usb_root, "standby.mp4")
+        with open(standby_path, "rb") as f:
+            self.assertEqual(f.read(), b"video bytes")
+        # The library's own copy is untouched -- same "copy, not move" rule
+        # as assign_song_to_slot().
+        self.assertTrue(os.path.isfile(os.path.join(self.usb_root, "_Songs", "My Loop.mp4")))
+
+    def test_set_standby_video_is_always_named_standby_mp4_regardless_of_source_extension(self):
+        library_ops.upload_song(self.usb_root, "My Loop", "mov", io.BytesIO(b"mov bytes"))
+
+        library_ops.set_standby_video(self.usb_root, "My Loop.mov")
+
+        self.assertTrue(os.path.isfile(os.path.join(self.usb_root, "standby.mp4")))
+
+    def test_set_standby_video_replaces_whatever_was_there(self):
+        library_ops.upload_song(self.usb_root, "First", "mp4", io.BytesIO(b"first"))
+        library_ops.upload_song(self.usb_root, "Second", "mp4", io.BytesIO(b"second"))
+        library_ops.set_standby_video(self.usb_root, "First.mp4")
+
+        library_ops.set_standby_video(self.usb_root, "Second.mp4")
+
+        with open(os.path.join(self.usb_root, "standby.mp4"), "rb") as f:
+            self.assertEqual(f.read(), b"second")
+
+    def test_get_standby_info_after_set(self):
+        library_ops.upload_song(self.usb_root, "My Loop", "mp4", io.BytesIO(b"video bytes"))
+        library_ops.set_standby_video(self.usb_root, "My Loop.mp4")
+
+        info = library_ops.get_standby_info(self.usb_root)
+
+        self.assertTrue(info.exists)
+        self.assertEqual(info.size_bytes, len(b"video bytes"))
+
+    def test_set_standby_video_rejects_audio_only_song(self):
+        library_ops.upload_song(self.usb_root, "Just Audio", "mp3", io.BytesIO(b"a"))
+
+        with self.assertRaises(library_ops.LibraryOpsError):
+            library_ops.set_standby_video(self.usb_root, "Just Audio.mp3")
+
+    def test_set_standby_video_raises_for_unknown_song(self):
+        with self.assertRaises(library_ops.LibraryOpsError):
+            library_ops.set_standby_video(self.usb_root, "Does Not Exist.mp4")
+
+    def test_set_standby_video_already_deleted_by_hand_on_the_usb_raises_cleanly(self):
+        library_ops.upload_song(self.usb_root, "My Loop", "mp4", io.BytesIO(b"a"))
+        os.remove(os.path.join(self.usb_root, "_Songs", "My Loop.mp4"))
+
+        with self.assertRaises(library_ops.LibraryOpsError):
+            library_ops.set_standby_video(self.usb_root, "My Loop.mp4")
+
+
 if __name__ == "__main__":
     unittest.main()

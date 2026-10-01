@@ -40,6 +40,47 @@ above it for whatever comes next.
 
 ## [Unreleased]
 
+- **Fixed**: a real, reproduced incident -- the M-VAVE being off or
+  disconnected (at startup, or mid-session: a loose cable, a USB hub
+  glitch, the kind of brief dropout a real undervoltage event can cause,
+  see TESTING.md) used to be treated as fatal by `src/main.py`: the
+  whole process exited and depended entirely on `systemd` blindly
+  restarting it every `RestartSec=5`, which also killed and relaunched
+  both `mpv` lanes every single cycle (visible as the screen flickering
+  back to black) for as long as the controller stayed missing -- total
+  silence, no footswitch could do anything, and nothing on screen
+  indicated why. `main.py` now retries the MIDI connection in-process,
+  without tearing Core/`mpv` down in between attempts: standby keeps
+  looping solidly the whole time a reconnect is pending, and a
+  footswitch press works again the instant the controller reappears.
+  Confirmed live: powering the M-VAVE back on mid-session was picked up
+  on the very next retry (a few seconds later), no reboot needed.
+- `core/player.py`'s two `mpv` processes previously had both `stdout`
+  and `stderr` sent to `DEVNULL` -- any real ALSA/audio-hardware error
+  (device busy, underrun, etc.) was silently discarded, leaving zero
+  trail to diagnose a real audio failure after the fact. `stderr` is now
+  drained continuously by a background thread and logged through this
+  project's own logger, landing in `pedal-core.log` like everything
+  else. Both found while investigating a real report of audio stopping
+  entirely after about an hour of intensive real-hardware testing --
+  see `TROUBLESHOOTING.md`'s new entry for the full writeup (the M-VAVE
+  gap above is the strongest confirmed lead; no direct log evidence of
+  the Behringer itself losing power was found, since the relevant
+  boot's logs didn't survive a reboot).
+- Added **standby video management** to both `setlist-admin` expansions:
+  a new "Standby video" panel shows what's currently looping
+  (`standby.mp4`'s size/last-changed time) and lets you pick any video
+  already in the shared song library (`_Songs/`) to become the new one.
+  To use a brand new file: upload it to the library first (already
+  supported), then choose it here -- reuses the existing upload/rename/
+  delete song-library UI rather than duplicating it, so "save it to the
+  library, rename it, or delete it" all already work for standby
+  candidates the same way they do for any other song. New
+  `library_ops.set_standby_video()`/`get_standby_info()`, always writing
+  the chosen file to the fixed `standby.mp4` name regardless of the
+  source's own extension (mpv plays by sniffing content, not by
+  filename, same as every other assignment in this app).
+
 ## [v2026.09.27] -- Set/Bank rename, real-hardware validation, Export Set, active-Set-on-reboot fix, power-loss documentation
 
 - Renamed the library's terminology throughout the whole project (code,

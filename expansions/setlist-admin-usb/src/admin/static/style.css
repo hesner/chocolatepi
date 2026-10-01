@@ -216,7 +216,7 @@ button.btn-flash-success {
 .track-row button { font-size: 0.85rem; padding: 0.45rem 0.7rem; }
 .track-row select.track-song-select { flex: 1; min-width: 140px; width: auto; }
 
-#song-library {
+#song-library, #standby-section {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -224,12 +224,12 @@ button.btn-flash-success {
   margin-bottom: 1rem;
 }
 
-#song-library summary {
+#song-library summary, #standby-section summary {
   cursor: pointer;
   font-weight: 600;
 }
 
-#song-library[open] summary { margin-bottom: 0.75rem; }
+#song-library[open] summary, #standby-section[open] summary { margin-bottom: 0.75rem; }
 
 .song-row {
   display: flex;

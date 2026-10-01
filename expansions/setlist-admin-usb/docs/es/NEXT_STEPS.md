@@ -82,6 +82,34 @@ insuficiente (no un desenchufe limpio) como el disparador más probable
 en la práctica, según un evento de under-voltage observado directamente
 por este proyecto.
 
+**2026-10-01, incidente real investigado y corregido (cambio de código,
+todavía no desplegado a la Pi al momento de escribir esto — revisa
+`VERSION`/el log de git para saber si ya llegó ahí)**: el usuario
+reportó que el audio se detuvo por completo tras aproximadamente una
+hora de pruebas intensivas en hardware real. Investigando en vivo por
+SSH, resultó que el M-VAVE estaba apagado, y `pedal-core.service` se
+sorprendió a mitad de un bucle de crasheos (el contador de reinicios
+subiendo cada ~10s) — `main.py` trataba "controlador MIDI no
+encontrado" como fatal, saliendo y dependiendo por completo de que
+`systemd` reiniciara el proceso entero a ciegas (tumbando y volviendo a
+levantar los dos procesos `mpv` en cada ciclo — parpadeo visible,
+silencio total, cero explicación en pantalla) mientras el controlador
+siguiera ausente. Corregido: ver la entrada de `CHANGELOG.md` en "Sin
+publicar" y la nueva sección de `TROUBLESHOOTING.md` "El audio (y el
+video) se detienen..." para el detalle completo. Dos correcciones
+relacionadas llegaron en la misma tanda: `main.py` ahora reintenta la
+conexión MIDI dentro del mismo proceso sin tumbar `mpv`, y
+`core/player.py` ahora registra el propio stderr de `mpv` en vez de
+descartarlo (`DEVNULL`), así que una futura falla real de hardware de
+audio deja un rastro real. **También agregado, misma sesión, a pedido
+explícito del usuario**: gestión del video de standby en las dos apps
+`setlist-admin` (elegir cualquier video de la biblioteca como el nuevo
+`standby.mp4` — `USAGE.md`, `library_ops.set_standby_video()`). **Todavía
+no desplegado/verificado en la Pi real al momento de escribir esto** —
+hazlo antes de confiar en nada de esta sección (ver "Desplegando a la
+Pi" más abajo para el procedimiento de persistencia del overlay que
+esto necesita).
+
 ## Lo que sigue genuinamente sin confirmar — haz esto antes de confiar en ello
 
 1. **La corrección visual de Export Set está desplegada pero no

@@ -71,6 +71,30 @@ hand-editing `cmdline.txt` -- the last two maintenance-only. An
 underpowered supply (not a clean unplug) is flagged as the more likely
 real-world trigger, per this project's own observed under-voltage event.
 
+**2026-10-01, real incident investigated and fixed (code change, not yet
+deployed to the Pi as of this file -- check `VERSION`/git log for
+whether it's landed there yet)**: the user reported audio stopping
+completely after about an hour of intensive real-hardware testing.
+While investigating live over SSH, the M-VAVE turned out to be powered
+off, and `pedal-core.service` was caught mid-crash-loop (restart counter
+climbing every ~10s) -- `main.py` used to treat "MIDI controller not
+found" as fatal, exiting and relying entirely on `systemd` blindly
+restarting the whole process (tearing down and relaunching both `mpv`
+lanes every cycle -- visible flicker, total silence, zero on-screen
+explanation) for as long as the controller stayed missing. Fixed: see
+`CHANGELOG.md`'s Unreleased entry and `TROUBLESHOOTING.md`'s new "Audio
+(and video) stop completely..." section for the full writeup. Two
+related fixes landed in the same pass: `main.py` now retries the MIDI
+connection in-process without tearing `mpv` down, and `core/player.py`
+now logs `mpv`'s own stderr instead of discarding it (`DEVNULL`), so a
+future real audio-hardware failure leaves an actual trail. **Also
+added, same session, per explicit user request**: standby video
+management in both `setlist-admin` apps (pick any library video as the
+new `standby.mp4` -- `USAGE.md`, `library_ops.set_standby_video()`).
+**Not yet deployed/verified on the real Pi as of writing this** -- do
+that before trusting any of this section (see "Deploying to the Pi"
+below for the overlay-persistence dance this needs).
+
 ## What's genuinely unconfirmed -- do these before trusting them
 
 1. **Export Set's visual fix is deployed but not re-confirmed.** It

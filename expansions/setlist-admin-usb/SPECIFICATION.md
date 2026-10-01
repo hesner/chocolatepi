@@ -14,7 +14,10 @@ time to learn.**
 covering PIN setup/login, the full Set/Bank/track CRUD flow, the shared
 song library (upload/assign/save/rename/delete), mid-upload USB-cable
 disconnection, and reboot-to-apply -- plus the terminology rename
-(section 0 note below) and section 14's Export Set feature.**
+(section 0 note below), section 14's Export Set feature, and standby
+video management (pick any library video as the new `standby.mp4` --
+see `USAGE.md`, `CHANGELOG.md`'s Unreleased section, and
+`library_ops.set_standby_video()`).**
 Mirrors `MASTER_SPECIFICATION.md`'s own process: this document was
 proposed, discussed, and approved before any code was written (section
 6 of that file). Section 13 (song library) was approved and added
