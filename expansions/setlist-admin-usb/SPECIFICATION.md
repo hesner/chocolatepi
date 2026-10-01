@@ -448,3 +448,61 @@ explicit `.export-view[hidden] { display: none; }` override, matching
 the `.view[hidden]`/`.tab-panel[hidden]` pattern already used elsewhere
 in `style.css` -- worth following that existing pattern from the start
 for any future full-screen overlay added here.
+
+## 15. Library "Optimize" button -- approved 2026-10-01
+
+**Problem**: uploads already warn (not block) if a video's codec isn't
+H.264 (`codec_check.check_video_codec()`), since the Pi only decodes
+H.264 in hardware -- but fixing a flagged file meant re-encoding it by
+hand over SSH, which this project had just done once, manually, for the
+standby video (a ~90-minute software-decode job on this hardware's weak
+CPU, documented in `LIBRARY.md`'s encoding guidance). There was no way
+to do that from the app itself.
+
+**Design**: `codec_check.is_optimized(path, extension)` is the boolean
+counterpart to the existing warning check (audio is always considered
+optimized; video is optimized only if ffprobe confirms H.264).
+`list_songs()` reports `needs_optimization` and, if a job exists for
+that file, its `optimization_status`/`optimization_error` -- the
+frontend shows an "Optimize" button only for files that actually need
+it, "Optimizing..." (disabled) while a job is active, or "Optimize
+(retry)" with the failure reason if the last attempt errored out.
+
+**Why a separate daemon, not a thread inside `setlist-admin.service`**:
+a job this long (confirmed live at ~90 minutes for one file) has to
+outlive the admin UI being stopped by `usb-tether-watchdog.service` /
+`setlist-network-watchdog.service` the instant the phone disconnects --
+a thread or child process of `setlist-admin.service` dies with it under
+systemd's default `KillMode=control-group`. `library-optimizer.service`
+is a new, independent, always-on unit instead, polling a persistent
+file-based queue (`optimize_queue.py`: one JSON file per song under
+`.setlist-admin/optimize-queue/` on the USB itself, not in memory) every
+5 seconds and processing one job at a time -- this hardware can't
+usefully run two `ffmpeg` encodes in parallel. The queue being on-disk,
+not in-memory, is what makes "Optimizing..." survive the phone
+reconnecting later, as explicitly requested.
+
+**Why scratch-then-copy, not encode-in-place**: the first, manual
+standby-video conversion held `pedal-core.service` stopped (so,
+playback dark) for the entire ~90-minute encode -- acceptable once, as
+a one-off, deliberate action; not acceptable as a background feature
+that could trigger at any time during a live set. `library_optimizer.py`
+instead reads the source with the USB mounted read-only (no
+`pedal_core_guard` needed for that), encodes to a local scratch
+directory off the USB entirely (`~/pedal-optimizer-scratch/`), and only
+takes the brief writable-USB window (via `pedal_core_guard.writable_usb`
+-- the same fallback `api.py` already used, extracted out to its own
+module once this daemon needed it as a second caller) to atomically copy
+the already-finished, much smaller output into place. `Nice=15`/
+`CPUWeight=10` (`setlist-admin.service` itself uses `Nice=10`/
+`CPUWeight=20`) keeps a running encode from starving live playback.
+
+**Scope, explicit in the original request**: songs in `_Songs/` aren't
+loaded into any live Set or the standby slot until separately assigned
+(section 13) -- so an in-progress or even a failed optimization never
+affects what's actually playable right now, only what shows up next
+time someone chooses to (re-)assign that file.
+
+**Uninstalling**: `scripts/install.sh`/`rollback.sh` install/remove
+`library-optimizer.service` alongside the existing units;
+`rollback.sh` also deletes `~/pedal-optimizer-scratch/`.

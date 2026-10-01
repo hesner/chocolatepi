@@ -10,20 +10,18 @@ operation in `self._writable_usb()` -- the rw window is exactly one
 operation wide, never the whole request, matching section 6.
 """
 
-import contextlib
 import logging
 import os
 import subprocess
 from dataclasses import dataclass
 from typing import BinaryIO, Optional
 
-from admin import auth, codec_check, crypto, library_ops, usb_mount, wifi
+from admin import auth, codec_check, crypto, library_ops, optimize_queue, pedal_core_guard, usb_mount, wifi
 
 logger = logging.getLogger(__name__)
 
 PIN_FILENAME = ".setlist-admin/pin.hash"
 SESSION_KEY_FILENAME = ".setlist-admin/session.key"
-_PEDAL_CORE_SERVICE_NAME = "pedal-core.service"
 
 
 class ApiError(Exception):
@@ -104,167 +102,12 @@ class AdminAPI:
         return self._sessions
 
     # -- Writable-USB access, with a fallback for when pedal-core.service's
-    # mpv won't let go ----------------------------------------------------
+    # mpv won't let go -- see pedal_core_guard.py for the full story
+    # (extracted there 2026-10-01 once library_optimizer.py, an
+    # independent daemon, needed the exact same logic). -----------------
 
-    @contextlib.contextmanager
     def _writable_usb(self):
-        """Every mutating method below uses this instead of calling
-        `usb_mount.writable_usb()` directly.
-
-        Real incident found on real hardware (2026-10-01, in the sibling
-        `setlist-admin-usb` expansion -- ported here unchanged, kept
-        convergent): `pedal-core.service`'s `mpv` keeps whatever it's
-        currently looping (in practice, always `standby.mp4`) open for as
-        long as it runs -- confirmed to never let go on its own, not even
-        briefly, for as long as the service keeps running without being
-        restarted. `usb_mount._remount()`'s own bounded retry (built for
-        a genuinely brief, transient busy window) can't get past that: it
-        isn't brief here, so every write failed with a 500 the whole time
-        the service ran continuously and stayed stable -- which directly
-        contradicts the "once playing, don't touch it" design: the system
-        staying *more* stable (not restarting `mpv` on every MIDI hiccup,
-        see `CHANGELOG.md`) is exactly what exposed this, since restarts
-        used to create brief incidental gaps.
-
-        Fixed here, not in `usb_mount.py` (which is deliberately
-        mount-only, with no idea `pedal-core.service` exists): try the
-        normal fast path first with a cheap, side-effect-free probe (an
-        immediate rw-then-ro round trip, nothing written) -- if the mount
-        is free, every existing call site's behavior is unchanged,
-        no disruption. Only if that probe itself fails does this stop
-        `pedal-core.service` (releasing every file it has open, including
-        the looping standby video -- briefly interrupting playback,
-        screen goes black for a few seconds) before the real write, then
-        restarts it afterward. The probe runs as a fully separate,
-        no-op remount cycle specifically so the real write never has to
-        be attempted twice -- retrying the actual operation after a
-        partial failure would risk doing it twice over (e.g. a duplicate
-        write, or in the worst case the "ro" remount itself being what
-        failed, which would mean the write had already happened)."""
-        stopped = False
-        if not self._can_remount_rw_quickly():
-            stopped = self._stop_pedal_core()
-        try:
-            with usb_mount.writable_usb(self.config.mount_point):
-                yield
-        finally:
-            if stopped:
-                # Real incident (2026-10-01): the write's own remount-back-
-                # to-ro can itself fail (observed: a "mount -o ro" timing
-                # out after 10s, following a client disconnect mid-upload)
-                # and leave the FUSE mount genuinely dead -- `mount` still
-                # lists it, but every access returns ENOTCONN ("Transport
-                # endpoint is not connected"), because the ntfs-3g process
-                # backing it is simply gone. Restarting pedal-core.service
-                # blindly at that point made it worse: mpv immediately
-                # tried to open standby.mp4 against the broken mount.
-                # Check first, and self-heal (the same umount -l + fresh
-                # mount a human would do over SSH) before handing control
-                # back to pedal-core.service.
-                self._ensure_usb_accessible_before_restart()
-                self._start_pedal_core()
-
-    def _can_remount_rw_quickly(self) -> bool:
-        """A cheap, side-effect-free probe: can `/media/usb` be remounted
-        rw right now without anything holding it busy? Immediately
-        remounts back to `ro` either way -- nothing is written in
-        between. Used only to decide whether `_writable_usb()` needs to
-        stop `pedal-core.service` first."""
-        try:
-            with usb_mount.writable_usb(self.config.mount_point):
-                pass
-            return True
-        except usb_mount.RemountError:
-            return False
-
-    def _stop_pedal_core(self) -> bool:
-        """Returns True only if the service was actually running (and is
-        now stopped by this call) -- False if it was already stopped, or
-        if stopping it failed, so `_writable_usb()`'s `finally` never
-        "helpfully" starts a service back up that this call didn't
-        actually stop itself."""
-        try:
-            was_active = subprocess.run(
-                ["systemctl", "is-active", _PEDAL_CORE_SERVICE_NAME],
-                capture_output=True, text=True, timeout=5,
-            ).stdout.strip() == "active"
-            if not was_active:
-                return False
-            subprocess.run(
-                ["sudo", "systemctl", "stop", _PEDAL_CORE_SERVICE_NAME],
-                capture_output=True, timeout=15,
-            )
-            return True
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            return False
-
-    def _start_pedal_core(self) -> None:
-        try:
-            subprocess.run(
-                ["sudo", "systemctl", "start", _PEDAL_CORE_SERVICE_NAME],
-                capture_output=True, timeout=15,
-            )
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            logger.error(
-                "Could not restart %s after a library write -- it may need "
-                "a manual 'sudo systemctl start %s' over SSH: %s",
-                _PEDAL_CORE_SERVICE_NAME, _PEDAL_CORE_SERVICE_NAME, e,
-            )
-
-    def _ensure_usb_accessible_before_restart(self) -> None:
-        """Called only when this call itself stopped pedal-core.service
-        (about to start it back up, which makes mpv immediately try to
-        open standby.mp4 again). A no-op if the mount is fine -- the
-        common case. If it's dead, runs the same recovery a human would
-        do over SSH (force-unmount, fresh mount) first, so pedal-core.service
-        comes back up against a working mount instead of a broken one."""
-        if self._usb_mount_is_healthy():
-            return
-        logger.error(
-            "%s looks broken after a library write (a dead FUSE mount, not "
-            "just empty) -- attempting automatic recovery before restarting "
-            "%s.", self.config.mount_point, _PEDAL_CORE_SERVICE_NAME,
-        )
-        self._recover_broken_mount()
-
-    def _usb_mount_is_healthy(self) -> bool:
-        """A real filesystem access, not just checking `mount`'s own
-        output -- a dead FUSE mount still shows up there as mounted even
-        though every access to it fails with ENOTCONN ("Transport
-        endpoint is not connected"). Run through `subprocess` (not
-        `os.listdir()` directly) specifically so a backing process that's
-        hung rather than fully dead can't block this indefinitely --
-        bounded by `timeout` either way."""
-        try:
-            result = subprocess.run(
-                ["ls", self.config.mount_point],
-                capture_output=True, timeout=5,
-            )
-            return result.returncode == 0
-        except subprocess.TimeoutExpired:
-            return False
-
-    def _recover_broken_mount(self) -> None:
-        try:
-            subprocess.run(
-                ["sudo", "umount", "-l", self.config.mount_point],
-                capture_output=True, timeout=10,
-            )
-            subprocess.run(
-                ["sudo", "mount", "-o", "ro", self.config.mount_point],
-                capture_output=True, timeout=15,
-            )
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            logger.error("Automatic USB mount recovery failed: %s", e)
-            return
-        if self._usb_mount_is_healthy():
-            logger.info("%s recovered automatically.", self.config.mount_point)
-        else:
-            logger.error(
-                "%s is still not accessible after automatic recovery -- "
-                "needs manual attention over SSH (umount -l, then mount -o ro).",
-                self.config.mount_point,
-            )
+        return pedal_core_guard.writable_usb(self.config.mount_point)
 
     # -- Sets ------------------------------------------------------------
 
@@ -339,13 +182,36 @@ class AdminAPI:
     # -- Song library (reuse across Sets) -------------------------------------
 
     def list_songs(self) -> dict:
-        return {
-            "songs": [
-                {"filename": s.filename, "display_name": s.display_name,
-                 "extension": s.extension, "is_audio_only": s.is_audio_only}
-                for s in library_ops.list_songs(self.config.usb_root)
-            ]
-        }
+        songs = []
+        for s in library_ops.list_songs(self.config.usb_root):
+            path = os.path.join(self.config.usb_root, "_Songs", s.filename)
+            optimized = codec_check.is_optimized(path, s.extension)
+            job = None if optimized else optimize_queue.get_status(self.config.usb_root, s.filename)
+            songs.append({
+                "filename": s.filename, "display_name": s.display_name,
+                "extension": s.extension, "is_audio_only": s.is_audio_only,
+                "needs_optimization": not optimized,
+                "optimization_status": job.get("status") if job else None,
+                "optimization_error": (
+                    job.get("message") if job and job.get("status") == optimize_queue.STATUS_ERROR else None
+                ),
+            })
+        return {"songs": songs}
+
+    def request_song_optimization(self, filename: str) -> None:
+        """Queues a background re-encode for this library song, picked
+        up by library_optimizer.py -- an always-on daemon, independent
+        of this service's own lifecycle. Real user request, 2026-10-01,
+        in the sibling setlist-admin-usb expansion, ported here
+        unchanged: a re-encode can take a very long time on this
+        hardware (confirmed live, ~90 minutes for one video), so it must
+        survive setlist-admin.service itself stopping partway through,
+        not get killed along with whatever queued it."""
+        song_path = os.path.join(self.config.usb_root, "_Songs", filename)
+        if not os.path.isfile(song_path):
+            raise ApiError(404, f'"{filename}" is not in the library')
+        with self._writable_usb():
+            optimize_queue.enqueue(self.config.usb_root, filename)
 
     def upload_song(
         self, display_name: str, extension: str, source: BinaryIO, overwrite: bool = False,

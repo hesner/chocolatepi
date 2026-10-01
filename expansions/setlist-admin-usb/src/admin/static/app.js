@@ -283,6 +283,37 @@ function renderSongRow(song) {
   const node = tpl.content.cloneNode(true);
   node.querySelector(".song-name").textContent = song.filename;
 
+  // "Optimize" (real user request, 2026-10-01): offered whenever
+  // codec_check.is_optimized() says a video's codec isn't H.264 -- see
+  // library_optimizer.py for the always-on background daemon that
+  // actually does the re-encode, independent of whether the phone
+  // that tapped this button is still connected by the time it finishes
+  // (it can take a very long time on this hardware -- confirmed live,
+  // roughly 90 minutes for one problematic video).
+  const optimizeBtn = node.querySelector(".btn-optimize-song");
+  if (song.needs_optimization) {
+    optimizeBtn.hidden = false;
+    const inProgress = song.optimization_status === "queued" || song.optimization_status === "running";
+    if (inProgress) {
+      optimizeBtn.textContent = "Optimizing…";
+      optimizeBtn.disabled = true;
+    } else {
+      optimizeBtn.textContent = song.optimization_status === "error" ? "Optimize (retry)" : "Optimize";
+      if (song.optimization_error) optimizeBtn.title = song.optimization_error;
+      optimizeBtn.addEventListener("click", async () => {
+        flashSuccess(optimizeBtn);
+        try {
+          await apiFetch(`/api/songs/${encodeURIComponent(song.filename)}/optimize`, { method: "POST" });
+          await loadSongs();
+          showToast("Optimization started -- this can take a while on this hardware; check back later.");
+        } catch (e) {
+          clearFlash(optimizeBtn);
+          alert(e.message);
+        }
+      });
+    }
+  }
+
   const renameSongBtn = node.querySelector(".btn-rename-song");
   renameSongBtn.addEventListener("click", async () => {
     const newName = prompt("New name:", song.display_name);

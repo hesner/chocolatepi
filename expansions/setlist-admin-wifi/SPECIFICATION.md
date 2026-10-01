@@ -488,3 +488,13 @@ Same feature, same implementation, as
 here for parity (see that section for the full design/reasoning). Not
 yet exercised on real hardware in this expansion specifically, per the
 status note above.
+
+## 14. Library "Optimize" button -- approved 2026-10-01
+
+Same feature, same implementation, as
+`expansions/setlist-admin-usb/SPECIFICATION.md` section 15 -- ported
+here for parity (see that section for the full design/reasoning), with
+`library-optimizer.service` standing alongside
+`setlist-network-watchdog.service` rather than
+`usb-tether-watchdog.service`. Not yet exercised on real hardware in
+this expansion specifically, per the status note above.

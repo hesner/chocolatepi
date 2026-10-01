@@ -166,3 +166,12 @@ check its codec (`ffmpeg -i <file>` shows it on the `Video:` line)
 before suspecting the filename, and re-encode with the command above --
 a wrong filename and the wrong codec can both be true of the same file
 at once, so fixing one doesn't guarantee the other isn't also a problem.
+
+If either `setlist-admin` expansion is installed, this re-encode
+doesn't need to be done by hand: the Song library shows an "Optimize"
+button next to any file that doesn't already match this table, which
+runs the same recipe above in the background (see either expansion's
+`SPECIFICATION.md`, "Library 'Optimize' button"). Useful to know either
+way -- the expansion's button is the convenient path, this section is
+what it's actually running and the fallback if neither expansion is
+installed.

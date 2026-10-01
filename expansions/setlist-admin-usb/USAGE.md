@@ -151,7 +151,22 @@ From here you can upload a new song directly into the library (without
 assigning it to any Bank yet), rename one, or delete one. If you upload
 a name that's already there, the app asks **"... already exists in the
 library. Replace it?"** -- confirm to overwrite it in place, or cancel
-to leave the existing one untouched. **Deleting a
+to leave the existing one untouched.
+
+If a song's video isn't in the recommended format (H.264 -- see the
+upload hint, or `LIBRARY.md`), it still uploads, but an **"Optimize"**
+button appears next to it. Tap it to re-encode the file in place to
+the recommended format, without having to do it by hand. This can take
+a while on this hardware (confirmed up to roughly 90 minutes for one
+file) -- while it's running the button shows **"Optimizing..."**, which
+sticks around even if you disconnect your phone and come back later,
+so you can check on it whenever's convenient. If it fails (a corrupt or
+unreadable file), the button becomes **"Optimize (retry)"** with the
+reason shown on tap-and-hold. The optimization itself runs
+independently of this app and of any Set currently playing -- a song
+in the library isn't loaded into any live Set or the standby slot
+until you separately assign it, so an in-progress optimization never
+affects what's actually playable right now. **Deleting a
 song from the library is discouraged -- if you're not sure, don't.**
 `LIBRARY.md` recommends treating it as a permanent record of everything
 the band has ready to play, even songs not currently used in any Set,

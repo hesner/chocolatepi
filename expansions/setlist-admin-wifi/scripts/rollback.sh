@@ -1,7 +1,7 @@
 #!/bin/sh
 # Uninstalls the setlist-admin (WiFi) expansion, per ../SPECIFICATION.md
-# section 11: stops and disables both services and removes their unit
-# files. pedal-core.service is never touched -- it keeps running
+# section 11: stops and disables all three services and removes their
+# unit files. pedal-core.service is never touched -- it keeps running
 # throughout, confirmed by this project's own test plan before this
 # script is trusted for real use.
 #
@@ -51,12 +51,23 @@ echo "Uninstalling the setlist-admin-wifi expansion..."
 
 sudo systemctl disable --now setlist-admin.service 2>/dev/null || true
 sudo systemctl disable --now setlist-network-watchdog.service 2>/dev/null || true
-echo "Stopped and disabled both services."
+sudo systemctl disable --now library-optimizer.service 2>/dev/null || true
+echo "Stopped and disabled all three services."
+# Note: stopping library-optimizer.service mid-job (Restart=always
+# normally keeps it running forever) abandons whatever file it was
+# re-encoding -- its scratch output under ~/pedal-optimizer-scratch/
+# is left behind, harmless, never promoted to a real library file. The
+# original file in _Songs/ was never touched (only the already-finished
+# output ever gets copied in), so nothing is lost by stopping mid-job.
 
 sudo rm -f /etc/systemd/system/setlist-admin.service
 sudo rm -f /etc/systemd/system/setlist-network-watchdog.service
+sudo rm -f /etc/systemd/system/library-optimizer.service
 sudo systemctl daemon-reload
 echo "Removed unit files."
+
+rm -rf "$HOME/pedal-optimizer-scratch"
+echo "Removed the optimizer's local scratch directory."
 
 if [ "$PURGE" = "1" ] || [ "$PURGE_LIBRARY" = "1" ]; then
   # Not `mount -o remount,rw` -- ntfs-3g (a FUSE filesystem) refuses

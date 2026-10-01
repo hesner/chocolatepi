@@ -309,6 +309,31 @@ class TestSongLibraryFlow(ServerIntegrationTestCase):
         self.assertEqual(resp.status, 409)
         self.assertIn("already exists", body["error"])
 
+    def test_optimize_endpoint_queues_a_job(self):
+        conn, headers = self._authenticated_conn()
+        upload_headers = dict(headers)
+        upload_headers["X-Track-Name"] = "Video"
+        upload_headers["X-Track-Extension"] = "mp4"
+        body_bytes = b"fake mp4 bytes"
+        upload_headers["Content-Length"] = str(len(body_bytes))
+        conn.request("POST", "/api/songs", body=body_bytes, headers=upload_headers)
+        conn.getresponse().read()
+
+        resp, body = self._json(conn, "POST", "/api/songs/Video.mp4/optimize", headers=headers)
+        self.assertEqual(resp.status, 200)
+        self.assertTrue(body["ok"])
+
+        resp, body = self._json(conn, "GET", "/api/songs", headers=headers)
+        song = next(s for s in body["songs"] if s["filename"] == "Video.mp4")
+        self.assertEqual(song["optimization_status"], "queued")
+
+    def test_optimize_endpoint_404s_for_an_unknown_song(self):
+        conn, headers = self._authenticated_conn()
+
+        resp, body = self._json(conn, "POST", "/api/songs/Nope.mp4/optimize", headers=headers)
+
+        self.assertEqual(resp.status, 404)
+
 
 class TestLimitedReaderDrain(unittest.TestCase):
     """_LimitedReader.drain() (server.py) in isolation -- the OS-level

@@ -43,6 +43,56 @@ publicar]` nuevo y vacío arriba para lo que siga.
 
 ## [Sin publicar]
 
+- Se agregó un **botón "Optimize"** a nivel de toda la biblioteca, en
+  las dos expansiones `setlist-admin`. Pedido real del usuario: las
+  subidas ya avisaban si un video no era H.264 (sección 9,
+  `codec_check.py`), pero arreglarlo significaba re-codificar
+  manualmente por SSH — el mismo proceso de ~90 minutos, hecho a mano
+  una sola vez, que este proyecto acababa de hacer para el video de
+  standby. Ahora la biblioteca de canciones muestra un botón "Optimize"
+  junto a cualquier archivo (`codec_check.is_optimized()`) que no esté
+  ya en el formato recomendado; al tocarlo se encola la misma
+  re-codificación (`scale=-2:1080,fps=25`, H.264 high@4.0, AAC 128k,
+  documentada en `LIBRARY.md`) sin bloquear la interfaz. Limitado a la
+  biblioteca únicamente — los archivos de `_Songs/` no se cargan a
+  ningún Set en vivo ni al standby hasta que el usuario los asigna por
+  separado, así que una optimización en curso nunca afecta lo que
+  realmente se puede reproducir en este momento.
+  - La cola de trabajos es un pequeño archivo JSON por canción bajo
+    `.setlist-admin/optimize-queue/` en el propio USB
+    (`optimize_queue.py`), no en memoria — así que "Optimizing..."
+    (que se muestra en vez del botón mientras un trabajo está activo,
+    confirmado sondeando `GET /api/songs`) sobrevive a que el celular
+    que lo encoló se desconecte y se vuelva a conectar más tarde, tal
+    como se pidió. Un trabajo que falla (archivo fuente dañado o
+    ilegible, o un timeout después de 4 horas) muestra "Optimize
+    (retry)" con el motivo en el tooltip del botón.
+  - La codificación en sí corre en una unidad de systemd nueva y
+    siempre activa, `library-optimizer.service`, deliberadamente
+    independiente del ciclo de vida de `setlist-admin.service`: un
+    trabajo tan largo tiene que sobrevivir a que el watchdog de
+    USB/red detenga la interfaz de administración en el momento en que
+    un celular se desconecta, algo que un subproceso simple de ese
+    servicio no lograría. Revisa la cola cada 5s y procesa un trabajo
+    a la vez (este hardware no puede correr dos codificaciones de
+    ffmpeg a la vez de forma útil).
+  - A diferencia de la conversión manual del video de standby (que
+    mantuvo `pedal-core.service` detenido, y la reproducción en negro,
+    durante toda la codificación de ~90 minutos), el daemon lee el
+    archivo fuente con el USB aún montado en modo lectura y codifica a
+    un directorio local temporal (`~/pedal-optimizer-scratch/`, fuera
+    del USB por completo) — el mecanismo compartido
+    `pedal_core_guard.writable_usb()` (ahora su propio módulo, extraído
+    de `api.py` cuando este daemon necesitó la misma lógica de detener-
+    pedal-core/recuperar-montaje-roto como segundo llamador) solo se
+    invoca durante los pocos segundos que toma copiar el resultado ya
+    terminado, y mucho más pequeño, a su lugar final. `Nice=15`/
+    `CPUWeight=10` (más agresivo que el propio `Nice=10`/`CPUWeight=20`
+    de `setlist-admin.service`) evita que una codificación en curso le
+    quite recursos a la reproducción en vivo.
+  - `install.sh`/`rollback.sh` (las dos expansiones) ahora instalan/
+    quitan `library-optimizer.service` junto con las unidades
+    existentes, y `rollback.sh` también limpia el directorio temporal.
 - Se movió el aviso de "formatos soportados" (audio MP3/WAV, video
   MP4/MOV/MPEG/MPG con audio incrustado, más la guía de video
   H.264/1080p/~8-12 Mbps) de la pantalla de Export Set — donde era

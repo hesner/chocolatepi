@@ -40,6 +40,51 @@ above it for whatever comes next.
 
 ## [Unreleased]
 
+- Added a library-wide **"Optimize" button**, both `setlist-admin`
+  expansions. Real user request: uploads already warned if a video
+  wasn't H.264 (section 9's `codec_check.py`), but fixing it meant
+  manually re-encoding over SSH -- the same ~90-minute, one-off process
+  this project had just done by hand for the standby video. Now the
+  Song library lists an "Optimize" button next to any file
+  (`codec_check.is_optimized()`) that isn't already in the recommended
+  format; tapping it queues the same re-encode (`scale=-2:1080,fps=25`,
+  H.264 high@4.0, AAC 128k, documented in `LIBRARY.md`) without
+  blocking the UI. Scoped to the library only -- `_Songs/` entries
+  aren't loaded into any live Set or the standby slot until the user
+  separately assigns them, so an in-progress optimization never affects
+  what's actually playable right now.
+  - The job queue is a small JSON file per song under
+    `.setlist-admin/optimize-queue/` on the USB itself
+    (`optimize_queue.py`), not in-memory -- so "Optimizing..." (shown
+    instead of the button while a job is active, confirmed by polling
+    `GET /api/songs`) survives the phone that queued it disconnecting
+    and reconnecting later, exactly as requested. A failed job
+    (corrupt/unreadable source, or a timeout past 4 hours) shows
+    "Optimize (retry)" with the reason in the button's tooltip.
+  - The actual encoding runs in a brand new, always-on systemd unit,
+    `library-optimizer.service`, deliberately independent of
+    `setlist-admin.service`'s own lifecycle: a job this long has to
+    survive the admin UI being stopped by the USB-tether/network
+    watchdog the moment a phone disconnects, which a plain subprocess
+    of that service wouldn't. It polls the queue every 5s and processes
+    one job at a time (this hardware can't usefully run two ffmpeg
+    encodes at once).
+  - Unlike the manual standby-video conversion (which held
+    `pedal-core.service` stopped, and playback dark, for the entire
+    ~90-minute encode), the daemon reads the source with the USB still
+    mounted read-only and encodes to a local scratch directory
+    (`~/pedal-optimizer-scratch/`, off the USB entirely) -- the shared
+    `pedal_core_guard.writable_usb()` fallback (now its own module,
+    extracted out of `api.py` once this daemon needed the identical
+    stop-pedal-core/recover-broken-mount logic as a second caller) is
+    only invoked for the few seconds it takes to copy the already-
+    finished, much smaller output back into place. `Nice=15`/
+    `CPUWeight=10` (more aggressive than `setlist-admin.service`'s own
+    `Nice=10`/`CPUWeight=20`) keeps a running encode from ever starving
+    live playback.
+  - `install.sh`/`rollback.sh` (both expansions) now install/remove
+    `library-optimizer.service` alongside the existing units, and
+    `rollback.sh` also clears the scratch directory.
 - Moved the "supported formats" hint (audio MP3/WAV, video MP4/MOV/
   MPEG/MPG with embedded audio, plus H.264/1080p/~8-12 Mbps video
   guidance) from the Export Set screen -- where it was pointless noise

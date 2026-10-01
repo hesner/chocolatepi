@@ -1,0 +1,31 @@
+[Unit]
+Description=Chocolate Pi -- Setlist Admin library optimizer
+# Starts early and stays running for the Pi's whole uptime, deliberately
+# independent of setlist-admin.service's own lifecycle (which
+# usb-tether-watchdog.service stops the instant a phone disconnects, for
+# resource conservation). A queued "Optimize" job (library_optimizer.py)
+# can take a very long time on this hardware -- confirmed live, roughly
+# 90 minutes for one problematic video -- and must survive the phone
+# that queued it disconnecting partway through.
+After=network.target
+
+[Service]
+Type=simple
+User=<YOUR_USER>
+# Never contends for CPU with pedal-core.service -- playback always
+# wins, same reasoning as setlist-admin.service's own Nice/CPUWeight
+# (section 9). This matters more here than for setlist-admin.service
+# itself: a queued optimize job runs ffmpeg at full tilt for up to
+# roughly 90 minutes on this hardware, entirely possible to overlap
+# with normal band use of the pedal.
+Nice=15
+CPUWeight=10
+ExecStart=/usr/bin/python3 /home/<YOUR_USER>/chocolatepi/expansions/setlist-admin-usb/src/admin/library_optimizer.py --usb-root /media/usb --log-file /home/<YOUR_USER>/library-optimizer.log
+# Same reasoning as pedal-core.service's/usb-tether-watchdog.service's
+# own Restart=always: no one is available to restart this by hand on a
+# headless appliance.
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

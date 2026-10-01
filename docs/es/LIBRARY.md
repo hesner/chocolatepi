@@ -177,3 +177,13 @@ pedal, revisa su códec (`ffmpeg -i <archivo>` lo muestra en la línea
 el comando de arriba — un nombre mal puesto y un códec incompatible
 pueden ser ambos ciertos en el mismo archivo a la vez, así que arreglar
 uno no garantiza que el otro no siga siendo un problema.
+
+Si alguna de las dos expansiones `setlist-admin` está instalada, esta
+re-codificación no hace falta hacerla a mano: la biblioteca de
+canciones muestra un botón "Optimize" junto a cualquier archivo que no
+cumpla ya con esta tabla, que corre la misma receta de arriba en
+segundo plano (ver "Library 'Optimize' button" en el `SPECIFICATION.md`
+de cualquiera de las dos expansiones). Vale la pena conocer ambos
+caminos — el botón de la expansión es la vía cómoda, esta sección es lo
+que realmente corre detrás y el respaldo si ninguna expansión está
+instalada.

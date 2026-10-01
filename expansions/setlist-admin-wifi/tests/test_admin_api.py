@@ -17,7 +17,7 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from admin import library_ops  # noqa: E402
+from admin import library_ops, optimize_queue  # noqa: E402
 from admin.api import AdminAPI, AdminConfig, ApiError  # noqa: E402
 from admin.usb_mount import RemountError  # noqa: E402
 
@@ -353,6 +353,68 @@ class TestUploadSongOverwrite(ApiTestCase):
 
         songs = self.api.list_songs()["songs"]
         self.assertEqual(len(songs), 1)
+
+
+class TestListSongsOptimizationFields(ApiTestCase):
+    """list_songs()'s needs_optimization/optimization_status fields --
+    real user request, 2026-10-01, for the "Optimize" button feature
+    (see library_optimizer.py). codec_check.is_optimized() is mocked
+    directly here rather than relying on ffprobe against fake test
+    content (which just fails to probe it either way -- mocking makes
+    the two cases this exercises deterministic)."""
+
+    def test_audio_only_song_never_needs_optimization(self):
+        self.api.upload_song("Song", "mp3", io.BytesIO(b"data"))
+
+        songs = self.api.list_songs()["songs"]
+
+        self.assertFalse(songs[0]["needs_optimization"])
+        self.assertIsNone(songs[0]["optimization_status"])
+
+    @patch("admin.api.codec_check.is_optimized", return_value=False)
+    def test_unoptimized_video_with_no_job_shows_no_status(self, mock_is_optimized):
+        self.api.upload_song("Video", "mp4", io.BytesIO(b"data"))
+
+        songs = self.api.list_songs()["songs"]
+
+        self.assertTrue(songs[0]["needs_optimization"])
+        self.assertIsNone(songs[0]["optimization_status"])
+
+    @patch("admin.api.codec_check.is_optimized", return_value=False)
+    def test_queued_job_is_reflected_in_status(self, mock_is_optimized):
+        self.api.upload_song("Video", "mp4", io.BytesIO(b"data"))
+
+        self.api.request_song_optimization("Video.mp4")
+
+        songs = self.api.list_songs()["songs"]
+        self.assertEqual(songs[0]["optimization_status"], "queued")
+
+    @patch("admin.api.codec_check.is_optimized", return_value=True)
+    def test_optimized_video_shows_no_button_even_with_a_stale_job_marker(self, mock_is_optimized):
+        """Once a file genuinely passes the codec check (e.g. the
+        optimizer just finished, or it was already fine), it's reported
+        as optimized regardless of any leftover job bookkeeping -- the
+        file itself is always the source of truth."""
+        self.api.upload_song("Video", "mp4", io.BytesIO(b"data"))
+
+        songs = self.api.list_songs()["songs"]
+
+        self.assertFalse(songs[0]["needs_optimization"])
+
+
+class TestRequestSongOptimization(ApiTestCase):
+    def test_queues_a_job_for_an_existing_song(self):
+        self.api.upload_song("Video", "mp4", io.BytesIO(b"data"))
+
+        self.api.request_song_optimization("Video.mp4")
+
+        status = optimize_queue.get_status(self.usb_root, "Video.mp4")
+        self.assertEqual(status["status"], "queued")
+
+    def test_raises_404_for_a_song_not_in_the_library(self):
+        with self.assertRaises(ApiError) as ctx:
+            self.api.request_song_optimization("Does Not Exist.mp4")
+        self.assertEqual(ctx.exception.status, 404)
 
 
 class TestStandby(ApiTestCase):

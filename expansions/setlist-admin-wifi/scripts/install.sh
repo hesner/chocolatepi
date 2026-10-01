@@ -42,7 +42,7 @@ CURRENT_USER="$(whoami)"
 
 echo "Installing the setlist-admin-wifi expansion for user '$CURRENT_USER', at $EXPANSION_ROOT, USB UUID $USB_UUID"
 
-for unit in setlist-admin.service setlist-network-watchdog.service; do
+for unit in setlist-admin.service setlist-network-watchdog.service library-optimizer.service; do
   sed \
     -e "s#<YOUR_USER>#$CURRENT_USER#g" \
     -e "s#<YOUR_USB_UUID>#$USB_UUID#g" \
@@ -53,18 +53,31 @@ done
 
 sudo systemctl daemon-reload
 
-# Only the watchdog runs continuously from boot -- setlist-admin.service
-# itself is started/stopped by the watchdog based on connectivity
-# (section 5, step 4), deliberately never `enable`d directly.
+# The watchdog and the library optimizer both run continuously from
+# boot, independent of connectivity -- setlist-admin.service itself is
+# started/stopped by the watchdog based on that (section 5, step 4),
+# deliberately never `enable`d directly. The optimizer specifically
+# needs to outlive setlist-admin.service's own on/off cycles, since a
+# queued "Optimize" job can take a very long time on this hardware
+# (confirmed live, roughly 90 minutes for one problematic video) and
+# must survive the phone that queued it disconnecting partway through.
 sudo systemctl enable --now setlist-network-watchdog.service
+sudo systemctl enable --now library-optimizer.service
 
 echo ""
 echo "Installed. setlist-network-watchdog.service is now running and will"
 echo "start setlist-admin.service automatically once there's a usable IP."
 echo ""
+echo "library-optimizer.service is also now running, independently of"
+echo "connectivity -- it processes any 'Optimize' job queued from the"
+echo "app, even if the phone that queued it disconnects before the job"
+echo "finishes (this can take a very long time on this hardware)."
+echo ""
 echo "Check status with:"
 echo "  sudo systemctl status setlist-network-watchdog"
 echo "  journalctl -u setlist-network-watchdog -f"
+echo "  sudo systemctl status library-optimizer"
+echo "  journalctl -u library-optimizer -f"
 echo ""
 echo "Don't forget to re-enable the read-only root overlay if you"
 echo "disabled it to run this install (systemd/README.md section 4)."

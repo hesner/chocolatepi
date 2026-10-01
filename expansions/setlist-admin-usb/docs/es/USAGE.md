@@ -156,7 +156,23 @@ Desde ahí puedes subir una canción nueva directo a la biblioteca (sin
 asignarla a ningún Bank todavía), renombrarla, o borrarla. Si subes un
 nombre que ya está ahí, la app pregunta **"... already exists in the
 library. Replace it?"** — confirma para reemplazarla en el mismo lugar,
-o cancela para dejar la existente sin tocar. **Borrar una
+o cancela para dejar la existente sin tocar.
+
+Si el video de una canción no está en el formato recomendado (H.264 —
+ver el aviso junto a la subida, o `LIBRARY.md`), igual se sube, pero
+aparece un botón **"Optimize"** junto a ella. Tócalo para re-codificar
+el archivo en el mismo lugar al formato recomendado, sin tener que
+hacerlo a mano. Esto puede tardar un rato en este hardware (confirmado
+hasta unos 90 minutos para un archivo) — mientras corre, el botón
+muestra **"Optimizing..."**, que se mantiene aunque desconectes el
+celular y vuelvas más tarde, así que puedes revisarlo cuando te quede
+cómodo. Si falla (un archivo dañado o ilegible), el botón pasa a
+**"Optimize (retry)"** con el motivo al mantener presionado. La
+optimización corre de forma independiente a esta app y a cualquier Set
+que esté sonando — una canción en la biblioteca no se carga a ningún
+Set en vivo ni al standby hasta que la asignes por separado, así que
+una optimización en curso nunca afecta lo que realmente se puede
+reproducir en este momento. **Borrar una
 canción de la biblioteca no se recomienda — si tienes dudas, no la
 borres.** `LIBRARY.md` recomienda tratarla como un registro permanente
 de todo lo que tiene la banda, incluso canciones que no se usan en
