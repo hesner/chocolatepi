@@ -105,8 +105,8 @@ rotación, así que dejarlo encendido permanentemente se consideró que no
 valía el riesgo constante de agotar la RAM por un beneficio que solo
 sirve durante una sesión activa de debugging. Captúralo temporalmente,
 a mano, la próxima vez que de verdad haga falta — no vuelvas a
-desplegar ese parche de forma permanente. Ver la entrada posterior de
-"Sin publicar" en `CHANGELOG.md` para el razonamiento completo.)
+desplegar ese parche de forma permanente. Ver la entrada `v2026.10.01`
+de `CHANGELOG.md` para el razonamiento completo.)
 **También agregado, misma sesión, a pedido explícito del usuario**:
 gestión del video de standby en las dos apps
 `setlist-admin` (elegir cualquier video de la biblioteca como el nuevo

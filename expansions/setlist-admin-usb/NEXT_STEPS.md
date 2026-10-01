@@ -91,7 +91,7 @@ lives in the RAM-backed root overlay with no rotation, so leaving it on
 permanently was judged not worth the standing RAM-exhaustion risk for a
 benefit that's only useful during an active debugging session. Capture
 it temporarily, by hand, next time it's actually needed -- don't
-redeploy that patch permanently. See `CHANGELOG.md`'s later Unreleased
+redeploy that patch permanently. See `CHANGELOG.md`'s `v2026.10.01`
 entry for the full reasoning.) **Also added, same session, per explicit
 user request**: standby video
 management in both `setlist-admin` apps (pick any library video as the

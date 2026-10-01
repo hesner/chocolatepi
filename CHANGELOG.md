@@ -40,8 +40,11 @@ above it for whatever comes next.
 
 ## [Unreleased]
 
-- **Reverted**: `v2026.10.01`'s `mpv` `stderr`-to-`pedal-core.log`
-  change (below) was rolled back the same day. Reasoning: `pedal-core.log`
+## [v2026.10.01] -- MIDI-disconnect resilience, standby video management
+
+- **Reverted same day**: this version briefly logged `mpv`'s own
+  `stderr` into `pedal-core.log` (see the next bullet for why it was
+  added) -- rolled back a few hours later. Reasoning: `pedal-core.log`
   lives under `/home/`, which under the normal, protective root overlay
   is RAM-backed (`tmpfs`), not disk -- and nothing rotates it. Checked on
   the real Pi: the overlay's effective cap is ~461MB (half of this Pi's
@@ -50,20 +53,14 @@ above it for whatever comes next.
   `setlist-admin.log`, `usb-tether-watchdog.log`). Unbounded log growth
   on an appliance meant to run indefinitely without a reboot is a real
   RAM-exhaustion risk, not just a disk-space one. A log that only earns
-  its keep during an active debugging session (this one specifically was
-  added *to help diagnose this exact incident*) isn't worth that
-  standing cost left on permanently -- `core/player.py` is back to
-  sending both `mpv` lanes' `stdout`/`stderr` to `DEVNULL`. If a future
-  investigation genuinely needs `mpv`'s own error output, capture it
-  temporarily for that session (e.g. patch `stderr=subprocess.PIPE` and
-  tail it live over SSH) rather than leaving it logged permanently.
+  its keep during an active debugging session isn't worth that standing
+  cost left on permanently -- `core/player.py` is back to sending both
+  `mpv` lanes' `stdout`/`stderr` to `DEVNULL`. If a future investigation
+  genuinely needs `mpv`'s own error output, capture it temporarily for
+  that session (e.g. patch `stderr=subprocess.PIPE` and tail it live
+  over SSH) rather than leaving it logged permanently.
   `TROUBLESHOOTING.md`'s "Audio (and video) stop completely..." entry
-  updated to match. The MIDI-disconnect resilience fix and the standby
-  video feature from the same `v2026.10.01` pass are unaffected -- only
-  the `mpv` `stderr` logging was reverted.
-
-## [v2026.10.01] -- MIDI-disconnect resilience, mpv error logging, standby video management
-
+  reflects the final (reverted) state.
 - **Fixed**: a real, reproduced incident -- the M-VAVE being off or
   disconnected (at startup, or mid-session: a loose cable, a USB hub
   glitch, the kind of brief dropout a real undervoltage event can cause,
@@ -79,18 +76,13 @@ above it for whatever comes next.
   footswitch press works again the instant the controller reappears.
   Confirmed live: powering the M-VAVE back on mid-session was picked up
   on the very next retry (a few seconds later), no reboot needed.
-- `core/player.py`'s two `mpv` processes previously had both `stdout`
-  and `stderr` sent to `DEVNULL` -- any real ALSA/audio-hardware error
-  (device busy, underrun, etc.) was silently discarded, leaving zero
-  trail to diagnose a real audio failure after the fact. `stderr` is now
-  drained continuously by a background thread and logged through this
-  project's own logger, landing in `pedal-core.log` like everything
-  else. Both found while investigating a real report of audio stopping
-  entirely after about an hour of intensive real-hardware testing --
-  see `TROUBLESHOOTING.md`'s new entry for the full writeup (the M-VAVE
-  gap above is the strongest confirmed lead; no direct log evidence of
-  the Behringer itself losing power was found, since the relevant
-  boot's logs didn't survive a reboot).
+- Both the MIDI fix above and the `mpv`-`stderr`-logging attempt (first
+  bullet, reverted the same day) came out of investigating a real
+  report of audio stopping entirely after about an hour of intensive
+  real-hardware testing -- see `TROUBLESHOOTING.md`'s new entry for the
+  full writeup. The M-VAVE gap is the strongest confirmed lead; no
+  direct log evidence of the Behringer itself losing power was found,
+  since the relevant boot's logs didn't survive a reboot.
 - Added **standby video management** to both `setlist-admin` expansions:
   a new "Standby video" panel shows what's currently looping
   (`standby.mp4`'s size/last-changed time) and lets you pick any video

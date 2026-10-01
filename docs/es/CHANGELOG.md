@@ -43,8 +43,11 @@ publicar]` nuevo y vacío arriba para lo que siga.
 
 ## [Sin publicar]
 
-- **Revertido**: el cambio de `v2026.10.01` que mandaba el `stderr` de
-  `mpv` a `pedal-core.log` (abajo) se revirtió el mismo día. Razón:
+## [v2026.10.01] — Resiliencia ante desconexión MIDI, gestión del video de standby
+
+- **Revertido el mismo día**: esta versión registró brevemente el
+  propio `stderr` de `mpv` en `pedal-core.log` (ver la siguiente viñeta
+  para el porqué de agregarlo) — revertido unas horas después. Razón:
   `pedal-core.log` vive bajo `/home/`, que con el overlay de protección
   normal está respaldado en `tmpfs` (RAM), no en disco — y nada lo
   rota. Verificado en la Pi real: el límite efectivo del overlay es de
@@ -54,22 +57,15 @@ publicar]` nuevo y vacío arriba para lo que siga.
   `usb-tether-watchdog.log`). Un crecimiento de log sin control en un
   aparato pensado para correr indefinidamente sin reiniciar es un riesgo
   real de agotar la RAM, no solo de espacio en disco. Un log que solo se
-  gana su lugar durante una sesión activa de debugging (este en
-  particular se agregó *justo para diagnosticar este mismo incidente*)
-  no vale el costo permanente de dejarlo encendido siempre —
-  `core/player.py` volvió a mandar tanto `stdout` como `stderr` de los
-  dos `mpv` a `DEVNULL`. Si una investigación futura realmente necesita
-  la salida de errores propia de `mpv`, captúrala temporalmente para esa
-  sesión (por ejemplo, parchear `stderr=subprocess.PIPE` y seguirlo en
-  vivo por SSH) en vez de dejarlo registrado para siempre. Se actualizó
-  la entrada "El audio (y el video) se detienen..." de
-  `TROUBLESHOOTING.md` para reflejarlo. La corrección de resiliencia
-  ante desconexión MIDI y la función de video de standby de la misma
-  tanda de `v2026.10.01` no se tocaron — solo se revirtió el registro
-  del `stderr` de `mpv`.
-
-## [v2026.10.01] — Resiliencia ante desconexión MIDI, registro de errores de mpv, gestión del video de standby
-
+  gana su lugar durante una sesión activa de debugging no vale el costo
+  permanente de dejarlo encendido siempre — `core/player.py` volvió a
+  mandar tanto `stdout` como `stderr` de los dos `mpv` a `DEVNULL`. Si
+  una investigación futura realmente necesita la salida de errores
+  propia de `mpv`, captúrala temporalmente para esa sesión (por ejemplo,
+  parchear `stderr=subprocess.PIPE` y seguirlo en vivo por SSH) en vez
+  de dejarlo registrado para siempre. La entrada "El audio (y el video)
+  se detienen..." de `TROUBLESHOOTING.md` refleja el estado final (ya
+  revertido).
 - **Corregido**: un incidente real y reproducido — que el M-VAVE
   estuviera apagado o desconectado (al arrancar, o a mitad de sesión:
   un cable flojo, un glitch del hub USB, el tipo de corte breve que un
@@ -86,20 +82,14 @@ publicar]` nuevo y vacío arriba para lo que siga.
   instante en que el controlador reaparece. Confirmado en vivo:
   encender el M-VAVE de nuevo a mitad de sesión se detectó en el
   siguiente intento (unos segundos después), sin necesitar reiniciar.
-- Los dos procesos `mpv` de `core/player.py` antes mandaban tanto
-  `stdout` como `stderr` a `DEVNULL` — cualquier error real de
-  ALSA/hardware de audio (dispositivo ocupado, underrun, etc.) se
-  descartaba en silencio, sin dejar rastro para diagnosticar una falla
-  de audio real después del hecho. `stderr` ahora se drena
-  continuamente con un hilo de fondo y se registra con el logger propio
-  de este proyecto, cayendo en `pedal-core.log` como todo lo demás.
-  Ambos encontrados investigando un reporte real de que el sonido se
-  detuvo por completo tras aproximadamente una hora de pruebas
-  intensivas en hardware real — ver la entrada nueva de
-  `TROUBLESHOOTING.md` para el detalle completo (el hueco del M-VAVE de
-  arriba es la pista más confirmada; no se encontró evidencia directa
-  en los logs de que el Behringer mismo se quedara sin energía, ya que
-  los logs de ese arranque no sobrevivieron un reinicio).
+- Tanto la corrección MIDI de arriba como el intento de registrar el
+  `stderr` de `mpv` (primera viñeta, revertido el mismo día) salieron de
+  investigar un reporte real de que el sonido se detuvo por completo
+  tras aproximadamente una hora de pruebas intensivas en hardware real —
+  ver la entrada nueva de `TROUBLESHOOTING.md` para el detalle completo.
+  El hueco del M-VAVE es la pista más confirmada; no se encontró
+  evidencia directa en los logs de que el Behringer mismo se quedara sin
+  energía, ya que los logs de ese arranque no sobrevivieron un reinicio.
 - Se agregó **gestión del video de standby** a las dos expansiones
   `setlist-admin`: un panel nuevo "Standby video" muestra qué está en
   loop ahora mismo (tamaño/última modificación de `standby.mp4`) y
