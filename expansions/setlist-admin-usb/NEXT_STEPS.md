@@ -91,9 +91,18 @@ future real audio-hardware failure leaves an actual trail. **Also
 added, same session, per explicit user request**: standby video
 management in both `setlist-admin` apps (pick any library video as the
 new `standby.mp4` -- `USAGE.md`, `library_ops.set_standby_video()`).
-**Not yet deployed/verified on the real Pi as of writing this** -- do
-that before trusting any of this section (see "Deploying to the Pi"
-below for the overlay-persistence dance this needs).
+**Deployed and verified on the real Pi (2026-10-01, commit `886d4d0`,
+cut as `v2026.10.01`)**: full overlay-disable/deploy/test/re-enable/
+reboot dance completed; all 324 tests (27+139+158) passed on the Pi
+itself; `pedal-core.service` restarted cleanly with the M-VAVE connected
+and confirmed persistent after the final reboot; `get_standby()`
+confirmed reading the real mounted USB's actual `standby.mp4`
+correctly. **Not independently confirmed**: actually tapping "Set as
+standby" from a phone and visually seeing the new video loop -- this
+would overwrite the band's real, currently-in-use `standby.mp4`
+(754MB), so it wasn't done live without the user there to confirm the
+result and restore if needed. Do this first, same as the Export Set
+precedent below.
 
 ## What's genuinely unconfirmed -- do these before trusting them
 

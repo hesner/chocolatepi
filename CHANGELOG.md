@@ -40,6 +40,8 @@ above it for whatever comes next.
 
 ## [Unreleased]
 
+## [v2026.10.01] -- MIDI-disconnect resilience, mpv error logging, standby video management
+
 - **Fixed**: a real, reproduced incident -- the M-VAVE being off or
   disconnected (at startup, or mid-session: a loose cable, a USB hub
   glitch, the kind of brief dropout a real undervoltage event can cause,

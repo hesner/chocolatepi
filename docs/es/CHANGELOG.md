@@ -43,6 +43,8 @@ publicar]` nuevo y vacío arriba para lo que siga.
 
 ## [Sin publicar]
 
+## [v2026.10.01] — Resiliencia ante desconexión MIDI, registro de errores de mpv, gestión del video de standby
+
 - **Corregido**: un incidente real y reproducido — que el M-VAVE
   estuviera apagado o desconectado (al arrancar, o a mitad de sesión:
   un cable flojo, un glitch del hub USB, el tipo de corte breve que un

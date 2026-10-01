@@ -5,7 +5,7 @@
 [![Tests](https://github.com/hesner/chocolatepi/actions/workflows/tests.yml/badge.svg)](https://github.com/hesner/chocolatepi/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Current version: [v2026.09.27](VERSION)** -- see `CHANGELOG.md` for
+**Current version: [v2026.10.01](VERSION)** -- see `CHANGELOG.md` for
 what that includes, and its "Versioning" section for how each
 expansion tracks its own version independently.
 
@@ -108,8 +108,8 @@ and can be fully uninstalled back to it at any time.
 
 | Expansion | What it does | Status | Version |
 |---|---|---|---|
-| [`setlist-admin-usb`](expansions/setlist-admin-usb/USAGE.md) | Manage Sets/Banks/tracks from a phone's browser, reachable by plugging the phone into the Pi over USB (Android tethering / iPhone Personal Hotspot over cable), no WiFi hardware required | Implemented and validated end-to-end on real hardware | [v2026.09.27](expansions/setlist-admin-usb/VERSION) |
-| [`setlist-admin-wifi`](expansions/setlist-admin-wifi/USAGE.md) | The same library management, plus Pi WiFi configuration, reachable over WiFi | Implemented; real-hardware validation shelved on a dead USB WiFi dongle | [v2026.09.27](expansions/setlist-admin-wifi/VERSION) |
+| [`setlist-admin-usb`](expansions/setlist-admin-usb/USAGE.md) | Manage Sets/Banks/tracks from a phone's browser, reachable by plugging the phone into the Pi over USB (Android tethering / iPhone Personal Hotspot over cable), no WiFi hardware required | Implemented and validated end-to-end on real hardware | [v2026.10.01](expansions/setlist-admin-usb/VERSION) |
+| [`setlist-admin-wifi`](expansions/setlist-admin-wifi/USAGE.md) | The same library management, plus Pi WiFi configuration, reachable over WiFi | Implemented; real-hardware validation shelved on a dead USB WiFi dongle | [v2026.10.01](expansions/setlist-admin-wifi/VERSION) |
 
 See [`expansions/README.md`](expansions/README.md) for the full model
 (each expansion's own installer/rollback script, the independence
