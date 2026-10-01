@@ -230,6 +230,52 @@ class TestWritableUsbFallback(ApiTestCase):
         self.api.create_set("Live")  # must not raise
 
 
+class TestCleanupRemountRecovery(ApiTestCase):
+    """_writable_usb()'s cleanup-recovery branch (pedal_core_guard.py):
+    real incident found live (2026-10-01) testing the "Optimize"
+    feature's large uploads -- the fast probe only checks whether the
+    mount is free *right now*, so a slow, multi-minute write can still
+    find pedal-core.service's mpv has grabbed the mount again (on its
+    next standby-video loop) by the time it's done, failing only the
+    cleanup remount back to ro -- even though the write itself already
+    succeeded. Confirmed live: the uploaded file was intact and already
+    on disk, but the phone saw a scary "internal error" for an upload
+    that had, in fact, already worked. These confirm that case recovers
+    instead of surfacing a misleading failure."""
+
+    @patch("admin.api.subprocess.run")
+    def test_successful_write_with_a_failed_cleanup_remount_recovers_without_raising(self, mock_run):
+        mock_run.return_value = MagicMock(stdout="active\n", returncode=0)
+        # Probe: rw, ro (both succeed). Real write: rw (succeeds), the
+        # operation itself runs, then the cleanup ro remount fails once
+        # -- the retry after stopping pedal-core.service succeeds.
+        self.mock_remount.side_effect = [None, None, None, RemountError("busy"), None]
+
+        self.api.create_set("Live")  # must not raise
+
+        self.assertEqual(library_ops.list_sets(self.usb_root), ["Live"])
+        commands = [call.args[0] for call in mock_run.call_args_list]
+        self.assertIn(["sudo", "systemctl", "stop", "pedal-core.service"], commands)
+        self.assertIn(["sudo", "systemctl", "start", "pedal-core.service"], commands)
+
+    @patch("admin.api.subprocess.run")
+    def test_does_not_stop_pedal_core_a_second_time_if_the_probe_already_did(self, mock_run):
+        mock_run.return_value = MagicMock(stdout="active\n", returncode=0)
+        # Probe's rw remount fails -> the existing fallback already
+        # stops pedal-core.service up front. The real write's rw then
+        # succeeds, the operation runs, and the cleanup ro remount
+        # *still* fails -- the retry must not try to stop it again.
+        self.mock_remount.side_effect = [RemountError("busy"), None, RemountError("busy"), None]
+
+        self.api.create_set("Live")  # must not raise
+
+        stop_calls = [
+            c.args[0] for c in mock_run.call_args_list
+            if c.args[0] == ["sudo", "systemctl", "stop", "pedal-core.service"]
+        ]
+        self.assertEqual(len(stop_calls), 1)
+
+
 class TestBrokenMountRecovery(ApiTestCase):
     """_ensure_usb_accessible_before_restart() (api.py): real incident
     found live on real hardware 2026-10-01 (in the sibling

@@ -15,6 +15,17 @@ without being restarted. `usb_mount._remount()`'s own bounded retry
 (built for a genuinely brief, transient busy window) can't get past
 that: it isn't brief here, so every write failed with a 500 the whole
 time the service ran continuously and stayed stable.
+
+Second real incident, same day, live-testing the "Optimize" feature: a
+large (multi-GB) upload is slow enough to span one of `mpv`'s own loop
+boundaries (it re-opens `standby.mp4` every time it loops), so the probe
+below can find the mount free at the start, the write itself can fully
+succeed, and *then* the cleanup remount back to `ro` can still fail
+because `mpv` grabbed the mount again mid-upload. Confirmed live: the
+uploaded file was intact and already on disk, but the phone saw a scary
+"internal error" for an upload that had, in fact, already worked.
+`writable_usb()` now catches exactly that case (the write succeeded; it
+was the ro remount that failed) and recovers instead of raising.
 """
 
 import contextlib
@@ -49,9 +60,38 @@ def writable_usb(mount_point: str):
     stopped = False
     if not _can_remount_rw_quickly(mount_point):
         stopped = _stop_pedal_core()
+    write_succeeded = False
     try:
         with usb_mount.writable_usb(mount_point):
             yield
+            write_succeeded = True
+    except usb_mount.RemountError:
+        if not write_succeeded:
+            raise
+        # Real incident found live (2026-10-01), deploying the "Optimize"
+        # feature: the probe above only checks whether the mount is free
+        # *right now* -- it says nothing about a slow operation that
+        # follows. pedal-core.service's mpv re-opens standby.mp4 every
+        # time it loops (every couple of minutes in practice), so a big
+        # upload slow enough to span a loop boundary can find the mount
+        # busy again right when it's time to remount back to ro, even
+        # though the probe found it free moments earlier and the write
+        # itself (the `yield` above) already finished successfully.
+        # Surfacing that as a fatal error to the caller would be actively
+        # misleading -- confirmed live: the uploaded file was intact and
+        # already on disk, but the phone saw a scary "internal error" for
+        # an upload that had, in fact, already worked. Stop
+        # pedal-core.service now (releasing the handle, same fallback as
+        # above) and force the ro remount directly instead of failing an
+        # operation that actually succeeded.
+        logger.warning(
+            "%s's write succeeded but the cleanup remount to ro failed "
+            "(pedal-core.service's mpv likely re-opened its file "
+            "mid-write) -- stopping it and retrying.", mount_point,
+        )
+        if not stopped:
+            stopped = _stop_pedal_core()
+        usb_mount.remount_ro(mount_point)
     finally:
         if stopped:
             # Real incident (2026-10-01): the write's own remount-back-

@@ -97,6 +97,18 @@ def writable_usb(mount_point: str = DEFAULT_MOUNT_POINT):
             _remount(mount_point, "ro")
 
 
+def remount_ro(mount_point: str = DEFAULT_MOUNT_POINT) -> None:
+    """Forces `mount_point` back to `ro` right now, outside any
+    `writable_usb()` window of its own. Used by `pedal_core_guard.py` to
+    retry a cleanup remount that failed because something grabbed the
+    mount again before the window closed (see its own module docstring
+    for the real incident this exists for) -- the write itself already
+    happened by the time this runs; this is purely about getting back to
+    the safe read-only default."""
+    with _usb_lock:
+        _remount(mount_point, "ro")
+
+
 def _remount(mount_point: str, mode: str) -> None:
     # Real incident found live (2026-10-01, in the sibling setlist-admin-usb
     # expansion -- ported here unchanged): remounting straight back to ro
