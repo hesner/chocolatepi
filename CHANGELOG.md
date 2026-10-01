@@ -73,6 +73,27 @@ above it for whatever comes next.
   afterward. The probe's own full remount cycle is what makes this
   safe to fall back from without any risk of running the actual write
   twice.
+- **Fixed, found minutes after the fix above while actually certifying
+  it on real hardware**: a phone's connection reset mid-upload (the new
+  `pedal-core.service` stop adds a few real seconds before a write
+  starts, which can trip a client-side timeout/backgrounding), and the
+  *recovery* from that failed write -- the remount back to `ro` --
+  itself timed out after 10s and left the FUSE mount genuinely dead:
+  `mount` still listed `/media/usb` as mounted, but every access
+  returned `ENOTCONN` ("Transport endpoint is not connected"), because
+  the `ntfs-3g` process backing it had simply exited. The fix above
+  then restarted `pedal-core.service` *into* that broken mount, which
+  made it worse -- confirmed live: `mpv` showed its own "Drop files or
+  URLs to play here" idle screen, with nothing loaded, until manually
+  recovered over SSH (`umount -l` then a fresh `mount -o ro`). `api.py`
+  (both expansions) now does exactly that recovery automatically: right
+  before restarting `pedal-core.service`, it runs a real filesystem
+  check (`ls` the mount point, not just trusting `mount`'s own output,
+  bounded by a timeout so a hung rather than fully-dead backing process
+  can't block it) and self-heals first if it's broken. If recovery
+  itself doesn't work, `pedal-core.service` still gets restarted
+  regardless (logged as an error) rather than left stopped forever on a
+  headless appliance with no one available to notice.
 
 ## [v2026.10.01] -- MIDI-disconnect resilience, standby video management
 

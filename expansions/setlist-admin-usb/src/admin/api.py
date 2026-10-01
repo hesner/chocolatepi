@@ -145,6 +145,19 @@ class AdminAPI:
                 yield
         finally:
             if stopped:
+                # Real incident (2026-10-01): the write's own remount-back-
+                # to-ro can itself fail (observed: a "mount -o ro" timing
+                # out after 10s, following a client disconnect mid-upload)
+                # and leave the FUSE mount genuinely dead -- `mount` still
+                # lists it, but every access returns ENOTCONN ("Transport
+                # endpoint is not connected"), because the ntfs-3g process
+                # backing it is simply gone. Restarting pedal-core.service
+                # blindly at that point made it worse: mpv immediately
+                # tried to open standby.mp4 against the broken mount.
+                # Check first, and self-heal (the same umount -l + fresh
+                # mount a human would do over SSH) before handing control
+                # back to pedal-core.service.
+                self._ensure_usb_accessible_before_restart()
                 self._start_pedal_core()
 
     def _can_remount_rw_quickly(self) -> bool:
@@ -192,6 +205,61 @@ class AdminAPI:
                 "Could not restart %s after a library write -- it may need "
                 "a manual 'sudo systemctl start %s' over SSH: %s",
                 _PEDAL_CORE_SERVICE_NAME, _PEDAL_CORE_SERVICE_NAME, e,
+            )
+
+    def _ensure_usb_accessible_before_restart(self) -> None:
+        """Called only when this call itself stopped pedal-core.service
+        (about to start it back up, which makes mpv immediately try to
+        open standby.mp4 again). A no-op if the mount is fine -- the
+        common case. If it's dead, runs the same recovery a human would
+        do over SSH (force-unmount, fresh mount) first, so pedal-core.service
+        comes back up against a working mount instead of a broken one."""
+        if self._usb_mount_is_healthy():
+            return
+        logger.error(
+            "%s looks broken after a library write (a dead FUSE mount, not "
+            "just empty) -- attempting automatic recovery before restarting "
+            "%s.", self.config.mount_point, _PEDAL_CORE_SERVICE_NAME,
+        )
+        self._recover_broken_mount()
+
+    def _usb_mount_is_healthy(self) -> bool:
+        """A real filesystem access, not just checking `mount`'s own
+        output -- a dead FUSE mount still shows up there as mounted even
+        though every access to it fails with ENOTCONN ("Transport
+        endpoint is not connected"). Run through `subprocess` (not
+        `os.listdir()` directly) specifically so a backing process that's
+        hung rather than fully dead can't block this indefinitely --
+        bounded by `timeout` either way."""
+        try:
+            result = subprocess.run(
+                ["ls", self.config.mount_point],
+                capture_output=True, timeout=5,
+            )
+            return result.returncode == 0
+        except subprocess.TimeoutExpired:
+            return False
+
+    def _recover_broken_mount(self) -> None:
+        try:
+            subprocess.run(
+                ["sudo", "umount", "-l", self.config.mount_point],
+                capture_output=True, timeout=10,
+            )
+            subprocess.run(
+                ["sudo", "mount", "-o", "ro", self.config.mount_point],
+                capture_output=True, timeout=15,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            logger.error("Automatic USB mount recovery failed: %s", e)
+            return
+        if self._usb_mount_is_healthy():
+            logger.info("%s recovered automatically.", self.config.mount_point)
+        else:
+            logger.error(
+                "%s is still not accessible after automatic recovery -- "
+                "needs manual attention over SSH (umount -l, then mount -o ro).",
+                self.config.mount_point,
             )
 
     # -- Sets ------------------------------------------------------------

@@ -230,6 +230,68 @@ class TestWritableUsbFallback(ApiTestCase):
         self.api.create_set("Live")  # must not raise
 
 
+class TestBrokenMountRecovery(ApiTestCase):
+    """_ensure_usb_accessible_before_restart() (api.py): real incident
+    found live on real hardware 2026-10-01 (in the sibling
+    setlist-admin-usb expansion, ported here unchanged) -- the write's
+    own remount-back-to-ro can itself fail and leave the FUSE mount
+    genuinely dead (`mount` still lists it, but every access returns
+    ENOTCONN). Restarting pedal-core.service blindly into that state
+    made it worse (mpv immediately tried to open standby.mp4 against the
+    broken mount). These confirm the self-healing check-then-recover
+    sequence runs before pedal-core.service is ever restarted."""
+
+    @staticmethod
+    def _subprocess_side_effect(ls_results):
+        remaining = list(ls_results)
+
+        def _run(cmd, **kwargs):
+            if cmd[:2] == ["systemctl", "is-active"]:
+                return MagicMock(stdout="active\n", returncode=0)
+            if cmd[0] == "ls":
+                healthy = remaining.pop(0) if remaining else True
+                return MagicMock(returncode=0 if healthy else 1)
+            return MagicMock(returncode=0)
+
+        return _run
+
+    @patch("admin.api.subprocess.run")
+    def test_healthy_mount_skips_recovery_entirely(self, mock_run):
+        mock_run.side_effect = self._subprocess_side_effect([True])
+        self.mock_remount.side_effect = [RemountError("busy")] + [None] * 10
+
+        self.api.create_set("Live")
+
+        commands = [call.args[0] for call in mock_run.call_args_list]
+        self.assertIn(["ls", self.api.config.mount_point], commands)
+        self.assertNotIn(["sudo", "umount", "-l", self.api.config.mount_point], commands)
+        self.assertIn(["sudo", "systemctl", "start", "pedal-core.service"], commands)
+
+    @patch("admin.api.subprocess.run")
+    def test_broken_mount_is_recovered_before_restarting_pedal_core(self, mock_run):
+        mock_run.side_effect = self._subprocess_side_effect([False, True])
+        self.mock_remount.side_effect = [RemountError("busy")] + [None] * 10
+
+        self.api.create_set("Live")
+
+        commands = [call.args[0] for call in mock_run.call_args_list]
+        self.assertIn(["sudo", "umount", "-l", self.api.config.mount_point], commands)
+        self.assertIn(["sudo", "mount", "-o", "ro", self.api.config.mount_point], commands)
+        umount_idx = commands.index(["sudo", "umount", "-l", self.api.config.mount_point])
+        start_idx = commands.index(["sudo", "systemctl", "start", "pedal-core.service"])
+        self.assertLess(umount_idx, start_idx)
+
+    @patch("admin.api.subprocess.run")
+    def test_still_broken_after_recovery_attempt_still_restarts_pedal_core(self, mock_run):
+        mock_run.side_effect = self._subprocess_side_effect([False, False])
+        self.mock_remount.side_effect = [RemountError("busy")] + [None] * 10
+
+        self.api.create_set("Live")  # must not raise
+
+        commands = [call.args[0] for call in mock_run.call_args_list]
+        self.assertIn(["sudo", "systemctl", "start", "pedal-core.service"], commands)
+
+
 class TestPlaybackWarning(ApiTestCase):
     @patch("admin.api.subprocess.run")
     def test_reports_active_when_pedal_core_is_running(self, mock_run):

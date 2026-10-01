@@ -80,6 +80,32 @@ publicar]` nuevo y vacío arriba para lo que siga.
   lo reinicia después. El ciclo completo de remontaje de la propia
   prueba es lo que hace seguro caer a este respaldo sin ningún riesgo
   de ejecutar la escritura real dos veces.
+- **Corregido, encontrado minutos después de la corrección de arriba
+  mientras se certificaba en hardware real**: la conexión de un
+  teléfono se cortó a mitad de una subida (el nuevo paso de detener
+  `pedal-core.service` agrega unos segundos reales antes de que empiece
+  la escritura, lo cual puede disparar un timeout del lado del cliente o
+  que la app pase a segundo plano), y la *recuperación* de esa
+  escritura fallida — volver a montar en `ro` — a su vez expiró por
+  timeout a los 10s y dejó el montaje FUSE genuinamente muerto: `mount`
+  seguía listando `/media/usb` como montado, pero cualquier acceso
+  devolvía `ENOTCONN` ("Transport endpoint is not connected"), porque
+  el proceso `ntfs-3g` detrás había simplemente terminado. La
+  corrección de arriba entonces reiniciaba `pedal-core.service`
+  *contra* ese montaje roto, lo cual empeoraba las cosas — confirmado en
+  vivo: `mpv` mostraba su propia pantalla de inactividad "Drop files or
+  URLs to play here", sin nada cargado, hasta recuperarlo a mano por
+  SSH (`umount -l` y luego un `mount -o ro` nuevo). `api.py` (las dos
+  expansiones) ahora hace exactamente esa recuperación de forma
+  automática: justo antes de reiniciar `pedal-core.service`, corre una
+  verificación real del sistema de archivos (`ls` al punto de montaje,
+  no solo confiar en lo que dice `mount`, acotado por un timeout para
+  que un proceso colgado en vez de totalmente muerto no pueda bloquearlo
+  indefinidamente) y se auto-repara primero si está roto. Si la
+  recuperación en sí no funciona, `pedal-core.service` igual se
+  reinicia (registrado como error) en vez de quedar detenido para
+  siempre en un aparato sin pantalla donde nadie está disponible para
+  notarlo.
 
 ## [v2026.10.01] — Resiliencia ante desconexión MIDI, gestión del video de standby
 
