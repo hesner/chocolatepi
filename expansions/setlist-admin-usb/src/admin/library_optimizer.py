@@ -41,10 +41,13 @@ import argparse
 import logging
 import os
 import subprocess
+import sys
 import time
 import uuid
 
-from admin import library_ops, optimize_queue, pedal_core_guard
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from admin import library_ops, optimize_queue, pedal_core_guard  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
