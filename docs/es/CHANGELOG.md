@@ -43,6 +43,13 @@ publicar]` nuevo y vacío arriba para lo que siga.
 
 ## [Sin publicar]
 
+- Se movió el aviso de "formatos soportados" (audio MP3/WAV, video
+  MP4/MOV/MPEG/MPG con audio incrustado, más la guía de video
+  H.264/1080p/~8-12 Mbps) de la pantalla de Export Set — donde era
+  ruido inútil en una vista pensada para leerse en el escenario, no
+  para subir archivos — a justo al lado del control de subida real en
+  la sección de biblioteca de canciones, donde sí sirve antes de elegir
+  un archivo. Pedido real del usuario, las dos expansiones.
 - **Corregido**: encontrado en vivo certificando la función de
   reemplazo por duplicado de arriba — volver a montar `/media/usb` en
   `ro` justo después de una escritura grande (un video de varios

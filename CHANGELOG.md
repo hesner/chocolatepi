@@ -40,6 +40,13 @@ above it for whatever comes next.
 
 ## [Unreleased]
 
+- Moved the "supported formats" hint (audio MP3/WAV, video MP4/MOV/
+  MPEG/MPG with embedded audio, plus H.264/1080p/~8-12 Mbps video
+  guidance) from the Export Set screen -- where it was pointless noise
+  on a view meant to be read on stage, not uploaded from -- to right
+  next to the actual upload control in the Song library section, where
+  it's useful before picking a file. Real user request, both
+  expansions.
 - **Fixed**: found live while certifying the replace-on-duplicate
   feature just above -- remounting `/media/usb` back to `ro` right
   after a large write (a multi-hundred-MB video) timed out at 10s more

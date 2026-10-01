@@ -60,6 +60,12 @@
             <input type="file" id="library-upload-input" hidden>
             <button id="btn-upload-to-library" class="secondary">+ Upload song to library</button>
           </div>
+          <p class="hint">
+            Supported formats: audio MP3, WAV — video MP4, MOV, MPEG, MPG
+            (with embedded audio). Video: H.264, 1080p or less, ~8-12
+            Mbps recommended -- see <code>LIBRARY.md</code> for full
+            encoding guidance.
+          </p>
         </details>
 
         <details id="standby-section">
@@ -114,10 +120,6 @@
       <button id="btn-export-close" class="secondary export-close" aria-label="Close">✕</button>
     </div>
     <ol id="export-list" class="export-list"></ol>
-    <p class="hint export-disclaimer">
-      Supported formats for uploading: audio MP3, WAV — video MP4, MOV,
-      MPEG, MPG (with embedded audio).
-    </p>
     <div class="export-actions">
       <button id="btn-export-share" class="secondary">Share</button>
     </div>

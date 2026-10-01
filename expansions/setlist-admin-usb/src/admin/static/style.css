@@ -326,8 +326,6 @@ button.btn-flash-success {
   min-width: 1.6em;
 }
 
-.export-disclaimer { margin-bottom: 1rem; }
-
 .export-actions { display: flex; justify-content: flex-end; }
 
 /* Wider screens (a PC on the home network, section 1) -- more breathing
