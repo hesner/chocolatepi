@@ -153,7 +153,10 @@ presentación sea cuestión de elegir entre lo que ya existe, en vez de
 volver a subir todo.
 
 Desde ahí puedes subir una canción nueva directo a la biblioteca (sin
-asignarla a ningún Bank todavía), renombrarla, o borrarla. **Borrar una
+asignarla a ningún Bank todavía), renombrarla, o borrarla. Si subes un
+nombre que ya está ahí, la app pregunta **"... already exists in the
+library. Replace it?"** — confirma para reemplazarla en el mismo lugar,
+o cancela para dejar la existente sin tocar. **Borrar una
 canción de la biblioteca no se recomienda — si tienes dudas, no la
 borres.** `LIBRARY.md` recomienda tratarla como un registro permanente
 de todo lo que tiene la banda, incluso canciones que no se usan en

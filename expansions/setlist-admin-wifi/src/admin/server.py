@@ -279,10 +279,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def _action_upload_song(self, path_params, query):
         display_name, extension = self._parse_upload_filename()
+        overwrite = self.headers.get("X-Track-Overwrite", "").strip().lower() == "true"
         length = int(self.headers.get("Content-Length", 0))
         bounded_source = _LimitedReader(self.rfile, length)
         try:
-            warning = self.api.upload_song(display_name, extension, bounded_source)
+            warning = self.api.upload_song(display_name, extension, bounded_source, overwrite=overwrite)
         finally:
             bounded_source.drain()
         return 200, {"ok": True, "warning": warning}

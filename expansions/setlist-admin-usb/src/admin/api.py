@@ -343,10 +343,24 @@ class AdminAPI:
             ]
         }
 
-    def upload_song(self, display_name: str, extension: str, source: BinaryIO) -> Optional[str]:
-        """Same codec-warning contract as assign_track()."""
-        with self._writable_usb():
-            info = library_ops.upload_song(self.config.usb_root, display_name, extension, source)
+    def upload_song(
+        self, display_name: str, extension: str, source: BinaryIO, overwrite: bool = False,
+    ) -> Optional[str]:
+        """Same codec-warning contract as assign_track(). Raises
+        ApiError(409) -- not just a generic 400 -- specifically for a
+        name collision that `overwrite=True` could resolve, so the
+        frontend can offer "replace it?" instead of just failing (real
+        user request, 2026-10-01, after a real duplicate-name rejection
+        during testing broke the client connection -- see
+        `_LimitedReader.drain()` in `server.py` for *that* fix; this is
+        the separate, requested "let me replace it" feature)."""
+        try:
+            with self._writable_usb():
+                info = library_ops.upload_song(
+                    self.config.usb_root, display_name, extension, source, overwrite=overwrite,
+                )
+        except library_ops.SongAlreadyExistsError as e:
+            raise ApiError(409, str(e)) from e
         songs_path = os.path.join(self.config.usb_root, "_Songs")
         return codec_check.check_video_codec(os.path.join(songs_path, info.filename), extension)
 

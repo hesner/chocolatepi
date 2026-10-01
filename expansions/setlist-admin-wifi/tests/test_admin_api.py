@@ -331,6 +331,30 @@ class TestWifi(ApiTestCase):
         self.assertEqual(ctx.exception.status, 400)
 
 
+class TestUploadSongOverwrite(ApiTestCase):
+    """api.py.upload_song()'s overwrite support -- real user request,
+    2026-10-01 (in the sibling setlist-admin-usb expansion, ported here
+    unchanged). Raises ApiError(409), not a generic 400, specifically
+    for this case so the frontend can distinguish it without
+    string-matching the error text."""
+
+    def test_duplicate_without_overwrite_raises_409(self):
+        self.api.upload_song("Song", "mp3", io.BytesIO(b"first"))
+
+        with self.assertRaises(ApiError) as ctx:
+            self.api.upload_song("Song", "mp3", io.BytesIO(b"second"))
+        self.assertEqual(ctx.exception.status, 409)
+        self.assertIn("already exists", ctx.exception.message)
+
+    def test_overwrite_true_replaces_it(self):
+        self.api.upload_song("Song", "mp3", io.BytesIO(b"first"))
+
+        self.api.upload_song("Song", "mp3", io.BytesIO(b"second"), overwrite=True)
+
+        songs = self.api.list_songs()["songs"]
+        self.assertEqual(len(songs), 1)
+
+
 class TestStandby(ApiTestCase):
     def test_get_standby_when_none_set(self):
         result = self.api.get_standby()

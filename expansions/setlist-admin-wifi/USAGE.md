@@ -135,7 +135,10 @@ is a matter of picking from what's already there instead of
 re-uploading everything.
 
 From here you can upload a new song directly into the library (without
-assigning it to any Bank yet), rename one, or delete one. **Deleting a
+assigning it to any Bank yet), rename one, or delete one. If you upload
+a name that's already there, the app asks **"... already exists in the
+library. Replace it?"** -- confirm to overwrite it in place, or cancel
+to leave the existing one untouched. **Deleting a
 song from the library is discouraged -- if you're not sure, don't.**
 `LIBRARY.md` recommends treating it as a permanent record of everything
 the band has ready to play, even songs not currently used in any Set,

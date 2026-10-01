@@ -302,7 +302,11 @@ class TestSongLibraryFlow(ServerIntegrationTestCase):
         conn2.request("POST", "/api/songs", body=file_bytes, headers=upload_headers)
         resp = conn2.getresponse()
         body = json.loads(resp.read())
-        self.assertEqual(resp.status, 400)
+        # 409, not a generic 400 -- api.py.upload_song() raises ApiError(409)
+        # specifically for this case, so the frontend can offer "replace
+        # it?" (added right after this test, same session) instead of
+        # just failing.
+        self.assertEqual(resp.status, 409)
         self.assertIn("already exists", body["error"])
 
 

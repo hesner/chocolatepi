@@ -347,6 +347,24 @@ document.getElementById("btn-upload-to-library").addEventListener("click", () =>
   document.getElementById("library-upload-input").click();
 });
 
+// Posts a file to the song library. Throws on failure; the error carries
+// a `.conflict` flag (set from the 409 ApiError api.py raises
+// specifically for an overwrite-able name collision, see api.py's
+// upload_song() docstring) so callers can offer "replace it?" instead of
+// just failing, without string-matching the error text themselves.
+async function uploadSongToLibrary(displayName, extension, file, overwrite) {
+  const headers = { "X-Track-Name": displayName, "X-Track-Extension": extension };
+  if (overwrite) headers["X-Track-Overwrite"] = "true";
+  const res = await fetch("/api/songs", { method: "POST", headers, body: file });
+  const result = await res.json();
+  if (!res.ok) {
+    const err = new Error(result.error || "Upload failed");
+    err.conflict = res.status === 409;
+    throw err;
+  }
+  if (result.warning) alert(result.warning);
+}
+
 document.getElementById("library-upload-input").addEventListener("change", async (ev) => {
   const file = ev.target.files[0];
   if (!file) return;
@@ -365,16 +383,25 @@ document.getElementById("library-upload-input").addEventListener("change", async
   btn.disabled = true;
   flashSuccess(btn);
   try {
-    const res = await fetch("/api/songs", {
-      method: "POST",
-      headers: { "X-Track-Name": displayName, "X-Track-Extension": extension },
-      body: file,
-    });
-    const result = await res.json();
-    if (!res.ok) throw new Error(result.error || "Upload failed");
-    if (result.warning) alert(result.warning);
-    await loadSongs();
-    showToast("Song added to the library.");
+    try {
+      await uploadSongToLibrary(displayName, extension, file, false);
+      await loadSongs();
+      showToast("Song added to the library.");
+    } catch (e) {
+      if (!e.conflict) throw e;
+      // Real user request, 2026-10-01: offer to replace instead of just
+      // failing -- a name collision is a normal thing to want to resolve
+      // in the moment, not necessarily a mistake to go fix separately
+      // via rename_song()/delete_song() first.
+      if (!confirm(`"${displayName}.${extension}" already exists in the library. Replace it?`)) {
+        clearFlash(btn);
+        return;
+      }
+      flashSuccess(btn);
+      await uploadSongToLibrary(displayName, extension, file, true);
+      await loadSongs();
+      showToast("Song replaced in the library.");
+    }
   } catch (e) {
     clearFlash(btn);
     alert(e.message);

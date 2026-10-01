@@ -399,6 +399,23 @@ class TestSongLibrary(LibraryOpsTestCase):
         with self.assertRaises(library_ops.LibraryOpsError):
             library_ops.upload_song(self.usb_root, "Song", "mp3", io.BytesIO(b"b"))
 
+    def test_upload_song_duplicate_raises_the_specific_already_exists_subclass(self):
+        """api.py catches this specific type (not just LibraryOpsError
+        generically) to offer "replace it?" instead of just failing."""
+        library_ops.upload_song(self.usb_root, "Song", "mp3", io.BytesIO(b"a"))
+
+        with self.assertRaises(library_ops.SongAlreadyExistsError):
+            library_ops.upload_song(self.usb_root, "Song", "mp3", io.BytesIO(b"b"))
+
+    def test_upload_song_with_overwrite_replaces_existing_content(self):
+        library_ops.upload_song(self.usb_root, "Song", "mp3", io.BytesIO(b"original"))
+
+        library_ops.upload_song(self.usb_root, "Song", "mp3", io.BytesIO(b"replaced"), overwrite=True)
+
+        with open(os.path.join(self.usb_root, "_Songs", "Song.mp3"), "rb") as f:
+            self.assertEqual(f.read(), b"replaced")
+        self.assertEqual(len(library_ops.list_songs(self.usb_root)), 1)
+
     def test_list_songs_returns_uploaded_songs_sorted(self):
         library_ops.upload_song(self.usb_root, "Zeta", "mp3", io.BytesIO(b"a"))
         library_ops.upload_song(self.usb_root, "Alpha", "wav", io.BytesIO(b"b"))

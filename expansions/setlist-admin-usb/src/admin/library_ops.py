@@ -89,6 +89,14 @@ class LibraryOpsError(ValueError):
     readable as-is, not internal details to hide."""
 
 
+class SongAlreadyExistsError(LibraryOpsError):
+    """Raised specifically by upload_song() on a name collision when
+    overwrite=False -- a distinct subclass (not just a plain
+    LibraryOpsError) so api.py can offer "replace it?" instead of just
+    failing, by catching the type rather than string-matching the
+    message."""
+
+
 @dataclass(frozen=True)
 class TrackInfo:
     letter: str
@@ -377,11 +385,17 @@ def list_songs(usb_root: str) -> List[SongInfo]:
     return songs
 
 
-def upload_song(usb_root: str, display_name: str, extension: str, source: BinaryIO) -> SongInfo:
+def upload_song(
+    usb_root: str, display_name: str, extension: str, source: BinaryIO, overwrite: bool = False,
+) -> SongInfo:
     """Streams `source` straight into the shared library as
-    "<display_name>.<extension>". Rejects a name that's already taken --
-    delete_song() or rename_song() first to replace it; no silent
-    overwrites, same rule as create_set()/create_bank()."""
+    "<display_name>.<extension>". Rejects a name that's already taken
+    (raising the more specific SongAlreadyExistsError, see its own
+    docstring) unless `overwrite=True` -- no silent overwrites by
+    default, same rule as create_set()/create_bank(). `_atomic_write_stream()`
+    already makes an explicit overwrite itself safe (a `.part` temp file,
+    `os.replace()` at the end), same as any other write here -- a failed
+    or interrupted replace never leaves the existing song half-written."""
     extension = _validate_extension(extension)
     _validate_display_name(display_name, what="song name")
 
@@ -391,8 +405,8 @@ def upload_song(usb_root: str, display_name: str, extension: str, source: Binary
     )
     songs_path = _songs_path(usb_root)
     dest_path = os.path.join(songs_path, info.filename)
-    if os.path.exists(dest_path):
-        raise LibraryOpsError(f'A song named "{info.filename}" already exists in the library')
+    if os.path.exists(dest_path) and not overwrite:
+        raise SongAlreadyExistsError(f'A song named "{info.filename}" already exists in the library')
 
     os.makedirs(songs_path, exist_ok=True)
     _atomic_write_stream(dest_path, source)

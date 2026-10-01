@@ -43,6 +43,20 @@ publicar]` nuevo y vacío arriba para lo que siga.
 
 ## [Sin publicar]
 
+- Agregado: subir una canción a la biblioteca compartida con un nombre
+  que ya está ocupado ahora ofrece **"... already exists in the
+  library. Replace it?"** en vez de simplemente fallar — confirma para
+  reemplazarla en el mismo lugar (`_atomic_write_stream()` ya hace que
+  eso sea seguro por sí mismo, igual que cualquier otra escritura acá),
+  o cancela para dejar la existente sin tocar. Pedido real del usuario,
+  hecho justo después de toparse con el rechazo por nombre duplicado
+  durante la misma sesión de pruebas en vivo que encontró los dos
+  incidentes de abajo. `library_ops.upload_song()` ganó un parámetro
+  `overwrite` y un `SongAlreadyExistsError` más específico (una
+  subclase de `LibraryOpsError`); `api.py` lo traduce específicamente a
+  `ApiError(409)` en vez de un 400 genérico, así el frontend puede
+  ofrecer la confirmación de reemplazo sin comparar el texto del error.
+  Las dos expansiones, mantenidas convergentes.
 - **Corregido**: un tercer incidente real de la misma sesión de
   certificación en vivo — un rechazo por validación que ocurre *antes*
   de leer el cuerpo de la petición (por ejemplo, la verificación de
