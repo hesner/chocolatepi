@@ -83,12 +83,17 @@ restarting the whole process (tearing down and relaunching both `mpv`
 lanes every cycle -- visible flicker, total silence, zero on-screen
 explanation) for as long as the controller stayed missing. Fixed: see
 `CHANGELOG.md`'s Unreleased entry and `TROUBLESHOOTING.md`'s new "Audio
-(and video) stop completely..." section for the full writeup. Two
-related fixes landed in the same pass: `main.py` now retries the MIDI
-connection in-process without tearing `mpv` down, and `core/player.py`
-now logs `mpv`'s own stderr instead of discarding it (`DEVNULL`), so a
-future real audio-hardware failure leaves an actual trail. **Also
-added, same session, per explicit user request**: standby video
+(and video) stop completely..." section for the full writeup: `main.py`
+now retries the MIDI connection in-process without tearing `mpv` down.
+(A second fix landed the same pass -- logging `mpv`'s own `stderr`
+instead of discarding it -- but was **reverted the same day**: that log
+lives in the RAM-backed root overlay with no rotation, so leaving it on
+permanently was judged not worth the standing RAM-exhaustion risk for a
+benefit that's only useful during an active debugging session. Capture
+it temporarily, by hand, next time it's actually needed -- don't
+redeploy that patch permanently. See `CHANGELOG.md`'s later Unreleased
+entry for the full reasoning.) **Also added, same session, per explicit
+user request**: standby video
 management in both `setlist-admin` apps (pick any library video as the
 new `standby.mp4` -- `USAGE.md`, `library_ops.set_standby_video()`).
 **Deployed and verified on the real Pi (2026-10-01, commit `886d4d0`,

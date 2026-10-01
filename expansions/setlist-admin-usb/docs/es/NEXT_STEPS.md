@@ -96,13 +96,19 @@ levantar los dos procesos `mpv` en cada ciclo — parpadeo visible,
 silencio total, cero explicación en pantalla) mientras el controlador
 siguiera ausente. Corregido: ver la entrada de `CHANGELOG.md` en "Sin
 publicar" y la nueva sección de `TROUBLESHOOTING.md` "El audio (y el
-video) se detienen..." para el detalle completo. Dos correcciones
-relacionadas llegaron en la misma tanda: `main.py` ahora reintenta la
-conexión MIDI dentro del mismo proceso sin tumbar `mpv`, y
-`core/player.py` ahora registra el propio stderr de `mpv` en vez de
-descartarlo (`DEVNULL`), así que una futura falla real de hardware de
-audio deja un rastro real. **También agregado, misma sesión, a pedido
-explícito del usuario**: gestión del video de standby en las dos apps
+video) se detienen..." para el detalle completo: `main.py` ahora
+reintenta la conexión MIDI dentro del mismo proceso sin tumbar `mpv`.
+(Una segunda corrección llegó en la misma tanda — registrar el propio
+stderr de `mpv` en vez de descartarlo — pero se **revirtió el mismo
+día**: ese log vive en el overlay de raíz respaldado en RAM sin
+rotación, así que dejarlo encendido permanentemente se consideró que no
+valía el riesgo constante de agotar la RAM por un beneficio que solo
+sirve durante una sesión activa de debugging. Captúralo temporalmente,
+a mano, la próxima vez que de verdad haga falta — no vuelvas a
+desplegar ese parche de forma permanente. Ver la entrada posterior de
+"Sin publicar" en `CHANGELOG.md` para el razonamiento completo.)
+**También agregado, misma sesión, a pedido explícito del usuario**:
+gestión del video de standby en las dos apps
 `setlist-admin` (elegir cualquier video de la biblioteca como el nuevo
 `standby.mp4` — `USAGE.md`, `library_ops.set_standby_video()`). **Desplegado y verificado en la Pi real (2026-10-01, commit `886d4d0`,
 cortado como `v2026.10.01`)**: se completó el procedimiento completo de

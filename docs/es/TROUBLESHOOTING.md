@@ -246,11 +246,22 @@ una versión desplegada más antigua; vuelve a desplegar `src/main.py` y
 `src/core/player.py` (ver la nota "verificar versiones" de
 `NEXT_STEPS.md`).
 
-Si el M-VAVE **sí** está conectado y esto sigue pasando, revisa
-`pedal-core.log` en busca de líneas `mpv (...): ...` — el propio stderr
-de `mpv` ahora queda registrado ahí en vez de descartarse en silencio,
-así que un error real de ALSA/audio (dispositivo ocupado, underrun)
-debería aparecer directamente en vez de no dejar rastro.
+Si el M-VAVE **sí** está conectado y esto sigue pasando, probablemente
+es un error real de ALSA/hardware de audio del propio `mpv` (dispositivo
+ocupado, underrun) — pero tanto `stdout` como `stderr` de `mpv` van a
+`DEVNULL` a propósito (`core/player.py`), así que nada de `mpv` llega
+directo a ningún log. Esto se intentó al revés una vez (el `stderr`
+dirigido a `pedal-core.log`) y se revirtió deliberadamente el mismo día
+— ver la entrada "Sin publicar" de `CHANGELOG.md` para el porqué (en
+corto: ese log vive en el overlay de raíz respaldado en RAM sin
+rotación, así que dejarlo encendido permanentemente es un riesgo
+constante de agotar la RAM por un beneficio que solo sirve durante una
+sesión activa de debugging). Para recuperar esa visibilidad
+**temporalmente** mientras investigas activamente: conéctate por SSH,
+detén `pedal-core.service`, y corre `main.py` a mano en primer plano sin
+redirigir la salida de `mpv` — o parchea `stderr=subprocess.PIPE` en
+`_MpvProcess.start()` solo para esa sesión y revierte el cambio después.
+No dejes desplegado un parche permanente de captura de stderr.
 
 ## `chocolatepi.org` no carga / sin HTTPS
 

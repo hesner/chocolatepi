@@ -227,11 +227,21 @@ reappears, with no reboot needed. If you still see this behavior,
 you're on an older deployed version; redeploy `src/main.py` and
 `src/core/player.py` (see `NEXT_STEPS.md`'s "checking versions" note).
 
-If the M-VAVE **is** connected and this still happens, check
-`pedal-core.log` for `mpv (...): ...` lines -- `mpv`'s own stderr is now
-logged there instead of being silently discarded, so a real ALSA/audio
-error (device busy, underrun) should show up directly instead of
-leaving no trail.
+If the M-VAVE **is** connected and this still happens, it's likely a
+real ALSA/audio-hardware error from `mpv` itself (device busy,
+underrun) -- but `mpv`'s own `stdout`/`stderr` are both sent to
+`DEVNULL` by design (`core/player.py`), so nothing from `mpv` directly
+lands in any log. This was tried the other way once (`stderr` piped
+into `pedal-core.log`) and deliberately reverted the same day -- see
+`CHANGELOG.md`'s Unreleased entry for why (in short: that log lives in
+the RAM-backed root overlay with no rotation, so leaving it on
+permanently is a standing RAM-exhaustion risk for a benefit that's only
+ever useful during an active debugging session). To get that visibility
+back **temporarily** while actively investigating: SSH in, stop
+`pedal-core.service`, and run `main.py` by hand in the foreground
+without redirecting `mpv`'s output -- or patch `stderr=subprocess.PIPE`
+into `_MpvProcess.start()` just for that session and revert it
+afterward. Don't leave a permanent stderr-capture patch deployed.
 
 ## `chocolatepi.org` doesn't load / no HTTPS
 

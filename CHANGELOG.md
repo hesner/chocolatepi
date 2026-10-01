@@ -40,6 +40,28 @@ above it for whatever comes next.
 
 ## [Unreleased]
 
+- **Reverted**: `v2026.10.01`'s `mpv` `stderr`-to-`pedal-core.log`
+  change (below) was rolled back the same day. Reasoning: `pedal-core.log`
+  lives under `/home/`, which under the normal, protective root overlay
+  is RAM-backed (`tmpfs`), not disk -- and nothing rotates it. Checked on
+  the real Pi: the overlay's effective cap is ~461MB (half of this Pi's
+  921MB RAM, `tmpfs`'s own default sizing), with **no rotation on any of
+  this project's three long-running logs** (`pedal-core.log`,
+  `setlist-admin.log`, `usb-tether-watchdog.log`). Unbounded log growth
+  on an appliance meant to run indefinitely without a reboot is a real
+  RAM-exhaustion risk, not just a disk-space one. A log that only earns
+  its keep during an active debugging session (this one specifically was
+  added *to help diagnose this exact incident*) isn't worth that
+  standing cost left on permanently -- `core/player.py` is back to
+  sending both `mpv` lanes' `stdout`/`stderr` to `DEVNULL`. If a future
+  investigation genuinely needs `mpv`'s own error output, capture it
+  temporarily for that session (e.g. patch `stderr=subprocess.PIPE` and
+  tail it live over SSH) rather than leaving it logged permanently.
+  `TROUBLESHOOTING.md`'s "Audio (and video) stop completely..." entry
+  updated to match. The MIDI-disconnect resilience fix and the standby
+  video feature from the same `v2026.10.01` pass are unaffected -- only
+  the `mpv` `stderr` logging was reverted.
+
 ## [v2026.10.01] -- MIDI-disconnect resilience, mpv error logging, standby video management
 
 - **Fixed**: a real, reproduced incident -- the M-VAVE being off or

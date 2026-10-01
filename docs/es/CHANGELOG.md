@@ -43,6 +43,31 @@ publicar]` nuevo y vacío arriba para lo que siga.
 
 ## [Sin publicar]
 
+- **Revertido**: el cambio de `v2026.10.01` que mandaba el `stderr` de
+  `mpv` a `pedal-core.log` (abajo) se revirtió el mismo día. Razón:
+  `pedal-core.log` vive bajo `/home/`, que con el overlay de protección
+  normal está respaldado en `tmpfs` (RAM), no en disco — y nada lo
+  rota. Verificado en la Pi real: el límite efectivo del overlay es de
+  ~461MB (la mitad de los 921MB de RAM de esta Pi, el tamaño por
+  defecto de `tmpfs`), y **ninguno de los tres logs de larga duración de
+  este proyecto tiene rotación** (`pedal-core.log`, `setlist-admin.log`,
+  `usb-tether-watchdog.log`). Un crecimiento de log sin control en un
+  aparato pensado para correr indefinidamente sin reiniciar es un riesgo
+  real de agotar la RAM, no solo de espacio en disco. Un log que solo se
+  gana su lugar durante una sesión activa de debugging (este en
+  particular se agregó *justo para diagnosticar este mismo incidente*)
+  no vale el costo permanente de dejarlo encendido siempre —
+  `core/player.py` volvió a mandar tanto `stdout` como `stderr` de los
+  dos `mpv` a `DEVNULL`. Si una investigación futura realmente necesita
+  la salida de errores propia de `mpv`, captúrala temporalmente para esa
+  sesión (por ejemplo, parchear `stderr=subprocess.PIPE` y seguirlo en
+  vivo por SSH) en vez de dejarlo registrado para siempre. Se actualizó
+  la entrada "El audio (y el video) se detienen..." de
+  `TROUBLESHOOTING.md` para reflejarlo. La corrección de resiliencia
+  ante desconexión MIDI y la función de video de standby de la misma
+  tanda de `v2026.10.01` no se tocaron — solo se revirtió el registro
+  del `stderr` de `mpv`.
+
 ## [v2026.10.01] — Resiliencia ante desconexión MIDI, registro de errores de mpv, gestión del video de standby
 
 - **Corregido**: un incidente real y reproducido — que el M-VAVE

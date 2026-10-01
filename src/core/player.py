@@ -111,40 +111,14 @@ class _MpvProcess:
             ["mpv", "--idle=yes",
              f"--input-ipc-server={self.socket_path}", *self._extra_args],
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            text=True,
+            stderr=subprocess.DEVNULL,
         )
-        self._spawn_stderr_logger()
 
         self._command_sock = self._connect()
         self._spawn_reader(self._command_sock, self._handle_command_reply_line)
 
         event_sock = self._connect()
         self._spawn_reader(event_sock, self._handle_event_line)
-
-    def _spawn_stderr_logger(self):
-        """mpv's own warnings/errors (ALSA device-busy, underrun, etc.)
-        used to go straight to DEVNULL -- silently discarded, leaving zero
-        trail for diagnosing a real audio-hardware failure after the fact
-        (found while investigating a real report of audio stopping during
-        an hour-long testing session -- see TROUBLESHOOTING.md). Routed
-        through this module's own logger instead, which already lands in
-        pedal-core.log via main.py's logging setup. Drained continuously
-        by a dedicated thread -- stderr is a pipe now, not DEVNULL, so
-        something has to keep reading it or it fills up and blocks mpv
-        itself once full."""
-        proc = self._process
-
-        def _drain():
-            if proc.stderr is None:
-                return
-            for line in proc.stderr:
-                line = line.rstrip()
-                if line:
-                    logger.warning("mpv (%s): %s", self.socket_path, line)
-
-        thread = threading.Thread(target=_drain, daemon=True)
-        thread.start()
 
     def stop(self):
         self._stop_listener.set()
