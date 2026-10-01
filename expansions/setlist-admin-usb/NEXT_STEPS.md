@@ -109,9 +109,55 @@ would overwrite the band's real, currently-in-use `standby.mp4`
 result and restore if needed. Do this first, same as the Export Set
 precedent below.
 
+**2026-10-01, later the same day -- library-wide "Optimize" button,
+built, deployed, and real-hardware-tested (commits `e1fafe6`,
+`8f187fb`)**: real user request, right after the standby-video manual
+conversion above -- instead of re-encoding a flagged video by hand
+over SSH every time, the Song library now shows an "Optimize" button
+next to any file `codec_check.is_optimized()` flags, backed by a new
+always-on `library-optimizer.service` daemon and a persistent,
+file-based job queue (`optimize_queue.py`) so a long job survives the
+phone that queued it disconnecting. See `CHANGELOG.md`'s Unreleased
+entry and `SPECIFICATION.md` section 15 for the full design. Ported to
+both expansions, 181 (USB) + 200 (WiFi) tests passing.
+
+Deployed to the real Pi the same session, full overlay dance (see
+"Operational notes" below -- `raspi-config nonint do_overlayfs 1`
+alone did **not** strip the custom `:recurse=0` suffix from
+`cmdline.txt`, needed a manual `sed` on top, same as disabling it;
+worth remembering next time instead of re-discovering it). Found and
+fixed a real bug in the process: `library-optimizer.service`
+crash-looped under `systemd` (`ModuleNotFoundError: No module named
+'admin'`) because `library_optimizer.py` never added `src/` to
+`sys.path` the way `server.py` does -- invisible to the test suite,
+which already puts `src/` on the path itself. Fixed, redeployed,
+confirmed genuinely running (not just "active" mid-crash-loop).
+
+Then ran a real end-to-end test over SSH: a tiny synthetic HEVC clip
+(`ffmpeg -f lavfi testsrc`, 3s) uploaded via `AdminAPI.upload_song()`,
+queued via `request_song_optimization()`, picked up by the daemon in
+a few seconds, confirmed re-encoded to H.264 and the queue cleared
+(`needs_optimization: False` afterward). `pedal-core.service` and
+`standby.mp4` playback were unaffected throughout. Test song deleted
+afterward. **Not yet confirmed**: the actual phone UI flow -- tapping
+"Optimize" from the app itself, watching the button read
+"Optimizing...", and specifically disconnecting/reconnecting the
+phone mid-job to confirm the state really does persist visually, not
+just at the `AdminAPI`/queue-file level already proven above. **Do
+this next** -- the user is about to run it as of this writing.
+
 ## What's genuinely unconfirmed -- do these before trusting them
 
-1. **Export Set's visual fix is deployed but not re-confirmed.** It
+1. **The "Optimize" button's real phone-UI flow (see above, added
+   2026-10-01) -- the daemon/queue/API layer is proven on real
+   hardware, but tapping the actual button and watching the
+   "Optimizing..." state survive a phone disconnect/reconnect has not
+   been done from the app itself yet.** Ask the user to upload a
+   genuinely non-H.264 video (e.g. straight off an iPhone camera),
+   confirm the button appears, tap it, disconnect/reconnect the phone
+   mid-job, and confirm the button still reads "Optimizing..." when
+   they come back, then confirm it clears once done.
+2. **Export Set's visual fix is deployed but not re-confirmed.** It
    first shipped with a real CSS bug (`.export-view` had an
    unconditional `display: flex` that overrode the browser's own
    `[hidden] { display: none }` rule, so the view showed, empty, on
@@ -120,13 +166,13 @@ precedent below.
    asked to re-open "Export Set" and confirm it now looks right
    end-to-end (title populated, numbered list populated, close via ✕/
    Escape/back all working). **Do this first.**
-2. **The second scroll-jump fix (the "~1s flash to top" one) was
+3. **The second scroll-jump fix (the "~1s flash to top" one) was
    deployed but never explicitly re-confirmed either** -- the user
    moved on to requesting Export Set right after it was deployed,
    without confirming. Ask them to rename or delete a song while
    scrolled down to a later Bank and confirm there's no visible jump at
    all now.
-3. **Desktop/PC browser support for Export Set's "Share" button is
+4. **Desktop/PC browser support for Export Set's "Share" button is
    explicitly uncertified** -- `navigator.share()` with file attachments
    has poor desktop browser support; the code falls back to a plain
    download, but this has never been tested from an actual PC. Do this
@@ -228,6 +274,12 @@ the hard way:
   this session (hours of "deployed" work vanished after an unplanned
   reboot). To deploy something that must survive a reboot:
   1. `ssh -4 pedal "sudo mount -o remount,rw /boot/firmware && sudo sed -i 's/overlayroot=tmpfs:recurse=0 //' /boot/firmware/cmdline.txt && sudo mount -o remount,ro /boot/firmware && sudo reboot"`
+     (confirmed again 2026-10-01: `sudo raspi-config nonint
+     do_overlayfs 1` by itself does **not** work here -- its matching
+     logic doesn't recognize the custom `:recurse=0` suffix, so it
+     leaves `cmdline.txt` completely untouched and the overlay stays
+     mounted after the reboot. Always use the direct `sed` above, not
+     `do_overlayfs 1`, to disable.)
   2. Wait for it to come back (`until ssh -4 pedal "echo up" 2>/dev/null; do sleep 3; done`), then confirm with `mount | grep -E ' / '` that root is a plain `ext4 rw` mount, not `overlay`.
   3. Deploy (see below), run the test suites on the Pi itself, restart
      the affected systemd services, verify.

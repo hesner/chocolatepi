@@ -40,6 +40,34 @@ above it for whatever comes next.
 
 ## [Unreleased]
 
+- **Fixed, found deploying the "Optimize" feature below to the real
+  Pi**: `library-optimizer.service` crash-looped immediately
+  (`ModuleNotFoundError: No module named 'admin'`) -- `library_optimizer.py`
+  lives under `src/admin/` and does `from admin import ...`, same as
+  `server.py`, but unlike `server.py` it never added `src/` to
+  `sys.path` first. Invisible to the unit tests, since those already
+  put `src/` on `sys.path` themselves before importing it -- only
+  running it exactly the way `systemd` does (a bare `python3
+  library_optimizer.py`) surfaced it. Fixed with the same
+  `sys.path.insert(0, "..")` line `server.py` already had. Both
+  expansions.
+- **Deployed and verified on the real Pi (2026-10-01)**: full overlay-
+  disable/deploy/test/re-enable/reboot cycle completed; 181 (USB) + 200
+  (WiFi) tests passed on the Pi itself; `library-optimizer.service`
+  installed and confirmed genuinely running (not just "active" mid-
+  crash-loop, which is how the bug above was first caught); a real
+  end-to-end pass -- a tiny synthetic HEVC clip uploaded straight
+  through `AdminAPI.upload_song()`, queued via
+  `request_song_optimization()`, picked up by the daemon in a few
+  seconds, and reported H.264/`needs_optimization: False` once done --
+  confirmed the whole pipeline (queue, daemon pickup, scratch encode,
+  atomic copy-in, `pedal_core_guard` fallback, queue clearing) works
+  for real, not just under mocks. `pedal-core.service` stayed up and
+  `standby.mp4` kept playing throughout. **Not yet confirmed**: the
+  actual phone UI flow (tapping "Optimize", watching the button read
+  "Optimizing...", disconnecting/reconnecting the phone mid-job) --
+  that part was exercised via `AdminAPI` calls directly over SSH, not
+  from the app itself. See `expansions/setlist-admin-usb/NEXT_STEPS.md`.
 - Added a library-wide **"Optimize" button**, both `setlist-admin`
   expansions. Real user request: uploads already warned if a video
   wasn't H.264 (section 9's `codec_check.py`), but fixing it meant

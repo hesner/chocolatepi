@@ -124,9 +124,62 @@ se hizo en vivo sin que el usuario estuviera presente para confirmar el
 resultado y restaurar si hiciera falta. Haz esto primero, igual que el
 precedente de Export Set más abajo.
 
+**2026-10-01, más tarde el mismo día — botón "Optimize" a nivel de
+biblioteca, construido, desplegado y probado en hardware real
+(commits `e1fafe6`, `8f187fb`)**: pedido real del usuario, justo
+después de la conversión manual del video de standby de arriba — en
+vez de re-codificar un video marcado a mano por SSH cada vez, la
+biblioteca de canciones ahora muestra un botón "Optimize" junto a
+cualquier archivo que `codec_check.is_optimized()` marque, respaldado
+por un nuevo daemon siempre activo, `library-optimizer.service`, y una
+cola de trabajos persistente basada en archivos (`optimize_queue.py`)
+para que un trabajo largo sobreviva a que el teléfono que lo encoló se
+desconecte. Ver la entrada "Sin publicar" de `CHANGELOG.md` y la
+sección 15 de `SPECIFICATION.md` (en inglés) para el diseño completo.
+Trasladado a las dos expansiones, 181 (USB) + 200 (WiFi) pruebas
+pasando.
+
+Desplegado en la Pi real la misma sesión, ciclo completo de overlay
+(ver "Notas operativas" abajo — `raspi-config nonint do_overlayfs 1`
+por sí solo **no** quitó el sufijo personalizado `:recurse=0` de
+`cmdline.txt`, hizo falta un `sed` manual encima, igual que al
+desactivarlo; vale la pena recordarlo la próxima vez en vez de
+redescubrirlo). Se encontró y corrigió un bug real en el proceso:
+`library-optimizer.service` entraba en bucle de fallos bajo `systemd`
+(`ModuleNotFoundError: No module named 'admin'`) porque
+`library_optimizer.py` nunca agregaba `src/` al `sys.path` como sí
+hace `server.py` — invisible para la suite de pruebas, que ya pone
+`src/` en el path ella misma. Corregido, redesplegado, confirmado
+corriendo de verdad (no solo "active" en medio de un bucle de fallos).
+
+Después se hizo una prueba real de punta a punta por SSH: un clip
+HEVC sintético pequeño (`ffmpeg -f lavfi testsrc`, 3s) subido vía
+`AdminAPI.upload_song()`, encolado con `request_song_optimization()`,
+recogido por el daemon en pocos segundos, confirmado re-codificado a
+H.264 y la cola limpia (`needs_optimization: False` después).
+`pedal-core.service` y la reproducción de `standby.mp4` no se vieron
+afectados en ningún momento. La canción de prueba se borró después.
+**Todavía sin confirmar**: el flujo real desde la app del celular —
+tocar "Optimize" desde la app misma, ver el botón decir
+"Optimizing...", y en particular desconectar/reconectar el celular a
+mitad del trabajo para confirmar que el estado de verdad persiste
+visualmente, no solo a nivel de `AdminAPI`/archivo de cola como ya se
+probó arriba. **Haz esto a continuación** — el usuario está a punto de
+hacerlo justo al momento de escribir esto.
+
 ## Lo que sigue genuinamente sin confirmar — haz esto antes de confiar en ello
 
-1. **La corrección visual de Export Set está desplegada pero no
+1. **El flujo real en la app del celular para el botón "Optimize" (ver
+   arriba, agregado 2026-10-01) — la capa de daemon/cola/API ya está
+   probada en hardware real, pero tocar el botón mismo y ver que el
+   estado "Optimizing..." sobrevive una desconexión/reconexión del
+   celular todavía no se hizo desde la app misma.** Pídele al usuario
+   que suba un video genuinamente no-H.264 (ej. directo de la cámara de
+   un iPhone), confirme que aparece el botón, lo toque,
+   desconecte/reconecte el celular a mitad del trabajo, y confirme que
+   el botón sigue diciendo "Optimizing..." cuando vuelve, y luego
+   confirme que se limpia al terminar.
+2. **La corrección visual de Export Set está desplegada pero no
    reconfirmada.** Salió por primera vez con un bug real de CSS
    (`.export-view` tenía un `display: flex` incondicional que
    sobreescribía la regla propia del navegador `[hidden] { display:
@@ -136,13 +189,13 @@ precedente de Export Set más abajo.
    volviera a abrir "Export Set" y confirmara que ahora se ve bien de
    punta a punta (título con contenido, lista numerada con contenido,
    cierre por ✕/Escape/atrás funcionando). **Haz esto primero.**
-2. **La segunda corrección del salto de scroll (el "destello de ~1
+3. **La segunda corrección del salto de scroll (el "destello de ~1
    segundo al top") se desplegó pero tampoco se reconfirmó
    explícitamente** — el usuario pasó a pedir Export Set justo después
    de desplegarla, sin confirmar. Pídele que renombre o borre una
    canción estando desplazado hacia abajo en un Bank posterior y
    confirma que ya no hay ningún salto visible.
-3. **El soporte de navegador de escritorio/PC para el botón "Share" de
+4. **El soporte de navegador de escritorio/PC para el botón "Share" de
    Export Set está explícitamente sin certificar** — `navigator.share()`
    con archivos adjuntos tiene poco soporte en navegadores de
    escritorio; el código cae a una descarga simple, pero esto nunca se
@@ -255,6 +308,12 @@ reaprendas por las malas:
   reinicio no planeado). Para desplegar algo que deba sobrevivir un
   reinicio:
   1. `ssh -4 pedal "sudo mount -o remount,rw /boot/firmware && sudo sed -i 's/overlayroot=tmpfs:recurse=0 //' /boot/firmware/cmdline.txt && sudo mount -o remount,ro /boot/firmware && sudo reboot"`
+     (confirmado otra vez el 2026-10-01: `sudo raspi-config nonint
+     do_overlayfs 1` por sí solo **no** funciona aquí — su lógica de
+     coincidencia no reconoce el sufijo personalizado `:recurse=0`, así
+     que deja `cmdline.txt` completamente intacto y el overlay sigue
+     montado después del reinicio. Usa siempre el `sed` directo de
+     arriba, no `do_overlayfs 1`, para desactivarlo.)
   2. Espera a que vuelva (`until ssh -4 pedal "echo up" 2>/dev/null; do sleep 3; done`), luego confirma con `mount | grep -E ' / '` que la raíz es un montaje `ext4 rw` normal, no `overlay`.
   3. Despliega (ver abajo), corre las pruebas en el propio Pi, reinicia
      los servicios systemd afectados, verifica.

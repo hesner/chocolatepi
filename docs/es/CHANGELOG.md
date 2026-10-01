@@ -43,6 +43,37 @@ publicar]` nuevo y vacío arriba para lo que siga.
 
 ## [Sin publicar]
 
+- **Corregido, encontrado al desplegar la función "Optimize" de abajo
+  en la Pi real**: `library-optimizer.service` entraba en bucle de
+  fallos de inmediato (`ModuleNotFoundError: No module named 'admin'`)
+  — `library_optimizer.py` vive bajo `src/admin/` y hace `from admin
+  import ...`, igual que `server.py`, pero a diferencia de `server.py`
+  nunca agregaba `src/` al `sys.path` primero. Invisible para las
+  pruebas unitarias, porque esas ya ponen `src/` en el `sys.path` antes
+  de importarlo — solo correrlo exactamente como lo hace `systemd` (un
+  `python3 library_optimizer.py` sin más) lo hizo salir a la luz.
+  Corregido con la misma línea `sys.path.insert(0, "..")` que
+  `server.py` ya tenía. Las dos expansiones.
+- **Desplegado y verificado en la Pi real (2026-10-01)**: ciclo
+  completo de deshabilitar overlay/desplegar/probar/rehabilitar
+  overlay/reiniciar; 181 pruebas (USB) + 200 (WiFi) pasaron en la
+  propia Pi; `library-optimizer.service` instalado y confirmado
+  realmente corriendo (no solo "active" en medio de un bucle de
+  fallos, que fue justo como se detectó el error de arriba); una
+  prueba real de punta a punta — un clip HEVC sintético y pequeño
+  subido directamente con `AdminAPI.upload_song()`, encolado con
+  `request_song_optimization()`, recogido por el daemon en pocos
+  segundos, y reportado como H.264/`needs_optimization: False` al
+  terminar — confirmó que todo el flujo (cola, recogida del daemon,
+  codificación en temporal, copia atómica final, respaldo de
+  `pedal_core_guard`, limpieza de la cola) funciona de verdad, no solo
+  bajo mocks. `pedal-core.service` se mantuvo activo y `standby.mp4`
+  siguió reproduciéndose todo el tiempo. **Todavía sin confirmar**: el
+  flujo real desde la app del celular (tocar "Optimize", ver el botón
+  decir "Optimizing...", desconectar/reconectar el celular a mitad del
+  trabajo) — esa parte se probó con llamadas directas a `AdminAPI` por
+  SSH, no desde la app misma. Ver
+  `expansions/setlist-admin-usb/NEXT_STEPS.md`.
 - Se agregó un **botón "Optimize"** a nivel de toda la biblioteca, en
   las dos expansiones `setlist-admin`. Pedido real del usuario: las
   subidas ya avisaban si un video no era H.264 (sección 9,
