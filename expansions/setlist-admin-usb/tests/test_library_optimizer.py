@@ -59,6 +59,16 @@ class LibraryOptimizerTestCase(unittest.TestCase):
         self.mock_writable_usb = guard_patcher.start()
         self.addCleanup(guard_patcher.stop)
 
+        # The cancel marker lives outside usb_root now (see
+        # optimize_queue.DEFAULT_STATE_DIR's own comment) -- pointed at
+        # an isolated per-test directory so tests never touch the real
+        # default (a real path under the developer's/Pi's home dir) or
+        # collide with each other.
+        state_dir = os.path.join(self.tmpdir.name, "state")
+        state_dir_patcher = patch("admin.optimize_queue.DEFAULT_STATE_DIR", state_dir)
+        state_dir_patcher.start()
+        self.addCleanup(state_dir_patcher.stop)
+
     def tearDown(self):
         self.tmpdir.cleanup()
 
@@ -209,7 +219,7 @@ class TestCancellation(LibraryOptimizerTestCase):
     def test_cancel_before_job_starts_clears_it_without_calling_ffmpeg(self, mock_popen):
         self._write_song("Song.mp4", b"original bytes")
         optimize_queue.enqueue(self.usb_root, "Song.mp4")
-        optimize_queue.request_cancel(self.usb_root, "Song.mp4")
+        optimize_queue.request_cancel("Song.mp4")
 
         library_optimizer._process_job(self.usb_root, "/media/usb", self.scratch_dir, "Song.mp4")
 
@@ -230,7 +240,7 @@ class TestCancellation(LibraryOptimizerTestCase):
             if call_count["n"] == 1:
                 # Simulates the user tapping "Cancel" while this first
                 # poll was "in flight".
-                optimize_queue.request_cancel(self.usb_root, "Song.mp4")
+                optimize_queue.request_cancel("Song.mp4")
                 raise subprocess.TimeoutExpired(cmd=["ffmpeg"], timeout=timeout)
             return 0
 
@@ -260,7 +270,7 @@ class TestCancellation(LibraryOptimizerTestCase):
             call_count["n"] += 1
             if call_count["n"] == 1:
                 # The polling wait -- simulate "Cancel" being tapped.
-                optimize_queue.request_cancel(self.usb_root, "Song.mp4")
+                optimize_queue.request_cancel("Song.mp4")
                 raise subprocess.TimeoutExpired(cmd=["ffmpeg"], timeout=timeout)
             if call_count["n"] == 2:
                 # terminate()'s own wait -- ffmpeg ignores SIGTERM.

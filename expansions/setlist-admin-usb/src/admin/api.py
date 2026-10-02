@@ -236,11 +236,22 @@ class AdminAPI:
         requested for the same filename before it even got to start.
         A no-op for a song with no active job, or one that's since been
         deleted from the library, rather than a 404 -- there's nothing
-        wrong with tapping "Cancel" on a job that already finished."""
-        with self._writable_usb():
-            job = optimize_queue.get_status(self.config.usb_root, filename)
-            if job and job.get("status") in (optimize_queue.STATUS_QUEUED, optimize_queue.STATUS_RUNNING):
-                optimize_queue.request_cancel(self.config.usb_root, filename)
+        wrong with tapping "Cancel" on a job that already finished.
+
+        Deliberately no `self._writable_usb()` here -- real incident
+        (2026-10-02): this used to wrap the whole thing in one, which
+        meant cancelling needed a writable-USB remount like any other
+        write, and that remount can fail with EBUSY for as long as
+        library_optimizer.py's own scratch-copy step is still reading
+        the source off the USB (sometimes well past the mount's own
+        bounded EBUSY retry) -- confirmed live, "Cancel" 500'd while a
+        job's source copy was in flight. get_status() is a plain read
+        (never needs rw), and request_cancel() now writes to local Pi
+        storage instead of the USB (see optimize_queue.DEFAULT_STATE_DIR)
+        -- neither step here touches the USB mount at all anymore."""
+        job = optimize_queue.get_status(self.config.usb_root, filename)
+        if job and job.get("status") in (optimize_queue.STATUS_QUEUED, optimize_queue.STATUS_RUNNING):
+            optimize_queue.request_cancel(filename)
 
     def upload_song(
         self, display_name: str, extension: str, source: BinaryIO, overwrite: bool = False,

@@ -28,6 +28,30 @@ STATUS_QUEUED = "queued"
 STATUS_RUNNING = "running"
 STATUS_ERROR = "error"
 
+# Where the cancel marker lives -- deliberately NOT on the USB, unlike
+# every other marker in this module. Real incident (2026-10-02): a
+# cancel request used to live at _queue_dir(usb_root), which meant
+# writing it needed a writable-USB remount like any other write here --
+# but library_optimizer.py's own scratch-copy step (_process_job(),
+# copying the source off the USB before encoding) holds a read handle
+# open on the mount for as long as that copy takes, which can run well
+# past the bounded EBUSY retry usb_mount.py's remount already has
+# (tuned for a *brief* collision with pedal-core.service's mpv, not a
+# multi-second-to-minutes file copy) -- confirmed live: "Cancel" failed
+# with a 500 while a job's source copy was still in flight. A cancel
+# marker only ever needs to reach *this Pi's own* library_optimizer.py
+# process, on the same machine as whatever writes it (setlist-admin.
+# service, via api.py) -- it never needs to survive this Pi rebooting,
+# nor travel with the USB stick itself, so local storage needs no
+# remount at all and can't collide with anything on the mount. This
+# also closes a latent correctness gap for free: a cancel request that
+# was in flight when the daemon died/rebooted used to survive on the
+# USB and would immediately re-cancel the *next*, unrelated run of the
+# same job once recover_orphaned_jobs() requeued it -- local,
+# non-persistent storage can't outlive the very reboot that resets
+# everything else too.
+DEFAULT_STATE_DIR = os.path.expanduser("~/.pedal-optimizer-state")
+
 
 def get_status(usb_root: str, filename: str) -> "dict | None":
     """Returns the job marker's content ({"status": ..., ...}) if one
@@ -69,12 +93,12 @@ def clear(usb_root: str, filename: str) -> None:
     except OSError:
         pass
     try:
-        os.remove(_cancel_path(usb_root, filename))
+        os.remove(_cancel_path(filename))
     except OSError:
         pass
 
 
-def request_cancel(usb_root: str, filename: str) -> None:
+def request_cancel(filename: str) -> None:
     """Called from api.py when the user taps "Cancel" on a job that's
     queued or actively running. Real user request (2026-10-02), after a
     real incident: an optimize job can run for hours; someone watching
@@ -83,15 +107,16 @@ def request_cancel(usb_root: str, filename: str) -> None:
     job's own status JSON, deliberately -- library_optimizer.py's main
     loop is busy blocking on ffmpeg for most of a job's life and polls
     for this specifically (see its own module docstring), independent
-    of whatever write the job's own status is mid-transition through."""
-    path = _cancel_path(usb_root, filename)
-    os.makedirs(_queue_dir(usb_root), exist_ok=True)
-    with open(path, "w", encoding="utf-8"):
+    of whatever write the job's own status is mid-transition through.
+    Lives under DEFAULT_STATE_DIR, not the USB -- see that constant's
+    comment for why."""
+    os.makedirs(DEFAULT_STATE_DIR, exist_ok=True)
+    with open(_cancel_path(filename), "w", encoding="utf-8"):
         pass
 
 
-def is_cancel_requested(usb_root: str, filename: str) -> bool:
-    return os.path.isfile(_cancel_path(usb_root, filename))
+def is_cancel_requested(filename: str) -> bool:
+    return os.path.isfile(_cancel_path(filename))
 
 
 def recover_orphaned_jobs(usb_root: str) -> None:
@@ -159,8 +184,8 @@ def _job_path(usb_root: str, filename: str) -> str:
     return os.path.join(_queue_dir(usb_root), f"{filename}.json")
 
 
-def _cancel_path(usb_root: str, filename: str) -> str:
-    return os.path.join(_queue_dir(usb_root), f"{filename}.cancel")
+def _cancel_path(filename: str) -> str:
+    return os.path.join(DEFAULT_STATE_DIR, f"{filename}.cancel")
 
 
 def _write(usb_root: str, filename: str, data: dict) -> None:

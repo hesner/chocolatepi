@@ -9,6 +9,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
@@ -19,6 +20,16 @@ class OptimizeQueueTestCase(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.usb_root = self.tmpdir.name
+
+        # The cancel marker lives outside usb_root now (see
+        # optimize_queue.DEFAULT_STATE_DIR's own comment) -- pointed at
+        # an isolated per-test directory so tests never touch the real
+        # default (a real path under the developer's/Pi's home dir) or
+        # collide with each other.
+        self.state_dir = os.path.join(self.tmpdir.name, "state")
+        state_dir_patcher = patch("admin.optimize_queue.DEFAULT_STATE_DIR", self.state_dir)
+        state_dir_patcher.start()
+        self.addCleanup(state_dir_patcher.stop)
 
     def tearDown(self):
         self.tmpdir.cleanup()
@@ -109,14 +120,14 @@ class TestCancellation(OptimizeQueueTestCase):
     def test_no_cancel_requested_by_default(self):
         optimize_queue.enqueue(self.usb_root, "Song.mp4")
 
-        self.assertFalse(optimize_queue.is_cancel_requested(self.usb_root, "Song.mp4"))
+        self.assertFalse(optimize_queue.is_cancel_requested("Song.mp4"))
 
     def test_request_cancel_then_is_cancel_requested(self):
         optimize_queue.enqueue(self.usb_root, "Song.mp4")
 
-        optimize_queue.request_cancel(self.usb_root, "Song.mp4")
+        optimize_queue.request_cancel("Song.mp4")
 
-        self.assertTrue(optimize_queue.is_cancel_requested(self.usb_root, "Song.mp4"))
+        self.assertTrue(optimize_queue.is_cancel_requested("Song.mp4"))
         # The job's own status is untouched -- cancelling is a separate
         # marker, checked independently by library_optimizer.py's
         # polling loop.
@@ -129,20 +140,20 @@ class TestCancellation(OptimizeQueueTestCase):
         """So a later, unrelated "Optimize" tap on the same filename
         doesn't start out pre-cancelled."""
         optimize_queue.enqueue(self.usb_root, "Song.mp4")
-        optimize_queue.request_cancel(self.usb_root, "Song.mp4")
+        optimize_queue.request_cancel("Song.mp4")
 
         optimize_queue.clear(self.usb_root, "Song.mp4")
 
-        self.assertFalse(optimize_queue.is_cancel_requested(self.usb_root, "Song.mp4"))
+        self.assertFalse(optimize_queue.is_cancel_requested("Song.mp4"))
 
     def test_cancel_for_a_different_song_does_not_affect_this_one(self):
         optimize_queue.enqueue(self.usb_root, "A.mp4")
         optimize_queue.enqueue(self.usb_root, "B.mp4")
 
-        optimize_queue.request_cancel(self.usb_root, "A.mp4")
+        optimize_queue.request_cancel("A.mp4")
 
-        self.assertTrue(optimize_queue.is_cancel_requested(self.usb_root, "A.mp4"))
-        self.assertFalse(optimize_queue.is_cancel_requested(self.usb_root, "B.mp4"))
+        self.assertTrue(optimize_queue.is_cancel_requested("A.mp4"))
+        self.assertFalse(optimize_queue.is_cancel_requested("B.mp4"))
 
 
 class TestRecoverOrphanedJobs(OptimizeQueueTestCase):

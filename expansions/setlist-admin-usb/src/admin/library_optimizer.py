@@ -58,6 +58,10 @@ just unplug the Pi): `_encode()` no longer blocks on a single
 short intervals instead, checking `optimize_queue.is_cancel_requested()`
 on each one. A cancel request can arrive at any point in a job's life
 (still queued, or mid-encode) -- see `_process_job()` for both cases.
+The cancel marker itself lives in local Pi storage
+(`optimize_queue.DEFAULT_STATE_DIR`), not on the USB -- see that
+constant's own comment for the real incident (cancelling 500'd while
+this module's own scratch-copy step was mid-read) that moved it there.
 """
 
 import argparse
@@ -137,7 +141,7 @@ def _process_job(usb_root: str, mount_point: str, scratch_dir: str, filename: st
     # A cancel tapped while the job was still merely "queued" (never
     # even started) -- nothing to tear down, just honor it immediately
     # without ever touching ffmpeg.
-    if optimize_queue.is_cancel_requested(usb_root, filename):
+    if optimize_queue.is_cancel_requested(filename):
         logger.info("Optimization of %s was cancelled before it started", filename)
         with pedal_core_guard.writable_usb(mount_point):
             optimize_queue.clear(usb_root, filename)
@@ -170,7 +174,7 @@ def _process_job(usb_root: str, mount_point: str, scratch_dir: str, filename: st
             return
 
         try:
-            _encode(scratch_input, scratch_output, usb_root, filename)
+            _encode(scratch_input, scratch_output, filename)
         except OptimizationCancelled:
             logger.info("Optimization of %s was cancelled", filename)
             with pedal_core_guard.writable_usb(mount_point):
@@ -203,7 +207,7 @@ def _fail(usb_root: str, mount_point: str, filename: str, message: str) -> None:
         optimize_queue.mark_error(usb_root, filename, message)
 
 
-def _encode(source_path: str, output_path: str, usb_root: str, filename: str) -> None:
+def _encode(source_path: str, output_path: str, filename: str) -> None:
     """Re-encodes to this project's recommended format (LIBRARY.md):
     H.264, 1080p max, ~8-12 Mbps for a regular clip -- but this targets
     the leaner ~1.8 Mbps LIBRARY.md specifically calls out for the
@@ -238,7 +242,7 @@ def _encode(source_path: str, output_path: str, usb_root: str, filename: str) ->
             break
         except subprocess.TimeoutExpired:
             elapsed += _CANCEL_CHECK_INTERVAL_SECONDS
-            if optimize_queue.is_cancel_requested(usb_root, filename):
+            if optimize_queue.is_cancel_requested(filename):
                 _terminate(proc)
                 raise OptimizationCancelled()
             if elapsed > _FFMPEG_TIMEOUT_SECONDS:

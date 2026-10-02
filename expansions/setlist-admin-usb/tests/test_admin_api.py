@@ -40,6 +40,18 @@ class ApiTestCase(unittest.TestCase):
         self.mock_ensure_mounted = ensure_mounted_patcher.start()
         self.addCleanup(ensure_mounted_patcher.stop)
 
+        # The cancel marker lives outside usb_root now (see
+        # optimize_queue.DEFAULT_STATE_DIR's own comment) -- pointed at
+        # an isolated per-test directory so tests never touch the real
+        # default (a real path under the developer's/Pi's home dir) or
+        # collide with each other. Nested under usb_root here purely
+        # for convenience (this test case's tmpdir *is* usb_root) --
+        # nothing about the real default lives on the USB any more.
+        state_dir = os.path.join(self.usb_root, "optimizer-state")
+        state_dir_patcher = patch("admin.optimize_queue.DEFAULT_STATE_DIR", state_dir)
+        state_dir_patcher.start()
+        self.addCleanup(state_dir_patcher.stop)
+
     def tearDown(self):
         self.tmpdir.cleanup()
 
@@ -492,7 +504,7 @@ class TestCancelSongOptimization(ApiTestCase):
 
         self.api.cancel_song_optimization("Video.mp4")
 
-        self.assertTrue(optimize_queue.is_cancel_requested(self.usb_root, "Video.mp4"))
+        self.assertTrue(optimize_queue.is_cancel_requested("Video.mp4"))
 
     def test_cancelling_a_song_with_no_active_job_does_nothing(self):
         """Not a no-op by accident: writing the marker anyway would sit
@@ -503,7 +515,7 @@ class TestCancelSongOptimization(ApiTestCase):
 
         self.api.cancel_song_optimization("Video.mp4")  # must not raise
 
-        self.assertFalse(optimize_queue.is_cancel_requested(self.usb_root, "Video.mp4"))
+        self.assertFalse(optimize_queue.is_cancel_requested("Video.mp4"))
 
     def test_cancelling_an_unknown_song_does_not_raise(self):
         self.api.cancel_song_optimization("Does Not Exist.mp4")  # must not raise

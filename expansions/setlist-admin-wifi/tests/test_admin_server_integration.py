@@ -41,6 +41,16 @@ class ServerIntegrationTestCase(unittest.TestCase):
         self.addCleanup(ensure_mounted_patcher.stop)
 
         self.tmpdir = tempfile.TemporaryDirectory()
+
+        # The cancel marker lives outside usb_root now (see
+        # optimize_queue.DEFAULT_STATE_DIR's own comment) -- pointed at
+        # an isolated per-test directory so tests never touch the real
+        # default (a real path under the developer's/Pi's home dir) or
+        # collide with each other.
+        state_dir = os.path.join(self.tmpdir.name, "optimizer-state")
+        state_dir_patcher = patch("admin.optimize_queue.DEFAULT_STATE_DIR", state_dir)
+        state_dir_patcher.start()
+        self.addCleanup(state_dir_patcher.stop)
         api = AdminAPI(AdminConfig(usb_root=self.tmpdir.name, usb_uuid="test-usb-uuid"))
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler_class(api))
         self.port = self.server.server_address[1]
@@ -386,7 +396,7 @@ class TestSongLibraryFlow(ServerIntegrationTestCase):
 
         self.assertEqual(resp.status, 200)
         self.assertTrue(body["ok"])
-        self.assertTrue(optimize_queue.is_cancel_requested(self.tmpdir.name, "Video.mp4"))
+        self.assertTrue(optimize_queue.is_cancel_requested("Video.mp4"))
 
     def test_cancel_optimize_endpoint_on_an_unknown_song_does_not_raise(self):
         conn, headers = self._authenticated_conn()
