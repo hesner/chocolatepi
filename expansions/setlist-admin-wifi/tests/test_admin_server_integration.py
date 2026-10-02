@@ -24,6 +24,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
+from admin import optimize_queue  # noqa: E402
 from admin.api import AdminAPI, AdminConfig  # noqa: E402
 from admin.server import make_handler_class, _LimitedReader  # noqa: E402
 from http.server import ThreadingHTTPServer  # noqa: E402
@@ -360,6 +361,30 @@ class TestSongLibraryFlow(ServerIntegrationTestCase):
         resp, body = self._json(conn, "POST", "/api/songs/Nope.mp4/optimize", headers=headers)
 
         self.assertEqual(resp.status, 404)
+
+    def test_cancel_optimize_endpoint_writes_a_cancel_marker(self):
+        conn, headers = self._authenticated_conn()
+        upload_headers = dict(headers)
+        upload_headers["X-Track-Name"] = "Video"
+        upload_headers["X-Track-Extension"] = "mp4"
+        body_bytes = b"fake mp4 bytes"
+        upload_headers["Content-Length"] = str(len(body_bytes))
+        conn.request("POST", "/api/songs", body=body_bytes, headers=upload_headers)
+        conn.getresponse().read()
+        self._json(conn, "POST", "/api/songs/Video.mp4/optimize", headers=headers)
+
+        resp, body = self._json(conn, "POST", "/api/songs/Video.mp4/optimize/cancel", headers=headers)
+
+        self.assertEqual(resp.status, 200)
+        self.assertTrue(body["ok"])
+        self.assertTrue(optimize_queue.is_cancel_requested(self.tmpdir.name, "Video.mp4"))
+
+    def test_cancel_optimize_endpoint_on_an_unknown_song_does_not_raise(self):
+        conn, headers = self._authenticated_conn()
+
+        resp, body = self._json(conn, "POST", "/api/songs/Nope.mp4/optimize/cancel", headers=headers)
+
+        self.assertEqual(resp.status, 200)
 
 
 class TestLimitedReaderDrain(unittest.TestCase):

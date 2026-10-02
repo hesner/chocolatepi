@@ -311,16 +311,50 @@ function renderSongRow(song) {
   // (it can take a very long time on this hardware -- confirmed live,
   // roughly 90 minutes for one problematic video).
   const optimizeBtn = node.querySelector(".btn-optimize-song");
+  const cancelOptimizeBtn = node.querySelector(".btn-cancel-optimize-song");
   if (song.needs_optimization) {
-    optimizeBtn.hidden = false;
     const inProgress = song.optimization_status === "queued" || song.optimization_status === "running";
     if (inProgress) {
+      optimizeBtn.hidden = true;
       optimizeBtn.textContent = "Optimizing…";
       optimizeBtn.disabled = true;
+      // Real user request (2026-10-02), after a real incident: a long
+      // optimize job (hours, on this hardware) running in the
+      // background isn't visible from the outside -- someone could
+      // reasonably think nothing's happening and unplug the Pi. Give
+      // an explicit way to stop it cleanly instead.
+      cancelOptimizeBtn.hidden = false;
+      cancelOptimizeBtn.addEventListener("click", async () => {
+        if (!confirm(`Cancel optimizing "${song.filename}"? It will stay as-is, not yet optimized.`)) return;
+        flashSuccess(cancelOptimizeBtn);
+        try {
+          await apiFetch(`/api/songs/${encodeURIComponent(song.filename)}/optimize/cancel`, { method: "POST" });
+          await loadSongs();
+          showToast("Cancelling -- this can take a few seconds to actually stop.");
+        } catch (e) {
+          clearFlash(cancelOptimizeBtn);
+          alert(e.message);
+        }
+      });
     } else {
+      optimizeBtn.hidden = false;
       optimizeBtn.textContent = song.optimization_status === "error" ? "Optimize (retry)" : "Optimize";
       if (song.optimization_error) optimizeBtn.title = song.optimization_error;
       optimizeBtn.addEventListener("click", async () => {
+        // Real user request (2026-10-02), after a real incident: an
+        // optimize job can run for hours, writing to the Pi's own
+        // local storage the whole time -- unplugging the Pi mid-job
+        // loses all that progress (safe to retry, but wasted time) and,
+        // if this Pi's protective overlay ever isn't active for some
+        // other reason, is a genuine power-loss risk for the Pi itself,
+        // not just the library USB.
+        if (!confirm(
+          `Optimize "${song.filename}"?\n\n` +
+          `This can take a long time on this hardware (confirmed up to ` +
+          `a few hours for a large 4K video). Do NOT unplug the Raspberry ` +
+          `Pi while it's running -- if you need to stop it, use the ` +
+          `"Cancel" button that appears once it starts, instead.`
+        )) return;
         flashSuccess(optimizeBtn);
         try {
           await apiFetch(`/api/songs/${encodeURIComponent(song.filename)}/optimize`, { method: "POST" });

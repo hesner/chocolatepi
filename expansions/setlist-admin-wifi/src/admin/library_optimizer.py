@@ -51,6 +51,14 @@ copy) and `ffmpeg` runs entirely against that local copy -- the USB
 mount is never held open for anywhere near the encode's own duration,
 closing the same class of problem the output side was already designed
 to avoid.
+
+Cancellation (real user request, 2026-10-02, after a real incident: a
+job running for hours with no visible progress is a real temptation to
+just unplug the Pi): `_encode()` no longer blocks on a single
+`subprocess.run()` -- it launches `ffmpeg` with `Popen` and polls it in
+short intervals instead, checking `optimize_queue.is_cancel_requested()`
+on each one. A cancel request can arrive at any point in a job's life
+(still queued, or mid-encode) -- see `_process_job()` for both cases.
 """
 
 import argparse
@@ -75,6 +83,21 @@ _DEFAULT_SCRATCH_DIR = os.path.expanduser("~/pedal-optimizer-scratch")
 # The real incident this was built for took roughly 90 minutes; this
 # leaves over double that before giving up.
 _FFMPEG_TIMEOUT_SECONDS = 4 * 60 * 60
+# How often _encode() checks in on the running ffmpeg process -- both
+# for a cancel request and for the overall timeout above. Frequent
+# enough that tapping "Cancel" feels responsive, not so frequent that
+# polling itself costs anything meaningful next to an encode that runs
+# for hours.
+_CANCEL_CHECK_INTERVAL_SECONDS = 2
+
+
+class OptimizationCancelled(Exception):
+    """Raised by _encode() when optimize_queue.is_cancel_requested()
+    turns up true mid-encode, after the ffmpeg process has already been
+    terminated -- distinct from a real failure (CalledProcessError) or
+    a runaway job (TimeoutExpired): this is the user's own choice, so
+    _process_job() clears the job outright rather than recording it as
+    an error needing a retry tap."""
 
 
 def run_forever(usb_root: str, mount_point: str, scratch_dir: str, poll_interval: int) -> None:
@@ -112,6 +135,15 @@ def _tick(usb_root: str, mount_point: str, scratch_dir: str) -> None:
 
 
 def _process_job(usb_root: str, mount_point: str, scratch_dir: str, filename: str) -> None:
+    # A cancel tapped while the job was still merely "queued" (never
+    # even started) -- nothing to tear down, just honor it immediately
+    # without ever touching ffmpeg.
+    if optimize_queue.is_cancel_requested(usb_root, filename):
+        logger.info("Optimization of %s was cancelled before it started", filename)
+        with pedal_core_guard.writable_usb(mount_point):
+            optimize_queue.clear(usb_root, filename)
+        return
+
     logger.info("Optimizing %s", filename)
     with pedal_core_guard.writable_usb(mount_point):
         optimize_queue.mark_running(usb_root, filename)
@@ -139,7 +171,12 @@ def _process_job(usb_root: str, mount_point: str, scratch_dir: str, filename: st
             return
 
         try:
-            _encode(scratch_input, scratch_output)
+            _encode(scratch_input, scratch_output, usb_root, filename)
+        except OptimizationCancelled:
+            logger.info("Optimization of %s was cancelled", filename)
+            with pedal_core_guard.writable_usb(mount_point):
+                optimize_queue.clear(usb_root, filename)
+            return
         except subprocess.TimeoutExpired:
             _fail(usb_root, mount_point, filename, "Encoding took too long and was stopped")
             return
@@ -167,7 +204,7 @@ def _fail(usb_root: str, mount_point: str, filename: str, message: str) -> None:
         optimize_queue.mark_error(usb_root, filename, message)
 
 
-def _encode(source_path: str, output_path: str) -> None:
+def _encode(source_path: str, output_path: str, usb_root: str, filename: str) -> None:
     """Re-encodes to this project's recommended format (LIBRARY.md):
     H.264, 1080p max, ~8-12 Mbps for a regular clip -- but this targets
     the leaner ~1.8 Mbps LIBRARY.md specifically calls out for the
@@ -177,20 +214,53 @@ def _encode(source_path: str, output_path: str) -> None:
     ends up assigned as standby or not. 25fps -- more than enough for
     looped/background video content, and a real source seen in
     practice was a needless 120fps that did nothing but multiply
-    decode cost for no visible benefit on a TV."""
-    subprocess.run(
-        [
-            "ffmpeg", "-y", "-i", source_path,
-            "-vf", "scale=-2:1080,fps=25",
-            "-c:v", "libx264", "-profile:v", "high", "-level", "4.0",
-            "-preset", "veryfast", "-pix_fmt", "yuv420p",
-            "-b:v", "1800k", "-maxrate", "1800k", "-bufsize", "3600k",
-            "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2",
-            "-movflags", "+faststart", "-f", "mp4",
-            output_path,
-        ],
-        capture_output=True, text=True, check=True, timeout=_FFMPEG_TIMEOUT_SECONDS,
-    )
+    decode cost for no visible benefit on a TV.
+
+    Runs ffmpeg via Popen and polls it, rather than a single blocking
+    subprocess.run(), specifically so a "Cancel" tap can actually stop
+    the real ffmpeg process -- not just the bookkeeping around it --
+    within a couple of seconds, instead of waiting out however long is
+    left (confirmed live: hours, for a large 4K source)."""
+    cmd = [
+        "ffmpeg", "-y", "-i", source_path,
+        "-vf", "scale=-2:1080,fps=25",
+        "-c:v", "libx264", "-profile:v", "high", "-level", "4.0",
+        "-preset", "veryfast", "-pix_fmt", "yuv420p",
+        "-b:v", "1800k", "-maxrate", "1800k", "-bufsize", "3600k",
+        "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2",
+        "-movflags", "+faststart", "-f", "mp4",
+        output_path,
+    ]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    elapsed = 0.0
+    while True:
+        try:
+            proc.wait(timeout=_CANCEL_CHECK_INTERVAL_SECONDS)
+            break
+        except subprocess.TimeoutExpired:
+            elapsed += _CANCEL_CHECK_INTERVAL_SECONDS
+            if optimize_queue.is_cancel_requested(usb_root, filename):
+                _terminate(proc)
+                raise OptimizationCancelled()
+            if elapsed > _FFMPEG_TIMEOUT_SECONDS:
+                _terminate(proc)
+                raise subprocess.TimeoutExpired(cmd=cmd, timeout=_FFMPEG_TIMEOUT_SECONDS)
+
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(
+            proc.returncode, cmd, output=proc.stdout.read(), stderr=proc.stderr.read(),
+        )
+
+
+def _terminate(proc: subprocess.Popen) -> None:
+    """SIGTERM first -- ffmpeg handles it cleanly and exits quickly;
+    SIGKILL only if it somehow doesn't, so this can't itself hang."""
+    proc.terminate()
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
 
 
 def parse_args():

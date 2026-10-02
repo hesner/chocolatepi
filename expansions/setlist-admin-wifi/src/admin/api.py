@@ -228,6 +228,24 @@ class AdminAPI:
         with self._writable_usb():
             optimize_queue.enqueue(self.config.usb_root, filename)
 
+    def cancel_song_optimization(self, filename: str) -> None:
+        """Real user request (2026-10-02, in the sibling
+        setlist-admin-usb expansion, ported here unchanged), after a
+        real incident: an optimize job can run for hours with no
+        visible progress, which is a real temptation to just unplug the
+        Pi. Only writes the cancel marker if a job is actually
+        queued/running right now -- otherwise it would just sit there
+        forever (nothing would ever clear it) and silently cancel some
+        unrelated *future* job requested for the same filename before
+        it even got to start. A no-op for a song with no active job, or
+        one that's since been deleted from the library, rather than a
+        404 -- there's nothing wrong with tapping "Cancel" on a job
+        that already finished."""
+        with self._writable_usb():
+            job = optimize_queue.get_status(self.config.usb_root, filename)
+            if job and job.get("status") in (optimize_queue.STATUS_QUEUED, optimize_queue.STATUS_RUNNING):
+                optimize_queue.request_cancel(self.config.usb_root, filename)
+
     def upload_song(
         self, display_name: str, extension: str, source: BinaryIO, overwrite: bool = False,
     ) -> Optional[str]:

@@ -50,6 +50,7 @@ _ROUTES = [
     ("PUT", re.compile(r"^/api/songs/(?P<filename>[^/]+)$"), "rename_song"),
     ("DELETE", re.compile(r"^/api/songs/(?P<filename>[^/]+)$"), "delete_song"),
     ("POST", re.compile(r"^/api/songs/(?P<filename>[^/]+)/optimize$"), "optimize_song"),
+    ("POST", re.compile(r"^/api/songs/(?P<filename>[^/]+)/optimize/cancel$"), "cancel_optimize_song"),
     ("POST", re.compile(r"^/api/sets/(?P<set>[^/]+)/banks/(?P<bank>\d+)/tracks/(?P<letter>[A-Za-z])/assign-from-library$"), "assign_song_to_slot"),
     ("POST", re.compile(r"^/api/sets/(?P<set>[^/]+)/banks/(?P<bank>\d+)/tracks/(?P<letter>[A-Za-z])/save-to-library$"), "save_track_to_library"),
     ("GET", re.compile(r"^/api/standby$"), "get_standby"),
@@ -300,6 +301,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def _action_optimize_song(self, path_params, query):
         self.api.request_song_optimization(path_params["filename"])
+        return 200, {"ok": True}
+
+    def _action_cancel_optimize_song(self, path_params, query):
+        self.api.cancel_song_optimization(path_params["filename"])
         return 200, {"ok": True}
 
     def _action_assign_song_to_slot(self, path_params, query):

@@ -481,6 +481,34 @@ class TestRequestSongOptimization(ApiTestCase):
         self.assertEqual(ctx.exception.status, 404)
 
 
+class TestCancelSongOptimization(ApiTestCase):
+    """Real user request (2026-10-02), after a real incident: an
+    optimize job can run for hours with no visible progress, which is
+    a real temptation to just unplug the Pi."""
+
+    def test_cancelling_a_queued_job_writes_a_cancel_marker(self):
+        self.api.upload_song("Video", "mp4", io.BytesIO(b"data"))
+        self.api.request_song_optimization("Video.mp4")
+
+        self.api.cancel_song_optimization("Video.mp4")
+
+        self.assertTrue(optimize_queue.is_cancel_requested(self.usb_root, "Video.mp4"))
+
+    def test_cancelling_a_song_with_no_active_job_does_nothing(self):
+        """Not a no-op by accident: writing the marker anyway would sit
+        there forever (nothing would ever clear it) and silently
+        cancel some unrelated *future* job requested for the same
+        filename before it even got to start."""
+        self.api.upload_song("Video", "mp4", io.BytesIO(b"data"))
+
+        self.api.cancel_song_optimization("Video.mp4")  # must not raise
+
+        self.assertFalse(optimize_queue.is_cancel_requested(self.usb_root, "Video.mp4"))
+
+    def test_cancelling_an_unknown_song_does_not_raise(self):
+        self.api.cancel_song_optimization("Does Not Exist.mp4")  # must not raise
+
+
 class TestStandby(ApiTestCase):
     def test_get_standby_when_none_set(self):
         result = self.api.get_standby()

@@ -101,6 +101,50 @@ class TestListQueued(OptimizeQueueTestCase):
         )
 
 
+class TestCancellation(OptimizeQueueTestCase):
+    """Real user request (2026-10-02), after a real incident: an
+    optimize job can run for hours with no visible progress, which is
+    a real temptation to just unplug the Pi."""
+
+    def test_no_cancel_requested_by_default(self):
+        optimize_queue.enqueue(self.usb_root, "Song.mp4")
+
+        self.assertFalse(optimize_queue.is_cancel_requested(self.usb_root, "Song.mp4"))
+
+    def test_request_cancel_then_is_cancel_requested(self):
+        optimize_queue.enqueue(self.usb_root, "Song.mp4")
+
+        optimize_queue.request_cancel(self.usb_root, "Song.mp4")
+
+        self.assertTrue(optimize_queue.is_cancel_requested(self.usb_root, "Song.mp4"))
+        # The job's own status is untouched -- cancelling is a separate
+        # marker, checked independently by library_optimizer.py's
+        # polling loop.
+        self.assertEqual(
+            optimize_queue.get_status(self.usb_root, "Song.mp4")["status"],
+            optimize_queue.STATUS_QUEUED,
+        )
+
+    def test_clear_also_removes_a_cancel_marker(self):
+        """So a later, unrelated "Optimize" tap on the same filename
+        doesn't start out pre-cancelled."""
+        optimize_queue.enqueue(self.usb_root, "Song.mp4")
+        optimize_queue.request_cancel(self.usb_root, "Song.mp4")
+
+        optimize_queue.clear(self.usb_root, "Song.mp4")
+
+        self.assertFalse(optimize_queue.is_cancel_requested(self.usb_root, "Song.mp4"))
+
+    def test_cancel_for_a_different_song_does_not_affect_this_one(self):
+        optimize_queue.enqueue(self.usb_root, "A.mp4")
+        optimize_queue.enqueue(self.usb_root, "B.mp4")
+
+        optimize_queue.request_cancel(self.usb_root, "A.mp4")
+
+        self.assertTrue(optimize_queue.is_cancel_requested(self.usb_root, "A.mp4"))
+        self.assertFalse(optimize_queue.is_cancel_requested(self.usb_root, "B.mp4"))
+
+
 class TestRecoverOrphanedJobs(OptimizeQueueTestCase):
     """Real incident (2026-10-01): a job marked "running" whose daemon
     then dies (a Pi reboot, a service restart) before finishing stays

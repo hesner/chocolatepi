@@ -58,13 +58,40 @@ def mark_error(usb_root: str, filename: str, message: str) -> None:
 
 
 def clear(usb_root: str, filename: str) -> None:
-    """Called once a job finishes successfully -- the optimized file
-    itself (now passing codec_check.is_optimized()) is the only signal
-    needed from then on; no "done" marker is kept lying around."""
+    """Called once a job finishes successfully (or is cancelled) -- the
+    optimized file itself (now passing codec_check.is_optimized()) is
+    the only signal needed from then on for a success; no "done" marker
+    is kept lying around. Also clears any leftover cancel request, so a
+    later, unrelated "Optimize" tap on the same filename doesn't start
+    out pre-cancelled."""
     try:
         os.remove(_job_path(usb_root, filename))
     except OSError:
         pass
+    try:
+        os.remove(_cancel_path(usb_root, filename))
+    except OSError:
+        pass
+
+
+def request_cancel(usb_root: str, filename: str) -> None:
+    """Called from api.py when the user taps "Cancel" on a job that's
+    queued or actively running. Real user request (2026-10-02), after a
+    real incident: an optimize job can run for hours; someone watching
+    it with no visible progress could reasonably think it's stuck and
+    be tempted to just unplug the Pi. A separate marker file from the
+    job's own status JSON, deliberately -- library_optimizer.py's main
+    loop is busy blocking on ffmpeg for most of a job's life and polls
+    for this specifically (see its own module docstring), independent
+    of whatever write the job's own status is mid-transition through."""
+    path = _cancel_path(usb_root, filename)
+    os.makedirs(_queue_dir(usb_root), exist_ok=True)
+    with open(path, "w", encoding="utf-8"):
+        pass
+
+
+def is_cancel_requested(usb_root: str, filename: str) -> bool:
+    return os.path.isfile(_cancel_path(usb_root, filename))
 
 
 def recover_orphaned_jobs(usb_root: str) -> None:
@@ -130,6 +157,10 @@ def _queue_dir(usb_root: str) -> str:
 
 def _job_path(usb_root: str, filename: str) -> str:
     return os.path.join(_queue_dir(usb_root), f"{filename}.json")
+
+
+def _cancel_path(usb_root: str, filename: str) -> str:
+    return os.path.join(_queue_dir(usb_root), f"{filename}.cancel")
 
 
 def _write(usb_root: str, filename: str, data: dict) -> None:
