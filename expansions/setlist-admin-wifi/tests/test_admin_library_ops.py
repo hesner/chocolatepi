@@ -45,6 +45,17 @@ class TestSets(LibraryOpsTestCase):
         os.makedirs(os.path.join(self.usb_root, ".setlist-admin"))
         self.assertEqual(library_ops.list_sets(self.usb_root), ["Live"])
 
+    def test_list_sets_excludes_filesystem_reserved_folders(self):
+        """Real bug found live (2026-10-02, in the sibling
+        setlist-admin-usb expansion -- ported here unchanged): "System
+        Volume Information" (an NTFS-created folder, not a Set anyone
+        made) turned up as a selectable Set in the real app's picker."""
+        library_ops.create_set(self.usb_root, "Live")
+        os.makedirs(os.path.join(self.usb_root, "System Volume Information"))
+        os.makedirs(os.path.join(self.usb_root, "$RECYCLE.BIN"))
+
+        self.assertEqual(library_ops.list_sets(self.usb_root), ["Live"])
+
     def test_creating_duplicate_set_raises(self):
         library_ops.create_set(self.usb_root, "Live")
         with self.assertRaises(library_ops.LibraryOpsError):

@@ -11,11 +11,32 @@ const state = {
   standby: null, // { exists, size_bytes, modified_at } -- current standby.mp4
 };
 
+// Real incident (2026-10-02): a slow/overloaded Pi (e.g. a background
+// "Optimize" job's scratch-copy holding the USB busy for minutes --
+// see usb_mount.exclusive_read()) can make a request sit long enough
+// for the phone's own browser/OS to abort it at the network level,
+// which surfaces as a raw, untranslated `TypeError: Failed to fetch`
+// (or similar) -- confirmed live, reported as a confusing "Type
+// error" popup. Anything thrown by fetch() itself (never an HTTP
+// error -- those are handled separately, below) gets rewritten into a
+// plain, translated message instead.
+function friendlyNetworkError(e) {
+  if (e instanceof TypeError) {
+    return new Error(t("networkErrorFallback"));
+  }
+  return e;
+}
+
 async function apiFetch(path, options = {}) {
-  const res = await fetch(path, {
-    ...options,
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-  });
+  let res;
+  try {
+    res = await fetch(path, {
+      ...options,
+      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    });
+  } catch (e) {
+    throw friendlyNetworkError(e);
+  }
   let body = {};
   try { body = await res.json(); } catch (_) { /* empty body is fine */ }
   if (!res.ok) {
@@ -127,11 +148,17 @@ async function boot() {
 document.getElementById("form-setup-pin").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const pin = document.getElementById("setup-pin-input").value;
+  // Real user request (2026-10-02): tapping submit gave zero feedback
+  // until the request finished -- same flashSuccess()/clearFlash()
+  // pattern already used for every other button in this app.
+  const btn = ev.target.querySelector('button[type="submit"]');
+  flashSuccess(btn);
   try {
     await apiFetch("/api/pin", { method: "POST", body: JSON.stringify({ pin }) });
     hide("view-setup-pin");
     show("view-login");
   } catch (e) {
+    clearFlash(btn);
     const errEl = document.getElementById("setup-pin-error");
     setText(errEl, e.message);
     errEl.hidden = false;
@@ -143,6 +170,12 @@ document.getElementById("form-setup-pin").addEventListener("submit", async (ev) 
 document.getElementById("form-login").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const pin = document.getElementById("login-pin-input").value;
+  // Real user request (2026-10-02): tapping "Unlock" gave zero
+  // feedback until the request finished (loading the whole library can
+  // take a few seconds) -- same flashSuccess()/clearFlash() pattern
+  // already used for every other button in this app.
+  const btn = ev.target.querySelector('button[type="submit"]');
+  flashSuccess(btn);
   try {
     await apiFetch("/api/login", { method: "POST", body: JSON.stringify({ pin }) });
     hide("view-login");
@@ -152,6 +185,7 @@ document.getElementById("form-login").addEventListener("submit", async (ev) => {
     show("view-main");
     await refreshPlaybackWarning();
   } catch (e) {
+    clearFlash(btn);
     const errEl = document.getElementById("login-error");
     setText(errEl, e.message);
     errEl.hidden = false;
@@ -280,6 +314,15 @@ document.getElementById("btn-set-standby").addEventListener("click", async () =>
   flashSuccess(btn);
   try {
     await apiFetch("/api/standby", { method: "POST", body: JSON.stringify({ song_filename: select.value }) });
+    // Real user request (2026-10-02): the dropdown used to keep
+    // whatever was selected, so right after a successful change the
+    // button still read "Set as standby" with that same video still
+    // picked -- looked like nothing had happened, or like it needed
+    // tapping again. Resetting to the placeholder makes the just-
+    // completed action visually final; "Current: ..." above (updated
+    // by loadStandby() next) is the actual confirmation of what's
+    // playing now.
+    select.value = "";
     await loadStandby();
     showToast(t("standbyUpdatedToast"));
   } catch (e) {
@@ -322,14 +365,23 @@ function renderSongRow(song) {
   if (song.needs_optimization) {
     const inProgress = song.optimization_status === "queued" || song.optimization_status === "running";
     if (inProgress) {
-      // Real user request (2026-10-02): shown as a standing green
-      // indicator, not hidden -- needs to read as "something is
-      // happening" right next to "Cancel", not disappear in favor of
-      // it.
+      // Real user request (2026-10-02): shown as a standing indicator,
+      // not hidden -- needs to read as "something is happening" right
+      // next to "Cancel", not disappear in favor of it.
+      //
+      // Real incident, same day: "queued" and "running" used to render
+      // identically (both green "Optimizing") -- with two songs
+      // in-flight at once (one actually encoding, one just waiting its
+      // turn), there was no way to tell which was which. Confirmed
+      // live: this led to cancelling the wrong one by mistake, since
+      // both rows looked the same. Now visually distinct: green only
+      // for the one actually running; a plain, secondary "Queued" for
+      // one still waiting its turn.
+      const actuallyRunning = song.optimization_status === "running";
       optimizeBtn.hidden = false;
-      optimizeBtn.classList.remove("secondary");
-      optimizeBtn.classList.add("success");
-      optimizeBtn.textContent = t("optimizingBtn");
+      optimizeBtn.classList.toggle("success", actuallyRunning);
+      optimizeBtn.classList.toggle("secondary", !actuallyRunning);
+      optimizeBtn.textContent = actuallyRunning ? t("optimizingBtn") : t("queuedBtn");
       optimizeBtn.disabled = true;
       // Real user request (2026-10-02), after a real incident: a long
       // optimize job (hours, on this hardware) running in the
@@ -422,7 +474,12 @@ document.getElementById("btn-upload-to-library").addEventListener("click", () =>
 async function uploadSongToLibrary(displayName, extension, file, overwrite) {
   const headers = { "X-Track-Name": displayName, "X-Track-Extension": extension };
   if (overwrite) headers["X-Track-Overwrite"] = "true";
-  const res = await fetch("/api/songs", { method: "POST", headers, body: file });
+  let res;
+  try {
+    res = await fetch("/api/songs", { method: "POST", headers, body: file });
+  } catch (e) {
+    throw friendlyNetworkError(e);
+  }
   const result = await res.json();
   if (!res.ok) {
     const err = new Error(result.error || t("uploadFailedFallback"));
@@ -439,6 +496,25 @@ document.getElementById("library-upload-input").addEventListener("change", async
   const displayName = dotIndex > 0 ? file.name.slice(0, dotIndex) : file.name;
   const extension = dotIndex > 0 ? file.name.slice(dotIndex + 1) : "";
   const btn = document.getElementById("btn-upload-to-library");
+
+  // Real incident (2026-10-02): the only way to learn about a name
+  // collision used to be uploading the *whole file* first and reading
+  // the server's 409 -- normally fast, but if the USB happens to be
+  // busy with something else (e.g. an "Optimize" job's scratch-copy --
+  // see usb_mount.exclusive_read()), that upload can legitimately wait
+  // minutes before the collision even gets reported. state.songs is
+  // already loaded client-side, so checking there first catches the
+  // common case instantly, before sending any file data at all. The
+  // server's own check (in uploadSongToLibrary()'s .conflict branch
+  // below) still runs for the real upload either way -- this is a
+  // fast-path, not a replacement for it.
+  const targetFilename = `${displayName}.${extension}`;
+  const knownDuplicate = state.songs.some((s) => s.filename === targetFilename);
+  if (knownDuplicate && !confirm(t("replaceConfirm", { name: targetFilename }))) {
+    ev.target.value = "";
+    return;
+  }
+
   // Real bug found on real hardware: a file upload over the phone's USB
   // tether can take several real seconds (not the ~200ms a plain API
   // call takes), and this button gave zero feedback for that whole
@@ -451,16 +527,19 @@ document.getElementById("library-upload-input").addEventListener("change", async
   flashSuccess(btn);
   try {
     try {
-      await uploadSongToLibrary(displayName, extension, file, false);
+      await uploadSongToLibrary(displayName, extension, file, knownDuplicate);
       await loadSongs();
-      showToast(t("songAddedToast"));
+      showToast(knownDuplicate ? t("songReplacedToast") : t("songAddedToast"));
     } catch (e) {
       if (!e.conflict) throw e;
       // Real user request, 2026-10-01: offer to replace instead of just
       // failing -- a name collision is a normal thing to want to resolve
       // in the moment, not necessarily a mistake to go fix separately
-      // via rename_song()/delete_song() first.
-      if (!confirm(t("replaceConfirm", { name: `${displayName}.${extension}` }))) {
+      // via rename_song()/delete_song() first. Only reachable now if
+      // state.songs was stale (e.g. uploaded from another device
+      // moments ago) -- the common case is already handled above,
+      // before any file data was even sent.
+      if (!confirm(t("replaceConfirm", { name: targetFilename }))) {
         clearFlash(btn);
         return;
       }
@@ -699,22 +778,20 @@ document.getElementById("btn-new-bank").addEventListener("click", async () => {
     alert(t("createOrSelectSetFirst"));
     return;
   }
-  const raw = prompt(t("newBankPrompt"));
-  if (!raw) return;
-  // Strip anything that isn't a digit before parsing -- real,
-  // pre-existing bug found on real hardware: a stray non-digit
-  // character from a mobile keyboard's autocomplete (e.g. an invisible
-  // directional mark iOS sometimes inserts) makes parseInt() return
-  // NaN, which JSON.stringify() then silently turns into `null`,
-  // crashing the server with an unhandled 500 instead of a clear error.
-  const number = parseInt(raw.replace(/[^0-9]/g, ""), 10);
-  if (!Number.isInteger(number) || number < 1) {
-    alert(t("invalidBankNumber", { raw }));
-    return;
-  }
   const newBankBtn = document.getElementById("btn-new-bank");
   flashSuccess(newBankBtn);
   try {
+    // Real user request (2026-10-02): Banks are sequential slots a
+    // physical MIDI controller steps through one at a time -- asking
+    // the user to type a number by hand only ever risked a typo or an
+    // accidental gap, with no real reason to ever pick anything but
+    // the next one. Auto-assigns one past whatever already exists
+    // (1 if the Set has none yet), same as counting up by hand. Not
+    // capped at this band's own M-VAVE's 8 physical banks -- this app
+    // supports any MIDI controller, so a Bank 9/10/etc. is always
+    // allowed even though a specific controller might never reach it.
+    const existing = (await apiFetch(`/api/sets/${encodeURIComponent(state.selectedSet)}/banks`)).banks;
+    const number = existing.length ? Math.max(...existing) + 1 : 1;
     await apiFetch(`/api/sets/${encodeURIComponent(state.selectedSet)}/banks`, {
       method: "POST", body: JSON.stringify({ number }),
     });
@@ -857,7 +934,7 @@ function renderTrackRow(setName, bankNumber, letter, track) {
       await loadBanks(setName);
     } catch (e) {
       clearFlash(uploadBtn);
-      alert(e.message);
+      alert(friendlyNetworkError(e).message);
     } finally {
       uploadBtn.textContent = t("uploadNewBtn");
       uploadBtn.disabled = false;

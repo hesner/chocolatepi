@@ -59,7 +59,19 @@ from typing import Callable, List, Optional
 
 logger = logging.getLogger(__name__)
 
-_CONNECT_TIMEOUT_S = 5.0
+#  Real incident (2026-10-02): pedal_core_guard.py's own fallback (stop
+# this service, force a remount, restart it) is a legitimate, existing
+# path whenever a library write's cleanup remount loses a race with
+# mpv re-opening its file -- but restarting means a brand-new mpv has
+# to spawn and create this socket from scratch, and that can take
+# longer than 5s when something else is saturating the CPU (confirmed
+# live: a setlist-admin-usb/-wifi "Optimize" job's ffmpeg at ~200% CPU
+# made a fresh mpv too slow to open its socket in time, crash-looping
+# this service for ~2.5 minutes until ffmpeg gave up enough of a CPU
+# gap). Raised from 5.0s to tolerate that -- in the normal case (no
+# contention) mpv's socket appears in well under a second, so this
+# only matters for exactly that pathological overlap.
+_CONNECT_TIMEOUT_S = 20.0
 _CONNECT_RETRY_INTERVAL_S = 0.1
 
 # Both lanes are forced to output audio at this fixed rate/layout,

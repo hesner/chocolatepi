@@ -136,10 +136,26 @@ class StandbyInfo:
 # Sets
 # ---------------------------------------------------------------------------
 
+# Real bug found live (2026-10-02, in the sibling setlist-admin-usb
+# expansion -- ported here unchanged): list_sets() only ever filtered
+# by name prefix (dotfiles, "_Songs") -- it never excluded folders the
+# *filesystem itself* creates on a formatted drive, so "System Volume
+# Information" (NTFS) turned up as a selectable "Set" in the picker,
+# confirmed live on the real library USB. Matched case-insensitively,
+# since Windows itself is case-insensitive about these.
+_RESERVED_SET_NAMES = frozenset({
+    "system volume information",
+    "$recycle.bin",
+    "recycler",
+    "found.000",
+})
+
+
 def list_sets(usb_root: str) -> List[str]:
     """Every top-level folder under the USB root, except this app's own
-    dotfile directory and the shared song library -- i.e. every folder
-    LIBRARY.md's Set convention would recognize."""
+    dotfile directory, the shared song library, and filesystem-reserved
+    folders no one created as a Set -- i.e. every folder LIBRARY.md's
+    Set convention would recognize."""
     try:
         entries = os.listdir(usb_root)
     except OSError:
@@ -147,6 +163,7 @@ def list_sets(usb_root: str) -> List[str]:
     return sorted(
         e for e in entries
         if not e.startswith(".") and not e.startswith("_")
+        and e.lower() not in _RESERVED_SET_NAMES
         and os.path.isdir(os.path.join(usb_root, e))
     )
 
