@@ -38,12 +38,24 @@ body {
   z-index: 10;
 }
 
-.topbar h1 { font-size: 1.1rem; margin: 0; }
+.topbar h1 {
+  font-size: 1.1rem;
+  margin: 0;
+  /* "ChocolatePi - Setlist Admin" is longer than the old plain
+     "Setlist Admin" -- truncates instead of squeezing the lang
+     selector/status pill off a narrow phone screen. */
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .topbar-right {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .lang-select {

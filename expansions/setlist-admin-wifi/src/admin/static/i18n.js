@@ -9,7 +9,7 @@
 const STRINGS = {
   en: {
     pageTitle: "Chocolate Pi — Setlist Admin",
-    appTitle: "Setlist Admin",
+    appTitle: "ChocolatePi - Setlist Admin",
     setupPinHeading: "Set a PIN",
     setupPinHint: "No PIN has been configured yet. Choose one to protect this app (at least 4 characters).",
     setupPinPlaceholder: "New PIN",
@@ -93,7 +93,7 @@ const STRINGS = {
   },
   es: {
     pageTitle: "Chocolate Pi — Administrador de Setlist",
-    appTitle: "Administrador de Setlist",
+    appTitle: "ChocolatePi - Administrador de Setlist",
     setupPinHeading: "Configurar un PIN",
     setupPinHint: "Todavía no se ha configurado ningún PIN. Elige uno para proteger esta app (mínimo 4 caracteres).",
     setupPinPlaceholder: "PIN nuevo",
