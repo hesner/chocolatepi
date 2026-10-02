@@ -161,5 +161,38 @@ class TestTick(LibraryOptimizerTestCase):
         mock_process.assert_not_called()
 
 
+class TestRunForeverStartupRecovery(LibraryOptimizerTestCase):
+    """Real incident (2026-10-01): a job stuck "running" because a
+    *previous* daemon instance died mid-encode (Pi reboot, service
+    restart) needs to be swept back to "queued" once, at startup --
+    see optimize_queue.recover_orphaned_jobs()'s own docstring."""
+
+    @patch("admin.library_optimizer._tick")
+    @patch("admin.library_optimizer.time.sleep", side_effect=KeyboardInterrupt)
+    @patch("admin.library_optimizer.optimize_queue.recover_orphaned_jobs")
+    def test_recovers_orphaned_jobs_once_at_startup(self, mock_recover, mock_sleep, mock_tick):
+        with self.assertRaises(KeyboardInterrupt):
+            library_optimizer.run_forever(self.usb_root, "/media/usb", self.scratch_dir, 5)
+
+        mock_recover.assert_called_once_with(self.usb_root)
+
+    @patch("admin.library_optimizer._tick")
+    @patch("admin.library_optimizer.time.sleep", side_effect=KeyboardInterrupt)
+    @patch(
+        "admin.library_optimizer.optimize_queue.recover_orphaned_jobs",
+        side_effect=OSError("boom"),
+    )
+    def test_a_failed_recovery_does_not_stop_the_daemon_from_starting(
+        self, mock_recover, mock_sleep, mock_tick,
+    ):
+        """Best-effort: even if recovery itself blows up, the daemon
+        must still reach its main loop, same reasoning as a single bad
+        tick never being allowed to kill it."""
+        with self.assertRaises(KeyboardInterrupt):
+            library_optimizer.run_forever(self.usb_root, "/media/usb", self.scratch_dir, 5)
+
+        mock_tick.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()

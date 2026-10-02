@@ -63,6 +63,15 @@ _FFMPEG_TIMEOUT_SECONDS = 4 * 60 * 60
 def run_forever(usb_root: str, mount_point: str, scratch_dir: str, poll_interval: int) -> None:
     logger.info("library-optimizer starting (usb_root=%s)", usb_root)
     os.makedirs(scratch_dir, exist_ok=True)
+    try:
+        with pedal_core_guard.writable_usb(mount_point):
+            optimize_queue.recover_orphaned_jobs(usb_root)
+    except Exception:
+        # Best-effort: a failure here must not stop the daemon from
+        # starting at all -- worst case, an orphaned job stays stuck
+        # exactly as it already was, no worse off than before this
+        # existed.
+        logger.exception("Could not recover orphaned jobs at startup, continuing")
     while True:
         try:
             _tick(usb_root, mount_point, scratch_dir)

@@ -67,6 +67,38 @@ def clear(usb_root: str, filename: str) -> None:
         pass
 
 
+def recover_orphaned_jobs(usb_root: str) -> None:
+    """Called once by library_optimizer.py at startup, before its main
+    loop. Real incident (2026-10-01): a job can be marked "running" and
+    then the daemon itself gets killed mid-encode (a Pi reboot, a
+    service restart) -- `list_queued()` deliberately never picks
+    "running" jobs back up (see its own docstring), on the assumption
+    that "running" always means a *different*, currently-live tick is
+    still working on it. That assumption breaks the moment this
+    process itself is the one that died: a single daemon instance only
+    ever processes one job at a time, synchronously, so at the moment
+    this function runs (startup, before the loop has done anything),
+    this process cannot possibly have a job "running" of its own --
+    any marker still saying "running" here is necessarily orphaned from
+    a previous, now-dead instance. Found live: a song stuck showing
+    "Optimizing..." forever in the app, with no "retry" option (that
+    only appears for "error"), after the Pi was rebooted mid-job.
+    Resets every orphaned "running" marker back to "queued" so the next
+    tick picks it up again, same as a fresh request."""
+    queue_dir = _queue_dir(usb_root)
+    try:
+        entries = os.listdir(queue_dir)
+    except OSError:
+        return
+    for entry in sorted(entries):
+        if not entry.endswith(".json"):
+            continue
+        filename = entry[: -len(".json")]
+        job = get_status(usb_root, filename)
+        if job and job.get("status") == STATUS_RUNNING:
+            enqueue(usb_root, filename)
+
+
 def list_queued(usb_root: str):
     """Yields filenames with a status of "queued" -- what
     library_optimizer.py's main loop processes each tick. Skips

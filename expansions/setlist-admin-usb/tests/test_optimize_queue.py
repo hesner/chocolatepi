@@ -101,5 +101,44 @@ class TestListQueued(OptimizeQueueTestCase):
         )
 
 
+class TestRecoverOrphanedJobs(OptimizeQueueTestCase):
+    """Real incident (2026-10-01): a job marked "running" whose daemon
+    then dies (a Pi reboot, a service restart) before finishing stays
+    stuck forever -- list_queued() never picks "running" back up on
+    its own. recover_orphaned_jobs() is called once at daemon startup
+    to reset any such orphan back to "queued"."""
+
+    def test_running_job_is_reset_to_queued(self):
+        optimize_queue.enqueue(self.usb_root, "Song.mp4")
+        optimize_queue.mark_running(self.usb_root, "Song.mp4")
+
+        optimize_queue.recover_orphaned_jobs(self.usb_root)
+
+        self.assertEqual(
+            optimize_queue.get_status(self.usb_root, "Song.mp4")["status"],
+            optimize_queue.STATUS_QUEUED,
+        )
+        self.assertEqual(list(optimize_queue.list_queued(self.usb_root)), ["Song.mp4"])
+
+    def test_leaves_queued_and_error_jobs_untouched(self):
+        optimize_queue.enqueue(self.usb_root, "Queued.mp4")
+        optimize_queue.enqueue(self.usb_root, "Errored.mp4")
+        optimize_queue.mark_error(self.usb_root, "Errored.mp4", "boom")
+
+        optimize_queue.recover_orphaned_jobs(self.usb_root)
+
+        self.assertEqual(
+            optimize_queue.get_status(self.usb_root, "Queued.mp4")["status"],
+            optimize_queue.STATUS_QUEUED,
+        )
+        self.assertEqual(
+            optimize_queue.get_status(self.usb_root, "Errored.mp4")["status"],
+            optimize_queue.STATUS_ERROR,
+        )
+
+    def test_empty_queue_does_not_raise(self):
+        optimize_queue.recover_orphaned_jobs(self.usb_root)  # must not raise
+
+
 if __name__ == "__main__":
     unittest.main()
