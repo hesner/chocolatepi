@@ -384,6 +384,18 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(payload)))
+        # Real bug found live (2026-10-02): the exact same class of
+        # problem as _serve_static()'s own Cache-Control fix, just for
+        # API responses instead of static files -- GET /api/songs is
+        # still a plain GET, so a browser's own heuristic caching can
+        # serve a stale response for it too. Confirmed live: a song
+        # actively being optimized (ffmpeg genuinely running, the real
+        # job status genuinely "running") showed as already-optimized
+        # in the app, because the phone was reusing a cached response
+        # from before the job started. Every API response is small and
+        # this app is low-traffic (one admin session at a time), so
+        # there's no real cost to never caching any of them.
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
         for name, value in getattr(self, "_pending_headers", []):
             self.send_header(name, value)
         self.end_headers()

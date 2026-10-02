@@ -86,6 +86,15 @@ class TestAuthFlow(ServerIntegrationTestCase):
         resp, body = self._json(conn, "GET", "/api/status")
         self.assertEqual(resp.status, 200)
         self.assertTrue(body["first_run"])
+        # Real bug found live (2026-10-02, in the sibling
+        # setlist-admin-usb expansion -- ported here unchanged): the
+        # same class of problem as _serve_static()'s own Cache-Control
+        # fix, just for API responses -- GET /api/songs is still a
+        # plain GET, so a browser's own heuristic caching served a
+        # stale response for it, showing a song as already-optimized
+        # while the real, live job status was genuinely "running"
+        # (ffmpeg actually encoding it at that exact moment).
+        self.assertEqual(resp.getheader("Cache-Control"), "no-cache, no-store, must-revalidate")
 
     def test_protected_endpoint_without_session_is_401(self):
         conn = self._conn()
