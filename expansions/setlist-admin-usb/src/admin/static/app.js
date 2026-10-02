@@ -19,7 +19,7 @@ async function apiFetch(path, options = {}) {
   let body = {};
   try { body = await res.json(); } catch (_) { /* empty body is fine */ }
   if (!res.ok) {
-    const err = new Error(body.error || `Request failed (${res.status})`);
+    const err = new Error(body.error || t("requestFailedFallback", { status: res.status }));
     err.status = res.status;
     throw err;
   }
@@ -174,7 +174,7 @@ async function loadSongs() {
   state.songs = data.songs;
 
   const countEl = document.getElementById("song-library-count");
-  countEl.textContent = state.songs.length ? `(${state.songs.length})` : "(empty)";
+  countEl.textContent = state.songs.length ? `(${state.songs.length})` : t("songLibraryCountEmpty");
 
   // Real bug found on real hardware: capturing/restoring scroll around
   // this *whole* function (including the page-wide track-song-select
@@ -190,7 +190,7 @@ async function loadSongs() {
   if (state.songs.length === 0) {
     const p = document.createElement("p");
     p.className = "hint";
-    p.textContent = "No songs yet -- upload one here, or upload directly into a Bank slot below.";
+    p.textContent = t("noSongsYetHint");
     container.appendChild(p);
   }
   for (const song of state.songs) {
@@ -203,6 +203,33 @@ async function loadSongs() {
   // this page-wide sweep is never what's keeping songs-container empty.
   document.querySelectorAll(".track-song-select").forEach(populateSongSelect);
   populateStandbySelect();
+  ensureSongPolling();
+}
+
+// Real user request, 2026-10-02: cancelling (or starting) an optimize job
+// resolves on the backend in seconds, but this app only ever re-fetches
+// song state on an explicit action -- without this, the button stayed
+// stuck showing "Cancel"/"Optimize" until a manual page refresh. Polls
+// only while something is actually queued/running, and stops itself the
+// moment nothing is -- never ticks in the common case where nothing's
+// being optimized.
+const SONG_POLL_INTERVAL_MS = 5000;
+let songPollTimer = null;
+
+function ensureSongPolling() {
+  const active = state.songs.some(
+    (s) => s.optimization_status === "queued" || s.optimization_status === "running"
+  );
+  if (active && !songPollTimer) {
+    songPollTimer = setInterval(async () => {
+      try {
+        await loadSongs();
+      } catch (_) { /* transient fetch failure -- just retry next tick */ }
+    }, SONG_POLL_INTERVAL_MS);
+  } else if (!active && songPollTimer) {
+    clearInterval(songPollTimer);
+    songPollTimer = null;
+  }
 }
 
 // -- Standby video (the looped idle screen) -----------------------------------
@@ -214,9 +241,9 @@ async function loadStandby() {
   if (data.exists) {
     const sizeMb = (data.size_bytes / (1024 * 1024)).toFixed(1);
     const when = new Date(data.modified_at * 1000).toLocaleString();
-    setText(el, `Current: standby.mp4 (${sizeMb} MB, last changed ${when})`);
+    setText(el, t("standbyCurrent", { size: sizeMb, when }));
   } else {
-    setText(el, "No standby video set yet -- the pedal shows its local fallback until one is chosen here.");
+    setText(el, t("standbyNoneSet"));
   }
   populateStandbySelect();
 }
@@ -229,7 +256,7 @@ function populateStandbySelect() {
   const videos = state.songs.filter((s) => !s.is_audio_only);
   const placeholder = document.createElement("option");
   placeholder.value = "";
-  placeholder.textContent = videos.length ? "-- choose a video --" : "-- no videos in the library yet --";
+  placeholder.textContent = videos.length ? t("standbyChoosePlaceholder") : t("standbyNoVideosPlaceholder");
   select.appendChild(placeholder);
   for (const song of videos) {
     const opt = document.createElement("option");
@@ -246,7 +273,7 @@ document.getElementById("btn-set-standby").addEventListener("click", async () =>
   const errEl = document.getElementById("standby-error");
   errEl.hidden = true;
   if (!select.value) {
-    setText(errEl, "Choose a video from the library first.");
+    setText(errEl, t("chooseVideoFirst"));
     errEl.hidden = false;
     return;
   }
@@ -254,7 +281,7 @@ document.getElementById("btn-set-standby").addEventListener("click", async () =>
   try {
     await apiFetch("/api/standby", { method: "POST", body: JSON.stringify({ song_filename: select.value }) });
     await loadStandby();
-    showToast("Standby video updated -- reboot to apply.");
+    showToast(t("standbyUpdatedToast"));
   } catch (e) {
     clearFlash(btn);
     setText(errEl, e.message);
@@ -267,7 +294,7 @@ function populateSongSelect(select) {
   select.innerHTML = "";
   const placeholder = document.createElement("option");
   placeholder.value = "";
-  placeholder.textContent = state.songs.length ? "-- choose a song --" : "-- library is empty --";
+  placeholder.textContent = state.songs.length ? t("chooseSongPlaceholder") : t("libraryEmptyPlaceholder");
   select.appendChild(placeholder);
   for (const song of state.songs) {
     const opt = document.createElement("option");
@@ -302,7 +329,7 @@ function renderSongRow(song) {
       optimizeBtn.hidden = false;
       optimizeBtn.classList.remove("secondary");
       optimizeBtn.classList.add("success");
-      optimizeBtn.textContent = "Optimizando";
+      optimizeBtn.textContent = t("optimizingBtn");
       optimizeBtn.disabled = true;
       // Real user request (2026-10-02), after a real incident: a long
       // optimize job (hours, on this hardware) running in the
@@ -310,13 +337,14 @@ function renderSongRow(song) {
       // reasonably think nothing's happening and unplug the Pi. Give
       // an explicit way to stop it cleanly instead.
       cancelOptimizeBtn.hidden = false;
+      cancelOptimizeBtn.textContent = t("cancelBtn");
       cancelOptimizeBtn.addEventListener("click", async () => {
-        if (!confirm(`Cancel optimizing "${song.filename}"? It will stay as-is, not yet optimized.`)) return;
+        if (!confirm(t("cancelOptimizeConfirm", { filename: song.filename }))) return;
         flashSuccess(cancelOptimizeBtn);
         try {
           await apiFetch(`/api/songs/${encodeURIComponent(song.filename)}/optimize/cancel`, { method: "POST" });
           await loadSongs();
-          showToast("Cancelling -- this can take a few seconds to actually stop.");
+          showToast(t("cancellingToast"));
         } catch (e) {
           clearFlash(cancelOptimizeBtn);
           alert(e.message);
@@ -324,7 +352,7 @@ function renderSongRow(song) {
       });
     } else {
       optimizeBtn.hidden = false;
-      optimizeBtn.textContent = song.optimization_status === "error" ? "Optimize (retry)" : "Optimize";
+      optimizeBtn.textContent = song.optimization_status === "error" ? t("optimizeRetryBtn") : t("optimizeBtn");
       if (song.optimization_error) optimizeBtn.title = song.optimization_error;
       optimizeBtn.addEventListener("click", async () => {
         // Real user request (2026-10-02), after a real incident: an
@@ -334,18 +362,12 @@ function renderSongRow(song) {
         // if this Pi's protective overlay ever isn't active for some
         // other reason, is a genuine power-loss risk for the Pi itself,
         // not just the library USB.
-        if (!confirm(
-          `Optimize "${song.filename}"?\n\n` +
-          `This can take a long time on this hardware (confirmed up to ` +
-          `a few hours for a large 4K video). Do NOT unplug the Raspberry ` +
-          `Pi while it's running -- if you need to stop it, use the ` +
-          `"Cancel" button that appears once it starts, instead.`
-        )) return;
+        if (!confirm(t("optimizeConfirm", { filename: song.filename }))) return;
         flashSuccess(optimizeBtn);
         try {
           await apiFetch(`/api/songs/${encodeURIComponent(song.filename)}/optimize`, { method: "POST" });
           await loadSongs();
-          showToast("Optimization started -- this can take a while on this hardware; check back later.");
+          showToast(t("optimizationStartedToast"));
         } catch (e) {
           clearFlash(optimizeBtn);
           alert(e.message);
@@ -355,8 +377,9 @@ function renderSongRow(song) {
   }
 
   const renameSongBtn = node.querySelector(".btn-rename-song");
+  renameSongBtn.textContent = t("renameBtn");
   renameSongBtn.addEventListener("click", async () => {
-    const newName = prompt("New name:", song.display_name);
+    const newName = prompt(t("renamePrompt"), song.display_name);
     if (!newName) return;
     flashSuccess(renameSongBtn);
     try {
@@ -371,16 +394,9 @@ function renderSongRow(song) {
   });
 
   const deleteSongBtn = node.querySelector(".btn-delete-song");
+  deleteSongBtn.textContent = t("deleteBtn");
   deleteSongBtn.addEventListener("click", async () => {
-    if (!confirm(
-      `⚠ Delete "${song.filename}" from the song library?\n\n` +
-      `If you're not sure, don't delete it. Once deleted, this song can ` +
-      `no longer be chosen when building a Bank -- it won't show up in ` +
-      `the picker for any future Set.\n\n` +
-      `This will NOT remove it from any Bank it's already assigned to -- ` +
-      `those keep playing normally, since that's an independent copy, ` +
-      `made when it was assigned.`
-    )) return;
+    if (!confirm(t("deleteSongConfirm", { filename: song.filename }))) return;
     flashSuccess(deleteSongBtn);
     try {
       await apiFetch(`/api/songs/${encodeURIComponent(song.filename)}`, { method: "DELETE" });
@@ -409,7 +425,7 @@ async function uploadSongToLibrary(displayName, extension, file, overwrite) {
   const res = await fetch("/api/songs", { method: "POST", headers, body: file });
   const result = await res.json();
   if (!res.ok) {
-    const err = new Error(result.error || "Upload failed");
+    const err = new Error(result.error || t("uploadFailedFallback"));
     err.conflict = res.status === 409;
     throw err;
   }
@@ -430,28 +446,28 @@ document.getElementById("library-upload-input").addEventListener("change", async
   // request had already finished, so tapping it looked like nothing had
   // happened until the result showed up unexplained moments later.
   const originalText = btn.textContent;
-  btn.textContent = "Uploading…";
+  btn.textContent = t("uploadingEllipsis");
   btn.disabled = true;
   flashSuccess(btn);
   try {
     try {
       await uploadSongToLibrary(displayName, extension, file, false);
       await loadSongs();
-      showToast("Song added to the library.");
+      showToast(t("songAddedToast"));
     } catch (e) {
       if (!e.conflict) throw e;
       // Real user request, 2026-10-01: offer to replace instead of just
       // failing -- a name collision is a normal thing to want to resolve
       // in the moment, not necessarily a mistake to go fix separately
       // via rename_song()/delete_song() first.
-      if (!confirm(`"${displayName}.${extension}" already exists in the library. Replace it?`)) {
+      if (!confirm(t("replaceConfirm", { name: `${displayName}.${extension}` }))) {
         clearFlash(btn);
         return;
       }
       flashSuccess(btn);
       await uploadSongToLibrary(displayName, extension, file, true);
       await loadSongs();
-      showToast("Song replaced in the library.");
+      showToast(t("songReplacedToast"));
     }
   } catch (e) {
     clearFlash(btn);
@@ -476,7 +492,7 @@ async function loadSets() {
   for (const name of data.sets) {
     const opt = document.createElement("option");
     opt.value = name;
-    opt.textContent = name === data.active ? `${name} (active)` : name;
+    opt.textContent = name === data.active ? t("activeSetSuffix", { name }) : name;
     select.appendChild(opt);
   }
   if (state.selectedSet) select.value = state.selectedSet;
@@ -494,7 +510,7 @@ document.getElementById("set-select").addEventListener("change", async (ev) => {
 });
 
 document.getElementById("btn-new-set").addEventListener("click", async () => {
-  const name = prompt("New Set name:");
+  const name = prompt(t("newSetPrompt"));
   if (!name) return;
   const btn = document.getElementById("btn-new-set");
   flashSuccess(btn);
@@ -516,7 +532,7 @@ let exportEntries = [];
 
 document.getElementById("btn-export-set").addEventListener("click", async () => {
   if (!state.selectedSet) {
-    alert("Create or select a Set first.");
+    alert(t("createOrSelectSetFirst"));
     return;
   }
   try {
@@ -558,12 +574,12 @@ function renderExportView(setName, entries) {
   listEl.innerHTML = "";
   for (const entry of entries) {
     const li = document.createElement("li");
-    li.textContent = `${entry.name} — Bank ${entry.bankNumber} ${entry.letter}`;
+    li.textContent = t("exportEntryLabel", { name: entry.name, number: entry.bankNumber, letter: entry.letter });
     listEl.appendChild(li);
   }
   if (entries.length === 0) {
     const li = document.createElement("li");
-    li.textContent = "No tracks assigned yet in this Set.";
+    li.textContent = t("noTracksAssigned");
     listEl.appendChild(li);
   }
 }
@@ -602,7 +618,7 @@ document.getElementById("btn-export-share").addEventListener("click", async () =
     const fileName = `${exportSetName.replace(/[^a-z0-9]+/gi, "_")}-setlist.png`;
     const file = new File([blob], fileName, { type: "image/png" });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title: `Setlist: ${exportSetName}` });
+      await navigator.share({ files: [file], title: `${t("setlistSharePrefix")} ${exportSetName}` });
     } else {
       // Desktop/unsupported-browser fallback -- to be certified from a
       // PC separately later; a plain download always works meanwhile.
@@ -646,7 +662,7 @@ async function renderSetlistToPngBlob(setName, entries) {
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = "#e8e9ec";
   ctx.font = "bold 52px -apple-system, sans-serif";
-  ctx.fillText(`Set: ${setName}`, paddingX, 76);
+  ctx.fillText(`${t("exportSetPrefix")} ${setName}`, paddingX, 76);
 
   ctx.strokeStyle = "#2e333d";
   ctx.lineWidth = 2;
@@ -659,7 +675,7 @@ async function renderSetlistToPngBlob(setName, entries) {
   if (entries.length === 0) {
     ctx.fillStyle = "#9aa0ab";
     ctx.font = "36px -apple-system, sans-serif";
-    ctx.fillText("No tracks assigned yet in this Set.", paddingX, headerHeight + 48);
+    ctx.fillText(t("noTracksAssigned"), paddingX, headerHeight + 48);
   } else {
     entries.forEach((entry, index) => {
       const baseline = headerHeight + (index + 1) * lineHeight - 24;
@@ -668,7 +684,7 @@ async function renderSetlistToPngBlob(setName, entries) {
       ctx.fillText(`${index + 1}.`, paddingX, baseline);
       ctx.fillStyle = "#e8e9ec";
       ctx.font = "38px -apple-system, sans-serif";
-      ctx.fillText(`${entry.name} — Bank ${entry.bankNumber} ${entry.letter}`, paddingX + 64, baseline);
+      ctx.fillText(t("exportEntryLabel", { name: entry.name, number: entry.bankNumber, letter: entry.letter }), paddingX + 64, baseline);
     });
   }
 
@@ -680,10 +696,10 @@ document.getElementById("btn-new-bank").addEventListener("click", async () => {
     // Real, pre-existing bug: this used to return here silently, with
     // no feedback at all -- looked exactly like a broken button. Only
     // reachable if no Set exists/is selected yet.
-    alert("Create or select a Set first.");
+    alert(t("createOrSelectSetFirst"));
     return;
   }
-  const raw = prompt("New Bank number:");
+  const raw = prompt(t("newBankPrompt"));
   if (!raw) return;
   // Strip anything that isn't a digit before parsing -- real,
   // pre-existing bug found on real hardware: a stray non-digit
@@ -693,7 +709,7 @@ document.getElementById("btn-new-bank").addEventListener("click", async () => {
   // crashing the server with an unhandled 500 instead of a clear error.
   const number = parseInt(raw.replace(/[^0-9]/g, ""), 10);
   if (!Number.isInteger(number) || number < 1) {
-    alert(`"${raw}" isn't a valid Bank number.`);
+    alert(t("invalidBankNumber", { raw }));
     return;
   }
   const newBankBtn = document.getElementById("btn-new-bank");
@@ -745,11 +761,12 @@ async function renderBankCard(setName, bankNumber) {
   const tpl = document.getElementById("tpl-bank");
   const node = tpl.content.cloneNode(true);
   const card = node.querySelector(".bank-card");
-  node.querySelector(".bank-number-label").textContent = `Bank ${bankNumber}`;
+  node.querySelector(".bank-number-label").textContent = t("bankLabel", { number: bankNumber });
 
   const deleteBankBtn = node.querySelector(".btn-delete-bank");
+  deleteBankBtn.textContent = t("deleteBankBtn");
   deleteBankBtn.addEventListener("click", async () => {
-    if (!confirm(`Delete Bank ${bankNumber}? This cannot be undone.`)) return;
+    if (!confirm(t("deleteBankConfirm", { number: bankNumber }))) return;
     flashSuccess(deleteBankBtn);
     try {
       await apiFetch(`/api/sets/${encodeURIComponent(setName)}/banks/${bankNumber}`, { method: "DELETE" });
@@ -775,7 +792,7 @@ function renderTrackRow(setName, bankNumber, letter, track) {
   node.querySelector(".track-letter").textContent = letter;
   node.querySelector(".track-name").textContent = track
     ? `${track.display_name}.${track.extension}`
-    : "(empty)";
+    : t("emptyTrackName");
 
   const fileInput = node.querySelector(".track-file-input");
   const uploadBtn = node.querySelector(".btn-upload");
@@ -785,6 +802,8 @@ function renderTrackRow(setName, bankNumber, letter, track) {
   const assignBtn = node.querySelector(".btn-assign-from-library");
   const saveToLibraryBtn = node.querySelector(".btn-save-to-library");
 
+  assignBtn.textContent = t("assignBtn");
+  uploadBtn.textContent = t("uploadNewBtn");
   populateSongSelect(songSelect);
 
   assignBtn.addEventListener("click", async () => {
@@ -810,7 +829,7 @@ function renderTrackRow(setName, bankNumber, letter, track) {
     const dotIndex = file.name.lastIndexOf(".");
     const displayName = dotIndex > 0 ? file.name.slice(0, dotIndex) : file.name;
     const extension = dotIndex > 0 ? file.name.slice(dotIndex + 1) : "";
-    uploadBtn.textContent = "Uploading…";
+    uploadBtn.textContent = t("uploadingEllipsis");
     uploadBtn.disabled = true;
     flashSuccess(uploadBtn);
     try {
@@ -827,7 +846,7 @@ function renderTrackRow(setName, bankNumber, letter, track) {
       // error here (a 400/500) was silently treated as success -- no
       // alert, no thrown error, just quietly reloading stale state as if
       // nothing had gone wrong.
-      if (!res.ok) throw new Error(result.error || "Upload failed");
+      if (!res.ok) throw new Error(result.error || t("uploadFailedFallback"));
       if (result.warning) {
         // Codec warning (section 9): the upload still succeeded, this
         // is advisory, not blocking -- alert() is blunt but this is a
@@ -840,7 +859,7 @@ function renderTrackRow(setName, bankNumber, letter, track) {
       clearFlash(uploadBtn);
       alert(e.message);
     } finally {
-      uploadBtn.textContent = "Upload new";
+      uploadBtn.textContent = t("uploadNewBtn");
       uploadBtn.disabled = false;
     }
   });
@@ -849,9 +868,12 @@ function renderTrackRow(setName, bankNumber, letter, track) {
     renameBtn.hidden = false;
     deleteBtn.hidden = false;
     saveToLibraryBtn.hidden = false;
+    renameBtn.textContent = t("renameBtn");
+    deleteBtn.textContent = t("deleteBtn");
+    saveToLibraryBtn.textContent = t("saveToLibraryBtn");
 
     renameBtn.addEventListener("click", async () => {
-      const newName = prompt("New name:", track.display_name);
+      const newName = prompt(t("renamePrompt"), track.display_name);
       if (!newName) return;
       flashSuccess(renameBtn);
       try {
@@ -867,7 +889,7 @@ function renderTrackRow(setName, bankNumber, letter, track) {
     });
 
     deleteBtn.addEventListener("click", async () => {
-      if (!confirm(`Delete track ${letter}?`)) return;
+      if (!confirm(t("deleteTrackConfirm", { letter }))) return;
       flashSuccess(deleteBtn);
       try {
         await apiFetch(
@@ -889,7 +911,7 @@ function renderTrackRow(setName, bankNumber, letter, track) {
           { method: "POST" },
         );
         await loadSongs();
-        showToast("Song saved to the library.");
+        showToast(t("songSavedToast"));
       } catch (e) {
         clearFlash(saveToLibraryBtn);
         alert(e.message);
@@ -903,7 +925,7 @@ function renderTrackRow(setName, bankNumber, letter, track) {
 // -- Reboot to apply (section 8: the pedal only reads the library at boot) --
 
 document.getElementById("btn-reboot").addEventListener("click", async () => {
-  if (!confirm("Reboot the Pi now to apply your changes? Playback will stop briefly.")) return;
+  if (!confirm(t("rebootConfirm"))) return;
   const errEl = document.getElementById("reboot-error");
   const okEl = document.getElementById("reboot-success");
   errEl.hidden = true;
@@ -921,7 +943,7 @@ document.getElementById("btn-reboot").addEventListener("click", async () => {
       await apiFetch("/api/sets/active", { method: "POST", body: JSON.stringify({ name: state.selectedSet }) });
     }
     await apiFetch("/api/reboot", { method: "POST" });
-    setText(okEl, "Rebooting now — this page will stop responding shortly.");
+    setText(okEl, t("rebootingMessage"));
     okEl.hidden = false;
   } catch (e) {
     setText(errEl, e.message);

@@ -41,6 +41,18 @@ body {
 
 .topbar h1 { font-size: 1.1rem; margin: 0; }
 
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lang-select {
+  width: auto;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.8rem;
+}
+
 .pill {
   font-size: 0.75rem;
   padding: 0.25rem 0.6rem;

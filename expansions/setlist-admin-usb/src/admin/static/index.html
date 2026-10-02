@@ -8,28 +8,34 @@
 </head>
 <body>
   <header class="topbar">
-    <h1>Setlist Admin</h1>
-    <div id="status-pill" class="pill" hidden></div>
+    <h1 data-i18n="appTitle">Setlist Admin</h1>
+    <div class="topbar-right">
+      <select id="lang-select" class="lang-select" aria-label="Language">
+        <option value="en">EN</option>
+        <option value="es">ES</option>
+      </select>
+      <div id="status-pill" class="pill" hidden></div>
+    </div>
   </header>
 
   <main id="app">
     <!-- First-run / PIN setup -->
     <section id="view-setup-pin" class="view" hidden>
-      <h2>Set a PIN</h2>
-      <p class="hint">No PIN has been configured yet. Choose one to protect this app (at least 4 characters).</p>
+      <h2 data-i18n="setupPinHeading">Set a PIN</h2>
+      <p class="hint" data-i18n="setupPinHint">No PIN has been configured yet. Choose one to protect this app (at least 4 characters).</p>
       <form id="form-setup-pin">
-        <input type="password" id="setup-pin-input" inputmode="numeric" autocomplete="new-password" placeholder="New PIN" required minlength="4">
-        <button type="submit">Set PIN</button>
+        <input type="password" id="setup-pin-input" inputmode="numeric" autocomplete="new-password" placeholder="New PIN" data-i18n-placeholder="setupPinPlaceholder" required minlength="4">
+        <button type="submit" data-i18n="setupPinSubmit">Set PIN</button>
       </form>
       <p id="setup-pin-error" class="error" hidden></p>
     </section>
 
     <!-- Login -->
     <section id="view-login" class="view" hidden>
-      <h2>Enter PIN</h2>
+      <h2 data-i18n="loginHeading">Enter PIN</h2>
       <form id="form-login">
-        <input type="password" id="login-pin-input" inputmode="numeric" autocomplete="current-password" placeholder="PIN" required>
-        <button type="submit">Unlock</button>
+        <input type="password" id="login-pin-input" inputmode="numeric" autocomplete="current-password" placeholder="PIN" data-i18n-placeholder="loginPinPlaceholder" required>
+        <button type="submit" data-i18n="loginSubmit">Unlock</button>
       </form>
       <p id="login-error" class="error" hidden></p>
     </section>
@@ -37,15 +43,15 @@
     <!-- Main admin UI -->
     <section id="view-main" class="view" hidden>
       <div id="tab-library">
-        <div id="playback-warning" class="warning" hidden>
+        <div id="playback-warning" class="warning" hidden data-i18n="playbackWarning">
           ⚠ The pedal looks like it's actively playing right now. Editing
           the library while a Set is in progress isn't supported —
           changes may not be reflected safely until playback stops.
         </div>
 
         <details id="song-library">
-          <summary>Song library <span id="song-library-count" class="hint"></span></summary>
-          <p class="hint">
+          <summary><span data-i18n="songLibrarySummary">Song library</span> <span id="song-library-count" class="hint"></span></summary>
+          <p class="hint" data-i18n="songLibraryHint">
             Songs here can be reused in any Bank of any Set, without
             uploading them again. Uploading directly into a Bank slot
             below also adds it here automatically.
@@ -53,9 +59,9 @@
           <div id="songs-container"></div>
           <div class="row">
             <input type="file" id="library-upload-input" hidden>
-            <button id="btn-upload-to-library" class="secondary">+ Upload song to library</button>
+            <button id="btn-upload-to-library" class="secondary" data-i18n="uploadToLibraryBtn">+ Upload song to library</button>
           </div>
-          <p class="hint">
+          <p class="hint" data-i18n-html="supportedFormatsHint">
             Supported formats: audio MP3, WAV — video MP4, MOV, MPEG, MPG
             (with embedded audio). Video: H.264, 1080p or less, ~8-12
             Mbps recommended -- see <code>LIBRARY.md</code> for full
@@ -64,8 +70,8 @@
         </details>
 
         <details id="standby-section">
-          <summary>Standby video</summary>
-          <p class="hint">
+          <summary data-i18n="standbySummary">Standby video</summary>
+          <p class="hint" data-i18n="standbyHint">
             Loops silently on screen whenever nothing is playing. Pick any
             video already in the song library above -- to use a new file,
             upload it there first, then choose it here.
@@ -73,29 +79,29 @@
           <p id="standby-current" class="hint"></p>
           <div class="row">
             <select id="standby-song-select"></select>
-            <button id="btn-set-standby" class="secondary">Set as standby</button>
+            <button id="btn-set-standby" class="secondary" data-i18n="setAsStandbyBtn">Set as standby</button>
           </div>
           <p id="standby-error" class="error" hidden></p>
         </details>
 
         <div class="row">
-          <label for="set-select">Set</label>
+          <label for="set-select" data-i18n="setLabel">Set</label>
           <select id="set-select"></select>
-          <button id="btn-new-set" class="secondary">+ New Set</button>
-          <button id="btn-export-set" class="secondary">Export Set</button>
+          <button id="btn-new-set" class="secondary" data-i18n="newSetBtn">+ New Set</button>
+          <button id="btn-export-set" class="secondary" data-i18n="exportSetBtn">Export Set</button>
         </div>
 
         <div id="banks-container"></div>
-        <button id="btn-new-bank" class="secondary">+ New Bank</button>
+        <button id="btn-new-bank" class="secondary" data-i18n="newBankBtn">+ New Bank</button>
       </div>
 
       <div id="apply-changes" class="apply-bar">
-        <p class="hint">
+        <p class="hint" data-i18n="applyChangesHint">
           Changes are saved to the USB immediately, but the pedal only
           reads the library when it starts up. Reboot once you're done
           editing to apply everything at once.
         </p>
-        <button id="btn-reboot" class="secondary">Reboot now to apply</button>
+        <button id="btn-reboot" class="secondary" data-i18n="rebootBtn">Reboot now to apply</button>
         <p id="reboot-error" class="error" hidden></p>
         <p id="reboot-success" class="success" hidden></p>
       </div>
@@ -105,12 +111,12 @@
   <!-- Export Set: full-screen, large-print setlist view + share-as-image -->
   <div id="export-view" class="export-view" hidden>
     <div class="export-header">
-      <h2>Set: <span id="export-set-name"></span></h2>
-      <button id="btn-export-close" class="secondary export-close" aria-label="Close">✕</button>
+      <h2><span data-i18n="exportSetPrefix">Set:</span> <span id="export-set-name"></span></h2>
+      <button id="btn-export-close" class="secondary export-close" aria-label="Close" data-i18n-aria-label="exportCloseAriaLabel">✕</button>
     </div>
     <ol id="export-list" class="export-list"></ol>
     <div class="export-actions">
-      <button id="btn-export-share" class="secondary">Share</button>
+      <button id="btn-export-share" class="secondary" data-i18n="shareBtn">Share</button>
     </div>
   </div>
 
@@ -148,6 +154,7 @@
     </div>
   </template>
 
+  <script src="/static/i18n.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>
