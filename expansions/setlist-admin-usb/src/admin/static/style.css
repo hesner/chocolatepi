@@ -102,6 +102,15 @@ button.danger {
   border: 1px solid var(--danger);
 }
 
+/* A standing (not just a brief flash) green state -- the "Optimizing…"
+   indicator next to a song actively being re-encoded, real user
+   request (2026-10-02): needs to read as "something is happening"
+   at a glance, not just another plain secondary button. */
+button.success {
+  background: var(--success);
+  color: #06210f;
+}
+
 button:active { opacity: 0.8; }
 
 /* Brief "this worked" flash -- added after a button whose whole card/row

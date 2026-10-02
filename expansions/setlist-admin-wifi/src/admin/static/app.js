@@ -315,8 +315,14 @@ function renderSongRow(song) {
   if (song.needs_optimization) {
     const inProgress = song.optimization_status === "queued" || song.optimization_status === "running";
     if (inProgress) {
-      optimizeBtn.hidden = true;
-      optimizeBtn.textContent = "Optimizing…";
+      // Real user request (2026-10-02): shown as a standing green
+      // indicator, not hidden -- needs to read as "something is
+      // happening" right next to "Cancel", not disappear in favor of
+      // it.
+      optimizeBtn.hidden = false;
+      optimizeBtn.classList.remove("secondary");
+      optimizeBtn.classList.add("success");
+      optimizeBtn.textContent = "Optimizando";
       optimizeBtn.disabled = true;
       // Real user request (2026-10-02), after a real incident: a long
       // optimize job (hours, on this hardware) running in the
