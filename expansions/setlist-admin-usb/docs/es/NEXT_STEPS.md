@@ -247,25 +247,81 @@ solo los de tu propio trabajo de despliegue — no asumas que un commit
 desplegado rápido sobrevivió solo porque nada de lo que *tú* hiciste
 debía reiniciar la Pi).
 
+## 2026-10-02: Optimize/Cancel confirmado en vivo, un día completo de
+bugs de hardware real, y un selector de idioma
+
+**El flujo real en la app del celular para el botón "Optimize" (punto
+1 de abajo, tal como estaba al final del 2026-10-01) ya quedó
+confirmado a fondo** — no solo una vez, sino a lo largo de una sesión
+extendida de uso real: se tocó "Optimize" desde el celular varias
+veces, se vio la ventana de advertencia, se vio el botón verde
+permanente "Optimizando" junto a "Cancel", se tocó "Cancel" mismo
+(incluyendo mientras `ffmpeg` estaba codificando activamente,
+confirmado con cronometraje directo vía `AdminAPI`: la llamada
+devolvió en ~0.02s y el proceso real de `ffmpeg` desapareció en
+~10s), y se confirmó que la canción vuelve a un estado limpio, sin
+optimizar, listo para un nuevo toque de "Optimize". La persistencia al
+desconectar/reconectar que pedía este punto es inherente al diseño (la
+cola es basada en archivos, el demonio es una unidad systemd separada)
+y se puso a prueba de forma incidental durante todas las pruebas del
+día sin problema.
+
+Se encontró y corrigió una cadena larga de bugs reales el mismo día,
+cada uno a partir de un reporte real del usuario mientras usaba la app
+activamente, no de una revisión de código — el detalle completo, una
+entrada por corrección, está en la sección `[Sin publicar]` de
+`CHANGELOG.md` (más reciente primero): un bug de centrado de
+formularios solo visible en tablet; una demora de ~37s entre iniciar
+sesión y que aparecieran las canciones (llamadas a `ffprobe` seriales,
+sin caché); un timeout transitorio de `ffprobe` bajo carga que se
+guardaba *permanentemente* como "no optimizado"; `ffmpeg` manteniendo
+abierta la fuente montada en el USB durante *toda* la codificación,
+bloqueando cualquier otra escritura de la biblioteca (por ejemplo,
+"crear Bank" sin relación) todo ese tiempo; un aviso obsoleto quedado
+dentro de la imagen para compartir de Export Set específicamente (el
+de pantalla ya se había quitado); falta de `Cache-Control` en archivos
+estáticos, dejando que una combinación vieja de `app.js`/`index.html`
+mostrara una página que parecía atascada mostrando solo la barra
+superior; el mismo hueco para `GET /api/songs` en particular, mostrando
+una canción como ya optimizada mientras un trabajo seguía corriendo de
+verdad; y, encontrado al final, cancelar un trabajo podía arrojar error
+500 si se tocaba dentro de aproximadamente el primer minuto (mientras
+el nuevo paso de copia a scratch todavía leía la fuente del USB) —
+arreglado moviendo el marcador de cancelación fuera del USB por
+completo, a almacenamiento local de la Pi
+(`optimize_queue.DEFAULT_STATE_DIR`), ya que nunca necesitó vivir ahí
+en primer lugar. **Confirmado en vivo** con una llamada directa y
+cronometrada a `AdminAPI.cancel_song_optimization()` contra un trabajo
+real, activamente codificando.
+
+**También se agregó, el mismo día, por pedido explícito del usuario**:
+un selector de idioma ES/EN completo (`static/i18n.js`, ambas
+expansiones) — un menú desplegable en la barra superior (que ahora
+dice "ChocolatePi - Setlist Admin") cambia cada etiqueta, botón,
+confirmación, alerta y notificación entre inglés y español, guardado
+por navegador vía `localStorage`. Los nombres de canciones, pistas,
+Sets y Banks explícitamente nunca se traducen (son datos del usuario,
+no texto de interfaz) — cada función de renderizado en `app.js` deja
+esos valores fuera de las llamadas de traducción a propósito. Los
+mensajes de error que vienen del servidor siguen en inglés por ahora,
+un trabajo aparte, explícitamente diferido si alguna vez se quiere. Se
+agregó también una actualización automática (`GET /api/songs` cada 5s
+mientras algo esté en cola o corriendo, deteniéndose sola si no) para
+que el estado del botón Cancelar/Optimizar nunca necesite un refresco
+manual para ponerse al día.
+
+**Todavía sin hacer, vale la pena pronto**: `USAGE.md`/`docs/es/USAGE.md`
+(ambas expansiones) y `CHANGELOG.md`/`docs/es/CHANGELOG.md` se
+actualizaron con todo lo anterior al momento de escribir esto — pero
+`VERSION` **no** se actualizó (no se "cortó" ninguna versión esta
+sesión; todo lo anterior sigue en `[Sin publicar]`). Si se quiere un
+punto de control limpio, ese es el siguiente paso pequeño: confirmar
+que nada se regresionó, subir el `VERSION` de ambas expansiones,
+renombrar `[Sin publicar]` a la fecha de hoy.
+
 ## Lo que sigue genuinamente sin confirmar — haz esto antes de confiar en ello
 
-1. **El flujo real en la app del celular para el botón "Optimize" —
-   todavía sin confirmar, incluso después de una subida real exitosa.**
-   La subida en sí ya funciona de punta a punta (`IMG_4221.mov`, un
-   video real de 2.55GB/4K HEVC de iPhone, subido con éxito en el
-   cuarto intento el 2026-10-01 — los primeros tres chocaron con los
-   dos bugs reales documentados en la sección "Sin publicar" de
-   `CHANGELOG.md`, ya corregidos) y la API confirma que necesita
-   optimizarse. Pero la sesión se desvió hacia el incidente del video
-   de standby de arriba justo cuando el usuario estaba a punto de tocar
-   "Optimize" y probar la persistencia al desconectar/reconectar desde
-   el celular — ese flujo específico de la interfaz **sigue** siendo lo
-   único que nadie ha visto pasar de verdad en una pantalla. Pídele al
-   usuario que toque "Optimize" en este archivo exacto (o cualquier
-   otro no-H.264), desconecte/reconecte el celular a mitad del trabajo,
-   y confirme que el botón sigue diciendo "Optimizing..." cuando vuelve,
-   y luego confirme que se limpia al terminar.
-2. **La corrección visual de Export Set está desplegada pero no
+1. **La corrección visual de Export Set está desplegada pero no
    reconfirmada.** Salió por primera vez con un bug real de CSS
    (`.export-view` tenía un `display: flex` incondicional que
    sobreescribía la regla propia del navegador `[hidden] { display:
@@ -275,13 +331,13 @@ debía reiniciar la Pi).
    volviera a abrir "Export Set" y confirmara que ahora se ve bien de
    punta a punta (título con contenido, lista numerada con contenido,
    cierre por ✕/Escape/atrás funcionando). **Haz esto primero.**
-3. **La segunda corrección del salto de scroll (el "destello de ~1
+2. **La segunda corrección del salto de scroll (el "destello de ~1
    segundo al top") se desplegó pero tampoco se reconfirmó
    explícitamente** — el usuario pasó a pedir Export Set justo después
    de desplegarla, sin confirmar. Pídele que renombre o borre una
    canción estando desplazado hacia abajo en un Bank posterior y
    confirma que ya no hay ningún salto visible.
-4. **El soporte de navegador de escritorio/PC para el botón "Share" de
+3. **El soporte de navegador de escritorio/PC para el botón "Share" de
    Export Set está explícitamente sin certificar** — `navigator.share()`
    con archivos adjuntos tiene poco soporte en navegadores de
    escritorio; el código cae a una descarga simple, pero esto nunca se

@@ -40,6 +40,102 @@ above it for whatever comes next.
 
 ## [Unreleased]
 
+- **Fixed, real incident (2026-10-02)**: cancelling an "Optimize" job
+  could 500 (`RemountError`) if tapped within the first stretch of a
+  job's life -- the cancel marker lived on the USB alongside every
+  other job marker, so writing it needed the same writable-USB remount
+  as any other write, but the scratch-copy step that runs before every
+  encode (see the write-blocking fix below) holds a read handle open on
+  the mount for as long as that copy takes, well past the mount's own
+  bounded EBUSY retry (tuned for a brief `pedal-core.service`/mpv
+  collision, not a multi-second-to-minutes file copy). Moved the cancel
+  marker to local Pi storage instead (`optimize_queue.DEFAULT_STATE_DIR`,
+  `~/.pedal-optimizer-state/`) -- it only ever needs to reach this Pi's
+  own `library_optimizer.py` process, never the USB stick itself, and
+  never needs to survive a reboot (a job that survives a reboot gets
+  requeued fresh via `recover_orphaned_jobs()` anyway, so a stale cancel
+  marker surviving would have incorrectly re-cancelled the *next* run).
+  `cancel_song_optimization()` no longer needs a writable-USB window at
+  all now. Both expansions.
+- **Added a ES/EN language toggle, both expansions**: a dropdown in the
+  topbar (now reading "ChocolatePi - Setlist Admin") switches all UI
+  chrome -- labels, buttons, confirms, alerts, toasts -- between English
+  and Spanish, persisted per-browser via `localStorage`
+  (`static/i18n.js`). Song/track/Set/Bank names are user data and are
+  never routed through translation, by design -- every render function
+  keeps those out of the translation calls on purpose. Server-sent error
+  messages stay in English for now, a separate, explicitly deferred
+  piece of work.
+- **Added auto-refresh for optimize/cancel status, both expansions**:
+  cancelling or starting a job resolves on the backend in seconds, but
+  the app only ever re-fetched song state on an explicit action, so the
+  Cancel/Optimize button stayed stuck showing the old state until a
+  manual page refresh. Polls `GET /api/songs` every 5s only while
+  something is actually queued/running, and stops itself the moment
+  nothing is.
+- **Fixed, real incident (2026-10-02)**: a song's "Optimize"/"Cancel"
+  state could show stale (e.g. "already optimized" while a job was
+  genuinely still running) after a refresh -- `GET /api/songs` is a
+  plain GET with no `Cache-Control` header, so a browser's own
+  heuristic caching served a stale response. Same fix as the static-file
+  one below, applied to every JSON response too (`_send_json()`). Both
+  expansions.
+- **Added a power-loss warning and a real Cancel button for "Optimize"**,
+  both expansions, after a real question about what happens to the Pi
+  and the file if it loses power mid-job: tapping "Optimize" now shows
+  an explicit warning not to unplug the Pi while it's running, and once
+  a job starts, a "Cancel" button appears next to it
+  (`optimize_queue.request_cancel()`/`is_cancel_requested()`,
+  checked by `library_optimizer.py` between ffmpeg polls and before a
+  queued job starts). The in-progress indicator reads "Optimizing..."
+  (shown as a standing green button, not hidden, alongside "Cancel")
+  rather than disappearing in favor of the Cancel button.
+- **Fixed, real incident (2026-10-02)**: a stale `app.js`/`index.html`
+  mismatch could leave a refresh showing only the topbar, nothing else
+  -- no `Cache-Control` header at all on static files, so a stale
+  cached copy of one file could be served alongside a fresh copy of
+  another. Added `Cache-Control: no-cache, no-store, must-revalidate`
+  to `_serve_static()`. Both expansions.
+- **Fixed, real incident (2026-10-02)**: the Export Set share/download
+  image still had the old "supported formats" disclaimer baked into the
+  PNG itself, even after an earlier commit removed it from the on-screen
+  view -- a separate, canvas-drawn copy in `renderSetlistToPngBlob()`
+  that the earlier fix missed. Removed entirely (`SUPPORTED_FORMATS_DISCLAIMER`/
+  `wrapTextLines()` deleted). Both expansions.
+- **Fixed, real incident (2026-10-02)**: an "Optimize" job running
+  `ffmpeg` directly against the USB-mounted source held that file open
+  for the *entire* encode (confirmed live, 45+ minutes for one 4K
+  source) -- `umount` refuses outright while anything holds a file open
+  on that mount, reading included, so every other library write (even
+  an unrelated "create Bank") failed with a 500 the whole time. Fixed:
+  `library_optimizer.py` now copies the source to local scratch
+  *before* encoding; `ffmpeg` only ever touches the local copy. The USB
+  mount is held open only for the brief copy itself, not the encode's
+  full duration.
+- **Fixed, real incident (2026-10-02)**: a transient `ffprobe` timeout
+  under heavy concurrent load (several parallel codec checks plus a
+  long-running `ffmpeg` job) got cached as a permanent "not optimized"
+  result by the then-new per-file codec cache (`codec_check.py`) --
+  three files got permanently stuck showing "Optimize" even after load
+  cleared. Fixed: the cache now only ever stores a *successful* probe,
+  never a failure.
+- **Fixed, real incidents (2026-10-02)**: forms (PIN entry, etc.)
+  weren't centered on a wide screen -- `main` centers via `margin: 0
+  auto`, but a narrower `form` inside it never did, invisible on a
+  phone, glaring on a tablet. Also fixed a ~37-second gap between
+  logging in and the song library actually appearing (confirmed live,
+  ~24 songs, several multi-GB videos): `list_songs()` ran `ffprobe`
+  serially, every call, for every song -- now cached per
+  `(path, mtime, size)` and parallelized across up to 4 workers
+  (I/O-bound, not CPU-bound).
+- **Fixed, real incident (2026-10-02)**: an "Optimize" job stuck
+  "running" forever in the UI, with no "retry" option, after the Pi was
+  rebooted mid-job -- `list_queued()` deliberately never picks
+  "running" jobs back up (on the assumption a different, live tick is
+  already working on it), an assumption that breaks the moment the
+  *daemon itself* is the one that died. `library_optimizer.py` now
+  calls `optimize_queue.recover_orphaned_jobs()` once at startup,
+  resetting any orphaned "running" marker back to "queued".
 - **Real data-loss incident (2026-10-01) and the gap it exposed**: the
   band's actual standby video (a ~55-minute, ~754MB recording) was
   permanently overwritten with no backup when it was replaced through

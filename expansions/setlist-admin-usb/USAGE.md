@@ -92,6 +92,13 @@ to set a new PIN.
 
 ## Using it
 
+**Language**: the **EN/ES** dropdown in the top bar switches every
+label, button, confirmation, and notification between English and
+Spanish, saved on this phone/browser only (each device remembers its
+own choice). Song, track, Set, and Bank names are never translated or
+altered, in either language -- they're your data, shown exactly as
+typed.
+
 Pick or create a Set, create/delete `Bank` folders, and for each track
 slot (A/B/C):
 - **Upload new** uploads a file straight into that letter, replacing
@@ -156,13 +163,26 @@ to leave the existing one untouched.
 If a song's video isn't in the recommended format (H.264 -- see the
 upload hint, or `LIBRARY.md`), it still uploads, but an **"Optimize"**
 button appears next to it. Tap it to re-encode the file in place to
-the recommended format, without having to do it by hand. This can take
-a while on this hardware (confirmed up to roughly 90 minutes for one
-file) -- while it's running the button shows **"Optimizing..."**, which
-sticks around even if you disconnect your phone and come back later,
-so you can check on it whenever's convenient. If it fails (a corrupt or
-unreadable file), the button becomes **"Optimize (retry)"** with the
-reason shown on tap-and-hold. The optimization itself runs
+the recommended format, without having to do it by hand. You'll see a
+warning first: **do not unplug the Raspberry Pi while it's running**
+-- the re-encode writes to the Pi's own local storage for its full
+duration, and this can take a while on this hardware (confirmed up to
+roughly 90 minutes, or several hours for a large 4K video) -- while
+it's running the button shows a standing green **"Optimizing"**, which
+sticks around (alongside a **"Cancel"** button) even if you disconnect
+your phone and come back later, so you can check on it whenever's
+convenient. The app automatically re-checks every few seconds while a
+job is active, so you don't need to manually refresh to see it finish
+or get cancelled. If it fails (a corrupt or unreadable file), the
+button becomes **"Optimize (retry)"** with the reason shown on
+tap-and-hold.
+
+**Changed your mind, or need the Pi for something else right now?**
+Tap **"Cancel"** -- it stops the re-encode within a few seconds and
+leaves the file exactly as it was, not yet optimized. Safe to tap
+"Optimize" again later to retry.
+
+The optimization itself runs
 independently of this app and of any Set currently playing -- a song
 in the library isn't loaded into any live Set or the standby slot
 until you separately assign it, so an in-progress optimization never

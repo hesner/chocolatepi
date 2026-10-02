@@ -94,6 +94,13 @@ definir un PIN nuevo.
 
 ## Usándola
 
+**Idioma**: el menú desplegable **EN/ES** en la barra superior cambia
+cada etiqueta, botón, confirmación y notificación entre inglés y
+español, guardado solo en este teléfono/navegador (cada dispositivo
+recuerda su propia elección). Los nombres de canciones, pistas, Sets y
+Banks nunca se traducen ni se alteran, en ningún idioma — son tus
+datos, se muestran exactamente como los escribiste.
+
 Elige o crea un Set, crea/elimina carpetas `Bank`, y para cada casilla
 de pista (A/B/C):
 - **Upload new** sube un archivo directo a esa letra, reemplazando lo
@@ -162,13 +169,25 @@ Si el video de una canción no está en el formato recomendado (H.264 —
 ver el aviso junto a la subida, o `LIBRARY.md`), igual se sube, pero
 aparece un botón **"Optimize"** junto a ella. Tócalo para re-codificar
 el archivo en el mismo lugar al formato recomendado, sin tener que
-hacerlo a mano. Esto puede tardar un rato en este hardware (confirmado
-hasta unos 90 minutos para un archivo) — mientras corre, el botón
-muestra **"Optimizing..."**, que se mantiene aunque desconectes el
-celular y vuelvas más tarde, así que puedes revisarlo cuando te quede
-cómodo. Si falla (un archivo dañado o ilegible), el botón pasa a
-**"Optimize (retry)"** con el motivo al mantener presionado. La
-optimización corre de forma independiente a esta app y a cualquier Set
+hacerlo a mano. Primero verás una advertencia: **no desconectes la
+Raspberry Pi mientras esté corriendo** — la recodificación escribe al
+almacenamiento local de la propia Pi durante todo el proceso, y esto
+puede tardar un rato en este hardware (confirmado hasta unos 90
+minutos, o varias horas para un video 4K grande) — mientras corre, el
+botón muestra un verde permanente que dice **"Optimizando"**, que se
+mantiene (junto a un botón **"Cancel"**) aunque desconectes el celular
+y vuelvas más tarde, así que puedes revisarlo cuando te quede cómodo.
+La app se refresca sola cada pocos segundos mientras un trabajo esté
+activo, así que no necesitas refrescar a mano para ver cuándo termina
+o se cancela. Si falla (un archivo dañado o ilegible), el botón pasa a
+**"Optimize (retry)"** con el motivo al mantener presionado.
+
+**¿Cambiaste de opinión, o necesitas la Pi para otra cosa ahora
+mismo?** Toca **"Cancel"** — detiene la recodificación en pocos
+segundos y deja el archivo exactamente como estaba, sin optimizar.
+Es seguro tocar "Optimize" de nuevo más tarde para reintentar.
+
+La optimización corre de forma independiente a esta app y a cualquier Set
 que esté sonando — una canción en la biblioteca no se carga a ningún
 Set en vivo ni al standby hasta que la asignes por separado, así que
 una optimización en curso nunca afecta lo que realmente se puede

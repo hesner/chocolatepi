@@ -205,23 +205,71 @@ durably deployed. Re-pulled once noticed (confirm with `git log
 deploy work -- don't assume a quick-deployed commit survived just
 because nothing *you* did should have rebooted the Pi).
 
+## 2026-10-02: Optimize/Cancel UI confirmed live, a full day of
+real-hardware bugs, and a language toggle
+
+**The "Optimize" button's real phone-UI flow (item 1 below, as it
+stood at the end of 2026-10-01) is now thoroughly confirmed** -- not
+just once, but across an extended real-usage session: tapped
+"Optimize" from the phone itself multiple times, watched the warning
+popup, watched the standing green "Optimizing" button alongside
+"Cancel", tapped "Cancel" itself (including while `ffmpeg` was
+actively mid-encode, confirmed via direct `AdminAPI` timing: the call
+returned in ~0.02s and the real `ffmpeg` process was gone within
+~10s), and confirmed the song returns to a clean, un-optimized state
+afterward ready for a fresh "Optimize" tap. The disconnect/reconnect
+persistence this item asked for is inherent to the design (the queue
+is file-based, the daemon is a separate systemd unit) and was
+exercised incidentally throughout the day's testing without issue.
+
+A long chain of real bugs were found and fixed the same day, each from
+a genuine user report while actively using the app, not from a review
+pass -- full detail, one entry per fix, in `CHANGELOG.md`'s
+`[Unreleased]` section (newest first): a tablet-only form-centering
+bug; a ~37s login-to-songs-loaded delay (serial, uncached `ffprobe`
+calls); a transient `ffprobe` timeout under load getting cached
+*permanently* as "not optimized"; `ffmpeg` holding the USB-mounted
+source open for an encode's *entire* duration, blocking every other
+library write (e.g. an unrelated "create Bank") the whole time; a
+leftover disclaimer baked into the Export Set share image specifically
+(the on-screen one had already been removed); no `Cache-Control` on
+static files, letting a stale `app.js`/`index.html` combination serve
+a page that looked stuck showing only the topbar; the same gap for
+`GET /api/songs` specifically, showing a song as already-optimized
+while a job was genuinely still running; and, found last, cancelling a
+job could 500 if tapped within roughly the first minute (while the
+new scratch-copy step was still reading the source off the USB) --
+fixed by moving the cancel marker off the USB entirely, onto local Pi
+storage (`optimize_queue.DEFAULT_STATE_DIR`), since it never needed to
+live there in the first place. **Confirmed live** via a direct,
+timed `AdminAPI.cancel_song_optimization()` call against a real,
+actively-encoding job.
+
+**Also added, same day, real user request**: a full ES/EN language
+toggle (`static/i18n.js`, both expansions) -- a dropdown in the topbar
+(now reading "ChocolatePi - Setlist Admin") switches every label,
+button, confirm, alert, and toast between English and Spanish,
+persisted per-browser via `localStorage`. Song/track/Set/Bank names are
+explicitly never translated (they're user data, not UI chrome) --
+every render function in `app.js` keeps those out of the translation
+calls on purpose. Server-sent error messages stay in English for now,
+a separate, explicitly deferred piece of work if ever wanted. An
+auto-refresh (`GET /api/songs` every 5s while anything is
+queued/running, stopping itself otherwise) was added alongside it so
+the Cancel/Optimize button state never needs a manual refresh to catch
+up.
+
+**Not yet done, worth doing soon**: `USAGE.md`/`docs/es/USAGE.md` (both
+expansions) and `CHANGELOG.md`/`docs/es/CHANGELOG.md` were updated for
+all of the above as of this writing -- but `VERSION` was **not**
+bumped (no version was "cut" this session; everything above still sits
+in `[Unreleased]`). If a clean checkpoint is wanted, that's the next
+small step: confirm nothing's regressed, bump both expansions'
+`VERSION` files, rename `[Unreleased]` to today's date.
+
 ## What's genuinely unconfirmed -- do these before trusting them
 
-1. **The "Optimize" button's real phone-UI flow -- still not
-   confirmed, even after a successful real upload.** The upload itself
-   now works end-to-end (`IMG_4221.mov`, a real 2.55GB/4K HEVC iPhone
-   video, uploaded successfully on the 4th attempt on 2026-10-01 --
-   the first three hit the two real bugs documented in `CHANGELOG.md`'s
-   Unreleased section, both now fixed) and the API confirms it needs
-   optimizing. But the session got pulled into the standby-video
-   incident above right as the user was about to tap "Optimize" and
-   test disconnect/reconnect persistence from the phone itself -- that
-   specific UI flow is **still** the one thing nobody has actually
-   watched happen on a screen. Ask the user to tap "Optimize" on this
-   exact file (or any non-H.264 one), disconnect/reconnect the phone
-   mid-job, and confirm the button still reads "Optimizing..." when
-   they come back, then confirm it clears once done.
-2. **Export Set's visual fix is deployed but not re-confirmed.** It
+1. **Export Set's visual fix is deployed but not re-confirmed.** It
    first shipped with a real CSS bug (`.export-view` had an
    unconditional `display: flex` that overrode the browser's own
    `[hidden] { display: none }` rule, so the view showed, empty, on
@@ -230,13 +278,13 @@ because nothing *you* did should have rebooted the Pi).
    asked to re-open "Export Set" and confirm it now looks right
    end-to-end (title populated, numbered list populated, close via ✕/
    Escape/back all working). **Do this first.**
-3. **The second scroll-jump fix (the "~1s flash to top" one) was
+2. **The second scroll-jump fix (the "~1s flash to top" one) was
    deployed but never explicitly re-confirmed either** -- the user
    moved on to requesting Export Set right after it was deployed,
    without confirming. Ask them to rename or delete a song while
    scrolled down to a later Bank and confirm there's no visible jump at
    all now.
-4. **Desktop/PC browser support for Export Set's "Share" button is
+3. **Desktop/PC browser support for Export Set's "Share" button is
    explicitly uncertified** -- `navigator.share()` with file attachments
    has poor desktop browser support; the code falls back to a plain
    download, but this has never been tested from an actual PC. Do this

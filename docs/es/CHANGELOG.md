@@ -43,6 +43,122 @@ publicar]` nuevo y vacío arriba para lo que siga.
 
 ## [Sin publicar]
 
+- **Corregido, incidente real (2026-10-02)**: cancelar un trabajo de
+  "Optimize" podía arrojar error 500 (`RemountError`) si se tocaba
+  dentro del primer tramo de vida del trabajo — el marcador de
+  cancelación vivía en el USB junto a cualquier otro marcador del
+  trabajo, así que escribirlo necesitaba el mismo remontaje de USB en
+  modo escritura que cualquier otra escritura, pero el paso de copia a
+  scratch que corre antes de cada codificación (ver el arreglo de
+  bloqueo de escrituras más abajo) mantiene abierto un identificador de
+  lectura sobre el montaje durante toda esa copia, mucho más de lo que
+  cubre el reintento acotado del propio montaje (ajustado para una
+  colisión breve con mpv de `pedal-core.service`, no una copia de
+  archivo de varios segundos a minutos). Se movió el marcador de
+  cancelación a almacenamiento local de la Pi
+  (`optimize_queue.DEFAULT_STATE_DIR`, `~/.pedal-optimizer-state/`) —
+  solo necesita llegar al propio proceso `library_optimizer.py` de esta
+  Pi, nunca a la memoria USB, y nunca necesita sobrevivir un reinicio
+  (un trabajo que sobrevive un reinicio se vuelve a encolar limpio vía
+  `recover_orphaned_jobs()` de todos modos, así que un marcador de
+  cancelación obsoleto que sobreviviera habría cancelado
+  incorrectamente la *siguiente* corrida). `cancel_song_optimization()`
+  ya no necesita ninguna ventana de escritura en el USB. Ambas
+  expansiones.
+- **Se agregó un selector de idioma ES/EN, en ambas expansiones**: un
+  menú desplegable en la barra superior (que ahora dice "ChocolatePi -
+  Setlist Admin") cambia todo el texto de la interfaz — etiquetas,
+  botones, confirmaciones, alertas, notificaciones — entre inglés y
+  español, guardado por navegador vía `localStorage`
+  (`static/i18n.js`). Los nombres de canciones, pistas, Sets y Banks
+  son datos del usuario y nunca se traducen, a propósito — cada función
+  de renderizado deja esos valores fuera de las llamadas de traducción
+  deliberadamente. Los mensajes de error que vienen del servidor
+  siguen en inglés por ahora, un trabajo aparte, explícitamente
+  diferido.
+- **Se agregó actualización automática del estado de optimizar/cancelar,
+  en ambas expansiones**: cancelar o iniciar un trabajo se resuelve en
+  el servidor en segundos, pero la app solo volvía a consultar el
+  estado de las canciones ante una acción explícita, así que el botón
+  Optimizar/Cancelar se quedaba mostrando el estado viejo hasta un
+  refresco manual. Ahora consulta `GET /api/songs` cada 5s solo
+  mientras algo esté realmente en cola o corriendo, y se detiene sola
+  en cuanto no hay nada activo.
+- **Corregido, incidente real (2026-10-02)**: el estado "Optimizar"/
+  "Cancelar" de una canción podía mostrarse desactualizado (por
+  ejemplo, "ya optimizado" mientras un trabajo seguía corriendo de
+  verdad) después de un refresco — `GET /api/songs` es un GET plano
+  sin encabezado `Cache-Control`, así que el cacheo heurístico del
+  navegador servía una respuesta vieja. Mismo arreglo que el de
+  archivos estáticos más abajo, aplicado también a cada respuesta JSON
+  (`_send_json()`). Ambas expansiones.
+- **Se agregó una advertencia de pérdida de electricidad y un botón real
+  de Cancelar para "Optimize"**, en ambas expansiones, tras una
+  pregunta real sobre qué le pasa a la Pi y al archivo si se corta la
+  luz a mitad de un trabajo: al tocar "Optimize" ahora aparece una
+  advertencia explícita de no desconectar la Pi mientras esté corriendo,
+  y una vez que un trabajo inicia, aparece un botón "Cancel" junto a él
+  (`optimize_queue.request_cancel()`/`is_cancel_requested()`,
+  revisado por `library_optimizer.py` entre sondeos de ffmpeg y antes
+  de iniciar un trabajo en cola). El indicador en curso dice
+  "Optimizando" (mostrado como un botón verde permanente, no oculto,
+  junto a "Cancel") en vez de desaparecer a favor del botón de
+  Cancelar.
+- **Corregido, incidente real (2026-10-02)**: un desajuste obsoleto
+  entre `app.js`/`index.html` podía dejar un refresco mostrando solo la
+  barra superior, nada más — no había encabezado `Cache-Control` en
+  absoluto en los archivos estáticos, así que una copia vieja cacheada
+  de un archivo podía servirse junto a una copia fresca de otro. Se
+  agregó `Cache-Control: no-cache, no-store, must-revalidate` a
+  `_serve_static()`. Ambas expansiones.
+- **Corregido, incidente real (2026-10-02)**: la imagen para compartir/
+  descargar de Export Set todavía tenía el viejo aviso de "formatos
+  soportados" dibujado dentro del propio PNG, incluso después de que un
+  commit anterior lo quitara de la vista en pantalla — una copia
+  separada, dibujada en el canvas dentro de `renderSetlistToPngBlob()`,
+  que ese arreglo anterior no alcanzó. Se eliminó por completo
+  (`SUPPORTED_FORMATS_DISCLAIMER`/`wrapTextLines()` borrados). Ambas
+  expansiones.
+- **Corregido, incidente real (2026-10-02)**: un trabajo de "Optimize"
+  que corría `ffmpeg` directo contra la fuente montada en el USB
+  mantenía ese archivo abierto durante *todo* el proceso de
+  codificación (confirmado en vivo, 45+ minutos para una fuente 4K) —
+  `umount` se niega rotundamente mientras algo mantenga un archivo
+  abierto en ese montaje, incluyendo lectura, así que cualquier otra
+  escritura de la biblioteca (incluso un "crear Bank" sin relación)
+  fallaba con error 500 durante todo ese tiempo. Arreglado:
+  `library_optimizer.py` ahora copia la fuente a scratch local *antes*
+  de codificar; `ffmpeg` solo toca la copia local. El montaje USB solo
+  se mantiene abierto durante la breve copia, no durante toda la
+  codificación.
+- **Corregido, incidente real (2026-10-02)**: un timeout transitorio de
+  `ffprobe` bajo carga concurrente alta (varias verificaciones de codec
+  en paralelo más un trabajo de `ffmpeg` largo corriendo) se guardaba
+  como resultado permanente de "no optimizado" en la caché por archivo
+  de codecs (`codec_check.py`, nueva en ese momento) — tres archivos
+  quedaron atascados mostrando "Optimize" para siempre, incluso después
+  de que la carga bajara. Arreglado: la caché ahora solo guarda una
+  verificación *exitosa*, nunca un fallo.
+- **Corregido, incidentes reales (2026-10-02)**: los formularios
+  (ingreso de PIN, etc.) no quedaban centrados en pantallas anchas —
+  `main` se centra con `margin: 0 auto`, pero un `form` más angosto
+  adentro nunca lo hacía, invisible en un teléfono, evidente en una
+  tablet. También se corrigió una demora de ~37 segundos entre iniciar
+  sesión y que la biblioteca de canciones realmente apareciera
+  (confirmado en vivo, ~24 canciones, varios videos de varios GB):
+  `list_songs()` corría `ffprobe` de forma secuencial, en cada llamada,
+  para cada canción — ahora se cachea por `(ruta, mtime, tamaño)` y se
+  paraleliza entre hasta 4 workers (limitado por I/O, no por CPU).
+- **Corregido, incidente real (2026-10-02)**: un trabajo de "Optimize"
+  que quedaba atascado "running" para siempre en la interfaz, sin
+  opción de "retry", después de reiniciar la Pi a mitad de un trabajo —
+  `list_queued()` deliberadamente nunca vuelve a tomar trabajos
+  "running" (asumiendo que un ciclo distinto, todavía vivo, ya lo está
+  procesando), suposición que se rompe justo cuando el *propio demonio*
+  es el que murió. `library_optimizer.py` ahora llama a
+  `optimize_queue.recover_orphaned_jobs()` una vez al iniciar,
+  reiniciando cualquier marcador "running" huérfano de vuelta a
+  "queued".
 - **Incidente real de pérdida de datos (2026-10-01) y el hueco que
   dejó ver**: el video real de standby de la banda (una grabación de
   ~55 minutos, ~754MB) quedó sobrescrito para siempre, sin ninguna
