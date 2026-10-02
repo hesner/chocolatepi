@@ -52,6 +52,16 @@ mount is never held open for anywhere near the encode's own duration,
 closing the same class of problem the output side was already designed
 to avoid.
 
+Second real incident, same class of bug, found later (2026-10-02, in
+the sibling setlist-admin-usb expansion -- ported here unchanged): the
+copy *itself* could still hold the mount busy long enough to collide
+with an unrelated write from setlist-admin.service -- a different
+process, so `usb_mount.py`'s own in-process lock did nothing to stop
+it. Tapping "Optimize" on a second song while a first one's copy was
+still in flight 500'd with `RemountError`. Fixed: the copy now runs
+under `usb_mount.exclusive_read()`, a cross-process file lock -- see
+that function's own docstring.
+
 Cancellation (real user request, 2026-10-02, after a real incident: a
 job running for hours with no visible progress is a real temptation to
 just unplug the Pi): `_encode()` no longer blocks on a single
@@ -76,7 +86,7 @@ import uuid
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from admin import library_ops, optimize_queue, pedal_core_guard  # noqa: E402
+from admin import library_ops, optimize_queue, pedal_core_guard, usb_mount  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -168,7 +178,17 @@ def _process_job(usb_root: str, mount_point: str, scratch_dir: str, filename: st
     scratch_output = os.path.join(scratch_dir, f"{uuid.uuid4().hex}.mp4")
     try:
         try:
-            shutil.copyfile(source_path, scratch_input)
+            # Real incident (2026-10-02, in the sibling setlist-admin-usb
+            # expansion -- ported here unchanged): this read used to
+            # race any concurrent writable_usb() call from setlist-admin
+            # .service -- a *different process* -- and lose, 500ing an
+            # unrelated action (tapping "Optimize" on another song,
+            # creating a Bank) for as long as this copy took.
+            # exclusive_read() coordinates with that process's own
+            # locking instead of just this one's -- see its own
+            # docstring in usb_mount.py.
+            with usb_mount.exclusive_read():
+                shutil.copyfile(source_path, scratch_input)
         except OSError as e:
             logger.error("Could not copy %s to local scratch: %s", filename, e)
             _fail(usb_root, mount_point, filename, "Could not read the source file")

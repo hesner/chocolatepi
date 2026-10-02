@@ -9,7 +9,10 @@ this project has used by hand (via SSH) all along, now automated.
 Deliberately its own tiny module, separate from `library_ops.py`: that
 module stays pure filesystem logic, testable against a plain temp
 directory with no `sudo`/mount calls involved at all. Only `api.py`
-(talking to the real, mounted USB) needs this.
+(talking to the real, mounted USB) needs this -- `library_optimizer.py`
+(a second, independent process) also uses `exclusive_read()` below, to
+coordinate its own long reads against `api.py`'s writes without either
+one needing to know the other exists.
 """
 
 import logging
@@ -18,6 +21,15 @@ import subprocess
 import threading
 import time
 from contextlib import contextmanager
+
+try:
+    import fcntl
+except ImportError:
+    # Windows dev/test environment -- no real cross-process file locks
+    # here. _usb_lock below still serializes *within* this one process,
+    # which is all a local test run ever exercises; the real cross-
+    # process coordination only matters on the Pi itself (Linux).
+    fcntl = None
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +45,28 @@ DEFAULT_MOUNT_POINT = "/media/usb"
 # other's opening one. This lock makes every writable_usb() window fully
 # serial, process-wide.
 _usb_lock = threading.Lock()
+
+# Real incident (2026-10-02): _usb_lock above only serializes threads
+# *within one process* -- setlist-admin.service and
+# library-optimizer.service are two independent OS processes with
+# separate memory, so it does nothing to stop them racing each other.
+# library_optimizer.py's scratch-copy step (reading a large source file
+# off the USB before encoding -- see its own module docstring) can hold
+# the mount busy for as long as that copy takes, well past
+# _UMOUNT_RETRY_DELAY_SECONDS's budget below -- confirmed live:
+# unrelated writes from setlist-admin.service (tapping "Optimize" on a
+# *different* song, creating a Bank, cancelling) all 500'd with
+# RemountError while a copy was still in flight. A real, cross-process
+# file lock closes this for any two (or more) processes on the same
+# Pi, not just threads in one of them.
+_CROSS_PROCESS_LOCK_PATH = "/tmp/.chocolatepi-usb-mount.lock"
+# Generous, not an expected duration -- bounds how long a caller waits
+# for the *other* process to finish, rather than hanging forever if
+# something's gone genuinely wrong (a stuck copy, a dead process that
+# somehow never released the lock). A real scratch-copy should finish
+# in well under this even for a large multi-GB file.
+_CROSS_PROCESS_LOCK_TIMEOUT_SECONDS = 300
+_CROSS_PROCESS_LOCK_POLL_SECONDS = 0.5
 
 # pedal-core.service continuously loops standby.mp4 straight off this same
 # USB via mpv, so an umount attempted at exactly the wrong instant can hit a
@@ -51,6 +85,53 @@ class RemountError(Exception):
     fatal for the operation being attempted -- proceeding to write
     without confirming rw succeeded risks the same silent failure this
     whole app exists to eliminate."""
+
+
+class MountBusyError(RemountError):
+    """Raised when a bounded wait for exclusive mount access times out
+    -- e.g. the other process's scratch-copy held it for longer than
+    `_CROSS_PROCESS_LOCK_TIMEOUT_SECONDS`. A `RemountError` subtype, so
+    any existing `except RemountError` handling elsewhere still catches
+    this too."""
+
+
+def _acquire_cross_process_lock(fd: int) -> None:
+    deadline = time.monotonic() + _CROSS_PROCESS_LOCK_TIMEOUT_SECONDS
+    while True:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return
+        except OSError:
+            if time.monotonic() >= deadline:
+                raise MountBusyError(
+                    f"Timed out after {_CROSS_PROCESS_LOCK_TIMEOUT_SECONDS}s waiting for "
+                    "exclusive USB mount access (another process -- most likely "
+                    "library_optimizer.py's scratch-copy -- is still holding it)"
+                )
+            time.sleep(_CROSS_PROCESS_LOCK_POLL_SECONDS)
+
+
+@contextmanager
+def _cross_process_lock():
+    if fcntl is None:
+        yield
+        return
+    fd = os.open(_CROSS_PROCESS_LOCK_PATH, os.O_CREAT | os.O_RDWR, 0o666)
+    try:
+        _acquire_cross_process_lock(fd)
+        yield
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+
+@contextmanager
+def _exclusive():
+    """Combines the in-process lock with the cross-process one -- every
+    caller below goes through this one gate, in either process, instead
+    of racing a umount against another process's open file handle."""
+    with _usb_lock, _cross_process_lock():
+        yield
 
 
 def ensure_mounted(mount_point: str = DEFAULT_MOUNT_POINT) -> None:
@@ -85,11 +166,14 @@ def writable_usb(mount_point: str = DEFAULT_MOUNT_POINT):
     including if the block raises. The window this stays writable is
     exactly one caller-defined operation, never longer.
 
-    Held under a process-wide lock: two of these overlapping is exactly
-    what let two concurrent requests race each other's raw umount/mount
-    calls (see module docstring/comment above) -- a second caller now
-    simply waits its turn instead of colliding."""
-    with _usb_lock:
+    Held under a process-wide *and* cross-process lock (`_exclusive()`):
+    two of these overlapping, in the same process or a different one,
+    is exactly what let concurrent callers race each other's raw
+    umount/mount calls, or race a long read like
+    library_optimizer.py's scratch-copy (see module docstring/comments
+    above) -- every caller now simply waits its turn instead of
+    colliding."""
+    with _exclusive():
         _remount(mount_point, "rw")
         try:
             yield
@@ -105,8 +189,27 @@ def remount_ro(mount_point: str = DEFAULT_MOUNT_POINT) -> None:
     for the real incident this exists for) -- the write itself already
     happened by the time this runs; this is purely about getting back to
     the safe read-only default."""
-    with _usb_lock:
+    with _exclusive():
         _remount(mount_point, "ro")
+
+
+@contextmanager
+def exclusive_read():
+    """For a caller that only ever needs to READ from the USB (never
+    `rw`) but whose read can run long enough to otherwise race a
+    concurrent `writable_usb()`/`remount_ro()` cycle -- in this process
+    or a different one -- and lose. Confirmed live (2026-10-02):
+    library_optimizer.py's scratch-copy step (reading a large source
+    file off the USB before encoding) held the mount busy long enough
+    that an unrelated write from the *other* process (setlist-admin.
+    service) 500'd with `RemountError` while the copy was still in
+    flight. Holding this for the read's duration makes every
+    `writable_usb()`/`remount_ro()` call, anywhere, simply wait its
+    turn instead of attempting (and losing) a `umount` against an open
+    file descriptor. Not mount-point-specific -- there's only ever one
+    real USB mount in this whole system -- so it takes no argument."""
+    with _exclusive():
+        yield
 
 
 def _remount(mount_point: str, mode: str) -> None:

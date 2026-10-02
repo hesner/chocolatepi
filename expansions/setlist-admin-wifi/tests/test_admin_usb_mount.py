@@ -225,6 +225,40 @@ class WritableUsbLockingTests(unittest.TestCase):
 
         self.assertEqual(concurrent["max"], 1)
 
+    @patch("admin.usb_mount.subprocess.run")
+    def test_exclusive_read_blocks_a_concurrent_writable_usb_call(self, mock_run):
+        """Real incident (2026-10-02, in the sibling setlist-admin-usb
+        expansion -- ported here unchanged): library_optimizer.py's
+        scratch-copy step and setlist-admin.service's own writes are two
+        *different processes* -- _usb_lock alone can't stop them racing
+        (it only serializes threads within one process). This test can
+        only exercise the in-process half of the real fix (the
+        cross-process file lock is skipped entirely on this dev
+        machine -- see the `fcntl is None` branch), but it still proves
+        exclusive_read() and writable_usb() share one gate, which is the
+        logic both the real file lock and this fallback rely on."""
+        mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0)
+        events = []
+
+        def reader():
+            with usb_mount.exclusive_read():
+                events.append("read-start")
+                time.sleep(0.1)
+                events.append("read-end")
+
+        def writer():
+            with usb_mount.writable_usb("/media/usb"):
+                events.append("write-start")
+                events.append("write-end")
+
+        t = threading.Thread(target=reader)
+        t.start()
+        time.sleep(0.02)  # let the reader get in first
+        writer()
+        t.join(timeout=5)
+
+        self.assertEqual(events, ["read-start", "read-end", "write-start", "write-end"])
+
 
 if __name__ == "__main__":
     unittest.main()
