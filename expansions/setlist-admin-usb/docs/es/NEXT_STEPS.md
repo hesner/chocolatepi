@@ -167,18 +167,104 @@ visualmente, no solo a nivel de `AdminAPI`/archivo de cola como ya se
 probó arriba. **Haz esto a continuación** — el usuario está a punto de
 hacerlo justo al momento de escribir esto.
 
+**2026-10-01, más tarde el mismo día — un incidente real de pérdida de
+datos en `standby.mp4`, encontrado y recuperado**: el usuario reportó
+que el video real de standby de la banda (~55 minutos, ~754MB) había
+desaparecido — reemplazado esa misma tarde desde el propio selector
+"Set as standby" de la app, sin forma de volver atrás. Causa raíz,
+confirmada en el código: `library_ops.set_standby_video()` simplemente
+copia la canción elegida directo sobre `standby.mp4`, sin preguntar
+nada. Funciona bien hasta que alguien elige el video equivocado, que
+es exactamente lo que pasó: el standby real de ~55 minutos de la banda
+desapareció, irrecuperable desde la propia Pi, y solo volvió porque
+por suerte todavía existía una copia en otro lado. Al usuario se le
+preguntó en el momento si quería agregar un respaldo automático y dijo
+que sí a recuperar el video perdido específicamente, pero la función
+de respaldo en sí nunca se construyó en la sesión que siguió —
+retómalo explícitamente en vez de asumir que ya está hecho. Una forma
+razonable: antes de copiar, mover el `standby.mp4` actual a algo como
+`backup/standby-previous.mp4` (un solo cupo, que se sobrescribe cada
+vez, no un historial que crece sin límite — este USB tiene espacio
+limitado y la meta no es un historial completo, solo "no perder el de
+antes de este"). Usa el mismo mecanismo de `_atomic_copy_file()`/
+`writable_usb()` ya usado en otros lados, así que es un cambio pequeño
+y autocontenido una vez que alguien decida la forma exacta del nombre/
+retención del respaldo. Ver "Decisiones de producto pendientes" abajo.
+
+Se recuperó solo porque el usuario todavía tenía el archivo fuente
+original, sin convertir (`nofuturo-visuales-julio10.mp4`, 6.68GB,
+H.264 1080p pero a ~15.7Mbps — demasiado pesado para usar directo), en
+otro computador. Se re-codificó a ~1.8Mbps (coincide casi exacto con el
+bitrate del original perdido: 754MB en 55.66 minutos son ~1.8Mbps)
+usando `h264_v4l2m2m` tanto para decodificar como para codificar —
+confirmado en vivo a ~0.87x en tiempo real, muchísimo más rápido que el
+~0.1x que este proyecto vio antes con decodificación HEVC solo por
+software, ya que la fuente aquí ya era H.264 y el códec por hardware
+de esta Pi lo maneja nativo en ambos sentidos. El resultado (~800MB) se
+subió a la biblioteca como "Standby Original.mp4" (`AdminAPI.upload_song()`
+simple, deliberadamente no `set_standby_video()` — el usuario quería
+decidir él mismo si y cuándo volver a hacerlo standby, no que se
+forzara). Después lo hizo exactamente así, desde una sesión web
+temporal (ver abajo) y reinició para aplicarlo — confirmado por el
+propio socket IPC de `mpv` que `standby.mp4` ya es ese archivo exacto.
+**`set_standby_video()` sigue sin ningún paso de respaldo — ver
+"Decisiones de producto pendientes" abajo.**
+
+La misma investigación también mostró un detalle a recordar sobre
+transferencias: se conectó un dongle WiFi USB nuevo mientras un archivo
+de 6.68GB se transfería por `scp` a la Pi, y el usuario pidió apagar el
+Ethernet en cuanto fuera seguro — confirmado que la resolución
+`mDNS`/`pedal.local` se vuelve inestable con dos interfaces activas a
+la vez (`eth0`+`wlan0`) — la misma causa raíz que la versión ya
+documentada de este problema con `eth0`+`eth1`, solo que ahora con una
+interfaz WiFi en vez de otra cableada/tethered. Usar la IP directa del
+WiFi con `-i ~/.ssh/id_ed25519_pedal -o IdentitiesOnly=yes` lo resolvió
+cada vez.
+
+También encontrado en vivo, vale la pena recordarlo tal cual:
+**`pkill -f '<patrón>'` corrido por SSH puede matar su propia sesión de
+SSH** si el texto del patrón que pasas aparece en la línea de comando
+del propio shell que lo invoca (y va a aparecer, de forma trivial, ya
+que acabas de escribir exactamente ese string como argumento) —
+`pkill -f` compara contra la línea de comando completa, no solo la del
+proceso que buscas. Mató el wrapper de bash remoto en vez de `ffmpeg`,
+y se vio como un simple exit 255 de SSH sin ningún error del lado
+remoto. Arreglo: compara por nombre exacto de proceso
+(`pkill -TERM ffmpeg`, sin `-f`), o haz que el patrón sea lo bastante
+específico para que no pueda coincidir también con su propia
+invocación.
+
+**También en esta misma investigación**: un arreglo de código que solo
+se había "desplegado rápido" (traído mientras el overlay protector
+estaba activo, así que solo vivió en la capa superior respaldada en
+RAM) se perdió en silencio cuando el overlay se desactivó y reinició
+después por una razón *no relacionada* (necesitar espacio real en
+disco para la conversión de 6.68GB de arriba) — el checkout de git
+volvió al último commit que de verdad se había desplegado de forma
+durable. Se volvió a traer en cuanto se notó (confirma con
+`git log --oneline -1` después de cualquier reinicio, cualquiera, no
+solo los de tu propio trabajo de despliegue — no asumas que un commit
+desplegado rápido sobrevivió solo porque nada de lo que *tú* hiciste
+debía reiniciar la Pi).
+
 ## Lo que sigue genuinamente sin confirmar — haz esto antes de confiar en ello
 
-1. **El flujo real en la app del celular para el botón "Optimize" (ver
-   arriba, agregado 2026-10-01) — la capa de daemon/cola/API ya está
-   probada en hardware real, pero tocar el botón mismo y ver que el
-   estado "Optimizing..." sobrevive una desconexión/reconexión del
-   celular todavía no se hizo desde la app misma.** Pídele al usuario
-   que suba un video genuinamente no-H.264 (ej. directo de la cámara de
-   un iPhone), confirme que aparece el botón, lo toque,
-   desconecte/reconecte el celular a mitad del trabajo, y confirme que
-   el botón sigue diciendo "Optimizing..." cuando vuelve, y luego
-   confirme que se limpia al terminar.
+1. **El flujo real en la app del celular para el botón "Optimize" —
+   todavía sin confirmar, incluso después de una subida real exitosa.**
+   La subida en sí ya funciona de punta a punta (`IMG_4221.mov`, un
+   video real de 2.55GB/4K HEVC de iPhone, subido con éxito en el
+   cuarto intento el 2026-10-01 — los primeros tres chocaron con los
+   dos bugs reales documentados en la sección "Sin publicar" de
+   `CHANGELOG.md`, ya corregidos) y la API confirma que necesita
+   optimizarse. Pero la sesión se desvió hacia el incidente del video
+   de standby de arriba justo cuando el usuario estaba a punto de tocar
+   "Optimize" y probar la persistencia al desconectar/reconectar desde
+   el celular — ese flujo específico de la interfaz **sigue** siendo lo
+   único que nadie ha visto pasar de verdad en una pantalla. Pídele al
+   usuario que toque "Optimize" en este archivo exacto (o cualquier
+   otro no-H.264), desconecte/reconecte el celular a mitad del trabajo,
+   y confirme que el botón sigue diciendo "Optimizing..." cuando vuelve,
+   y luego confirme que se limpia al terminar.
 2. **La corrección visual de Export Set está desplegada pero no
    reconfirmada.** Salió por primera vez con un bug real de CSS
    (`.export-view` tenía un `display: flex` incondicional que
@@ -231,7 +317,19 @@ sesión. Los puntos 1-2 están hechos; retoma en el 3:
 
 ## Decisiones de producto pendientes — no construidas aún, necesitan decisión primero
 
-Dos cosas que el usuario planteó y pidió explícitamente dejar para
+**La de mayor prioridad de las tres de abajo, dado que ya costó datos
+reales una vez**: respaldar el `standby.mp4` anterior antes de
+reemplazarlo. `library_ops.set_standby_video()` hoy simplemente copia
+la canción elegida directo sobre `standby.mp4`, sin preguntar nada —
+funciona bien hasta que alguien elige el video equivocado, que es
+exactamente lo que pasó el 2026-10-01 (ver "Dónde están las cosas"
+arriba): el standby real de ~55 minutos de la banda desapareció,
+irrecuperable desde la propia Pi, y solo volvió porque por suerte
+todavía existía una copia en otro lado. Ver la sección de arriba para
+la forma razonable sugerida (un solo cupo de respaldo,
+`backup/standby-previous.mp4`, sobrescrito cada vez).
+
+Dos cosas más que el usuario planteó y pidió explícitamente dejar para
 después:
 
 - **Mostrar el nombre de archivo crudo tal cual está guardado (ej. "A -

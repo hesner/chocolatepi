@@ -146,15 +146,79 @@ phone mid-job to confirm the state really does persist visually, not
 just at the `AdminAPI`/queue-file level already proven above. **Do
 this next** -- the user is about to run it as of this writing.
 
+**2026-10-01, later the same day -- a real standby.mp4 data-loss
+incident, found and recovered**: the user reported the band's actual
+standby video (~55 minutes, ~754MB) was gone -- replaced earlier that
+day through the app's own "Set as standby" picker with no way back.
+Root cause, confirmed in code: `library_ops.set_standby_video()` just
+does `_atomic_copy_file()` straight over `standby.mp4`; it never backs
+up whatever it's replacing. Searched the whole USB (library, every
+Set/Bank, the old `backup/` folder) -- no trace. Recovered only
+because the user still had the original, unconverted source file
+(`nofuturo-visuales-julio10.mp4`, 6.68GB, H.264 1080p but at ~15.7Mbps
+-- far too heavy to use directly) on a separate computer. Re-encoded it
+to ~1.8Mbps (matching the lost original's own bitrate almost exactly:
+754MB over 55.66 minutes is ~1.8Mbps) using `h264_v4l2m2m` for *both*
+decode and encode -- confirmed live at ~0.87x realtime, dramatically
+faster than the ~0.1x this project saw earlier for software-only HEVC
+decode, since the source here was already H.264 and this Pi's
+hardware codec handles that natively both ways. Uploaded the ~800MB
+result into the library as "Standby Original.mp4" (plain
+`AdminAPI.upload_song()`, deliberately not `set_standby_video()` --
+the user wanted to choose if/when to make it standby again themselves,
+not have it forced). They later did exactly that through a temporary
+web session (see below) and rebooted to apply it -- confirmed via
+`mpv`'s own IPC socket that `standby.mp4` is now that exact file.
+**`set_standby_video()` still has no backup step -- see "Deferred
+product decisions" below.**
+
+Same investigation also surfaced a transfer-side gotcha worth
+remembering: a new USB WiFi dongle (see "Where things stand" above)
+was connected while a 6.68GB file was mid-`scp`-transfer to the Pi, and
+the user asked to switch off Ethernet once it was safe -- confirmed
+dual-interface (`eth0`+`wlan0`) `mDNS`/`pedal.local` resolution gets
+flaky once both are up (same root cause as the long-documented
+`eth0`+`eth1` version of this issue, just with a WiFi interface
+instead of a second wired/tethered one). Falling back to the direct
+WiFi IP with the right `-i ~/.ssh/id_ed25519_pedal -o
+IdentitiesOnly=yes` resolved it every time.
+
+Also found live, worth remembering verbatim: **`pkill -f '<pattern>'`
+run over SSH can kill its own SSH session** if the pattern text you
+pass happens to appear in the invoking shell's own command line (which
+it will, trivially, since you just typed that exact string as an
+argument) -- `pkill -f` matches full command lines, not just the
+target process's. Killed the remote bash wrapper instead of `ffmpeg`,
+surfacing as a bare SSH exit 255 with no remote-side error at all. Fix:
+match by exact process name instead (`pkill -TERM ffmpeg`, no `-f`),
+or make the pattern specific enough that it can't also match its own
+invocation.
+
+**Also this same investigation**: a code fix that was only ever
+"quick-deployed" (pulled while the protective overlay was active, so
+it only ever lived in the RAM-backed upper layer) was silently lost
+when the overlay was later disabled-and-rebooted for an *unrelated*
+reason (needing real disk space for the 6.68GB conversion above) --
+the git checkout reverted to the last commit that had actually been
+durably deployed. Re-pulled once noticed (confirm with `git log
+--oneline -1` after any reboot, any reboot, not just ones from your own
+deploy work -- don't assume a quick-deployed commit survived just
+because nothing *you* did should have rebooted the Pi).
+
 ## What's genuinely unconfirmed -- do these before trusting them
 
-1. **The "Optimize" button's real phone-UI flow (see above, added
-   2026-10-01) -- the daemon/queue/API layer is proven on real
-   hardware, but tapping the actual button and watching the
-   "Optimizing..." state survive a phone disconnect/reconnect has not
-   been done from the app itself yet.** Ask the user to upload a
-   genuinely non-H.264 video (e.g. straight off an iPhone camera),
-   confirm the button appears, tap it, disconnect/reconnect the phone
+1. **The "Optimize" button's real phone-UI flow -- still not
+   confirmed, even after a successful real upload.** The upload itself
+   now works end-to-end (`IMG_4221.mov`, a real 2.55GB/4K HEVC iPhone
+   video, uploaded successfully on the 4th attempt on 2026-10-01 --
+   the first three hit the two real bugs documented in `CHANGELOG.md`'s
+   Unreleased section, both now fixed) and the API confirms it needs
+   optimizing. But the session got pulled into the standby-video
+   incident above right as the user was about to tap "Optimize" and
+   test disconnect/reconnect persistence from the phone itself -- that
+   specific UI flow is **still** the one thing nobody has actually
+   watched happen on a screen. Ask the user to tap "Optimize" on this
+   exact file (or any non-H.264 one), disconnect/reconnect the phone
    mid-job, and confirm the button still reads "Optimizing..." when
    they come back, then confirm it clears once done.
 2. **Export Set's visual fix is deployed but not re-confirmed.** It
@@ -205,7 +269,27 @@ This is the same list the user asked to go through "paso a paso"
 
 ## Deferred product decisions -- not yet built, need a decision first
 
-Two things the user raised and explicitly asked to defer:
+**Highest priority of the three below, given it already cost real
+data once**: back up the previous `standby.mp4` before replacing it.
+`library_ops.set_standby_video()` currently just copies the chosen
+library song straight over `standby.mp4`, no questions asked -- fine
+right up until someone picks the wrong one, which is exactly what
+happened 2026-10-01 (see "Where things stand" above): the band's real
+~55-minute standby was gone, unrecoverable from the Pi itself, and
+only came back because a copy happened to still exist elsewhere. The
+user was asked in the moment whether to add an automatic backup and
+said yes to recovering the lost video specifically, but the actual
+backup feature itself was never built in the session that followed --
+revisit this explicitly rather than assuming it's done. A reasonable
+shape: before the copy, move the current `standby.mp4` into something
+like `backup/standby-previous.mp4` (single slot, overwritten each
+time, not an ever-growing history -- this USB has limited space and a
+full history isn't the goal, just "don't lose the one before this
+one"). Same `_atomic_copy_file()`/`writable_usb()` machinery already
+in use elsewhere, so this is a small, self-contained change once
+someone decides on the exact backup naming/retention shape.
+
+Two other things the user raised and explicitly asked to defer:
 
 - **Show the raw stored filename (e.g. "A - Perro.wav") instead of the
   friendly display name in the main Bank/track cards** (not Export Set,

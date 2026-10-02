@@ -43,6 +43,41 @@ publicar]` nuevo y vacío arriba para lo que siga.
 
 ## [Sin publicar]
 
+- **Incidente real de pérdida de datos (2026-10-01) y el hueco que
+  dejó ver**: el video real de standby de la banda (una grabación de
+  ~55 minutos, ~754MB) quedó sobrescrito para siempre, sin ninguna
+  copia, al reemplazarlo desde el propio selector "Set as standby" de
+  la app — `library_ops.set_standby_video()` hace un simple
+  `_atomic_copy_file()` directo sobre `standby.mp4`, sin guardar copia
+  de lo que esté reemplazando. Se recuperó solo porque el usuario
+  todavía tenía el archivo fuente original, sin convertir, en otro
+  computador; se re-codificó con H.264 acelerado por hardware
+  (`h264_v4l2m2m` tanto para decodificar como para codificar —
+  confirmado en vivo, cerca de 0.87x en tiempo real para una fuente
+  1080p/25fps ya en H.264, contra el ~0.1x que este proyecto vio antes
+  con decodificación HEVC solo por software) hasta ~800MB, se volvió a
+  agregar a la biblioteca, y el usuario lo volvió a elegir como
+  standby. **Todavía sin corregir en el código**: `set_standby_video()`
+  sigue sin ningún paso de respaldo — un hueco real, ahora confirmado
+  como costoso. Decisión de producto pendiente, ver `NEXT_STEPS.md`.
+- **Se encontró y probó un dongle WiFi USB que sí funciona
+  (2026-10-01)**: un chipset distinto (Ralink/MediaTek `MT7601U`) al
+  que originalmente dejó pausada `setlist-admin-wifi` (Realtek
+  `rtl8192cu`, muerto). Confirmado en hardware real: el driver
+  `mt7601u` del kernel se cargó limpio, `wlan0` subió y se asoció a la
+  red de casa solo, vía un perfil de NetworkManager ya guardado, y SSH
+  funcionó por ahí con `eth0` totalmente desconectado. **Esto es solo
+  conectividad WiFi a nivel de sistema operativo** — desbloquea
+  retomar la validación propia de hardware de `setlist-admin-wifi`
+  (ver la nota de estado de `SPECIFICATION.md` de esa expansión), pero
+  la expansión en sí (sus propias unidades de systemd, los flujos de
+  lectura/escritura de `nmcli`) todavía no se ha instalado ni probado
+  con este dongle. Mientras tanto, el servidor de `setlist-admin-usb`
+  también se alcanzó directo por este WiFi, como solución manual
+  temporal (ya escucha en `0.0.0.0:8080`, así que no hizo falta nada
+  específico de USB — solo arrancarlo a mano con
+  `usb-tether-watchdog.service` detenido para que no lo volviera a
+  apagar de inmediato).
 - **Corregido, encontrado al desplegar la función "Optimize" de abajo
   en la Pi real**: `library-optimizer.service` entraba en bucle de
   fallos de inmediato (`ModuleNotFoundError: No module named 'admin'`)

@@ -43,6 +43,22 @@ starting point (or reference) once a working WiFi adapter is available
 again, but section 8a's protocol should be re-run from the top on real
 hardware before trusting it again.
 
+**Update, 2026-10-01: a working adapter now exists.** A different
+chipset (Ralink/MediaTek `MT7601U`, not the dead Realtek `rtl8192cu`
+above) was connected to the real Pi and confirmed working at the
+OS level: the kernel's own `mt7601u` driver attached cleanly, `wlan0`
+came up and associated with the home network automatically via an
+already-saved NetworkManager profile, and SSH worked over it with
+`eth0` fully disconnected -- see `CHANGELOG.md`'s Unreleased entry.
+**This resolves the hardware blocker above, but is not itself a test
+of this expansion's own code** -- what was actually exercised was
+base-OS WiFi connectivity for SSH access, plus (as an unrelated manual
+workaround) reaching `setlist-admin-usb`'s server directly over that
+same WiFi link. Section 8a's protocol (install this expansion, run its
+staged network-testing dry-run/live-start stages, exercise `nmcli`
+config read/write through the app itself) still needs to be run from
+the top on this adapter before trusting it.
+
 **Kept in sync, 2026-09-27**: everything found and fixed on
 `setlist-admin-usb`'s real-hardware pass that day (the Set/Bank rename,
 `usb_mount.py`'s remount hardening, the stale-temp-file cleanup, the

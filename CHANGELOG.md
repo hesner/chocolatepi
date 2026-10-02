@@ -40,6 +40,38 @@ above it for whatever comes next.
 
 ## [Unreleased]
 
+- **Real data-loss incident (2026-10-01) and the gap it exposed**: the
+  band's actual standby video (a ~55-minute, ~754MB recording) was
+  permanently overwritten with no backup when it was replaced through
+  the app's own "Set as standby" picker -- `library_ops.set_standby_video()`
+  does a plain `_atomic_copy_file()` straight over `standby.mp4`, with
+  no copy of whatever it's replacing. Recovered only because the
+  user happened to still have the original, unconverted source file on
+  a separate computer; re-encoded it with hardware-accelerated H.264
+  (`h264_v4l2m2m` for *both* decode and encode -- confirmed live, about
+  0.87x realtime for 1080p/25fps source already in H.264, versus the
+  ~0.1x this project saw earlier for a software-only HEVC decode) to
+  ~800MB, re-added it to the library, and the user re-selected it as
+  standby. **Not yet fixed in code**: `set_standby_video()` still has
+  no backup step -- a real, now-confirmed-costly gap. Deferred product
+  decision, see `NEXT_STEPS.md`.
+- **A working USB WiFi dongle was found and tested (2026-10-01)**: a
+  different chipset (Ralink/MediaTek `MT7601U`) than the dead one that
+  originally paused `setlist-admin-wifi` (Realtek `rtl8192cu`).
+  Confirmed on real hardware: the kernel's own `mt7601u` driver
+  attached cleanly, `wlan0` came up and associated with the home
+  network automatically via an already-saved NetworkManager profile,
+  and SSH worked over it with `eth0` fully disconnected. **This is
+  basic OS-level WiFi connectivity only** -- it unblocks resuming
+  `setlist-admin-wifi`'s own hardware validation (see that expansion's
+  `SPECIFICATION.md` status note), but the expansion itself (its own
+  systemd units, `nmcli` config read/write flows) still hasn't been
+  installed or exercised on this dongle. In the meantime,
+  `setlist-admin-usb`'s server was reached directly over this WiFi
+  connection too, as a manual, temporary workaround (it already binds
+  `0.0.0.0:8080`, so nothing-specific to USB tethering was needed --
+  just starting it by hand with `usb-tether-watchdog.service` stopped
+  so it wouldn't immediately stop it back).
 - **Fixed, found deploying the "Optimize" feature below to the real
   Pi**: `library-optimizer.service` crash-looped immediately
   (`ModuleNotFoundError: No module named 'admin'`) -- `library_optimizer.py`
