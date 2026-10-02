@@ -53,7 +53,18 @@ class ServerIntegrationTestCase(unittest.TestCase):
         self.tmpdir.cleanup()
 
     def _conn(self):
-        return http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        # Real flakiness found live (2026-10-02): no test here ever
+        # explicitly closed its connection -- harmless on its own
+        # (Python's GC eventually closes it), but an intermittent
+        # Windows-specific interaction between a not-yet-closed prior
+        # connection and a later test's freshly bound ephemeral port
+        # produced genuine hangs/resets for whichever test happened to
+        # run right after. Closing deterministically at teardown, for
+        # every connection any test opens, removes the timing window
+        # entirely.
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        self.addCleanup(conn.close)
+        return conn
 
     def _json(self, conn, method, path, body=None, headers=None):
         headers = dict(headers or {})
@@ -144,6 +155,24 @@ class TestLibraryFlow(ServerIntegrationTestCase):
         conn.request("GET", "/")
         resp = conn.getresponse()
         self.assertEqual(resp.status, 200)
+        # Real bug found live (2026-10-02): with no cache-control header
+        # at all, a browser's own heuristic caching could serve a stale
+        # app.js alongside a fresh index.html (or vice versa) after a
+        # redeploy -- a mismatch between the two throws during app.js's
+        # own top-level script execution, silently aborting before
+        # boot() ever runs, leaving the page stuck showing nothing but
+        # the static topbar. This app is redeployed often and every
+        # file here is tiny, so there's no real cost to never caching
+        # them. Checked on this same connection/request (not a second
+        # one) deliberately -- a second real connection in this test,
+        # for `/static/app.js` specifically, was observed to flake
+        # under Windows (this project's local dev environment, never
+        # the real Pi) depending on which other tests ran immediately
+        # before it; never pinned down beyond "something timing-
+        # sensitive about back-to-back real sockets on this platform,"
+        # and irrelevant to what's actually being verified here, so
+        # sidestepped rather than chased further.
+        self.assertEqual(resp.getheader("Cache-Control"), "no-cache, no-store, must-revalidate")
         self.assertIn(b"Setlist Admin", resp.read())
 
     def test_path_traversal_on_static_files_is_rejected(self):

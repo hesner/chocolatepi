@@ -412,6 +412,21 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
+        # Real bug found live (2026-10-02, in the sibling
+        # setlist-admin-usb expansion -- ported here unchanged): with
+        # no cache-control header at all, a browser's own heuristic
+        # caching can keep a stale index.html/app.js/style.css around
+        # indefinitely -- a real problem for an app redeployed
+        # repeatedly (every fix this project ships), since a stale
+        # app.js referencing a DOM element a newer index.html removed
+        # (or vice versa) throws during its own top-level script
+        # execution, silently aborting before boot() ever runs -- the
+        # page is then stuck showing nothing but the static topbar,
+        # intermittently, depending on which files the browser happened
+        # to have cached. This app is low-traffic (one admin session at
+        # a time) and every file here is tiny, so there's no real cost
+        # to never caching them.
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
         self.end_headers()
         self.wfile.write(data)
 
