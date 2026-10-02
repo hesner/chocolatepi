@@ -59,7 +59,13 @@ h3 { font-size: 1rem; margin: 0; }
 
 .hint { color: var(--text-dim); font-size: 0.9rem; }
 
-form { display: flex; flex-direction: column; gap: 0.75rem; max-width: 360px; }
+/* Real bug found live on a tablet (2026-10-02): `main` itself centers
+   via `margin: 0 auto`, but a narrower `form` inside it never did --
+   invisible on a phone (the viewport is already close to `form`'s own
+   max-width), glaring on a tablet (the login/PIN form hugged the left
+   edge of `main`'s wide, centered column instead of sitting in its
+   middle). */
+form { display: flex; flex-direction: column; gap: 0.75rem; max-width: 360px; margin: 0 auto; }
 
 input[type="text"],
 input[type="password"],

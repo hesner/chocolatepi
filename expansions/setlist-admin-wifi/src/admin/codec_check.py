@@ -15,12 +15,28 @@ video codec to check.
 
 import json
 import logging
+import os
 import subprocess
 
 logger = logging.getLogger(__name__)
 
 _VIDEO_EXTENSIONS = {"mp4", "mov", "mpeg", "mpg"}
 _EXPECTED_VIDEO_CODEC = "h264"
+
+# Real incident found live (2026-10-02, in the sibling setlist-admin-usb
+# expansion -- ported here unchanged): list_songs() calls is_optimized()
+# for every song on every GET /api/songs -- with ~24 songs, several of
+# them multi-GB videos, on this hardware's weak CPU and slow USB/FUSE
+# reads, that meant re-running ffprobe on every single video, every
+# single time, and a real login-to-songs-loaded gap of ~37 seconds.
+# Keyed by (path, mtime, size): the one thing that can't change about a
+# file's codec without the file itself changing, which always bumps at
+# least one of those -- a fresh upload, a replace, or Optimize finishing
+# all naturally invalidate their own cache entry for free, no manual
+# invalidation needed. Process-lifetime cache -- bounded in practice
+# since the library itself is small and setlist-admin.service's own
+# process already gets recycled whenever the tethered phone disconnects.
+_codec_cache: "dict[tuple[str, float, int], str | None]" = {}
 
 
 def check_video_codec(path: str, extension: str) -> "str | None":
@@ -68,7 +84,24 @@ def is_optimized(path: str, extension: str) -> bool:
 
 def _probe_video_codec(path: str) -> "str | None":
     """Returns the file's video stream codec name (e.g. "h264", "hevc"),
-    or None if ffprobe failed or the result couldn't be parsed."""
+    or None if ffprobe failed or the result couldn't be parsed. Cached
+    by (path, mtime, size) -- see _codec_cache's own comment."""
+    try:
+        stat = os.stat(path)
+    except OSError:
+        stat = None
+    cache_key = (path, stat.st_mtime, stat.st_size) if stat is not None else None
+    if cache_key is not None and cache_key in _codec_cache:
+        return _codec_cache[cache_key]
+
+    codec = _probe_video_codec_uncached(path)
+
+    if cache_key is not None:
+        _codec_cache[cache_key] = codec
+    return codec
+
+
+def _probe_video_codec_uncached(path: str) -> "str | None":
     try:
         result = subprocess.run(
             [

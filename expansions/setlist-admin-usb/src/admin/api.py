@@ -9,6 +9,7 @@ operation in `self._writable_usb()` -- the rw window is exactly one
 operation wide, never the whole request, matching section 6.
 """
 
+import concurrent.futures
 import logging
 import os
 import subprocess
@@ -18,6 +19,16 @@ from typing import BinaryIO, Optional
 from admin import auth, codec_check, library_ops, optimize_queue, pedal_core_guard, usb_mount
 
 logger = logging.getLogger(__name__)
+
+# list_songs()'s per-song codec check (ffprobe, one subprocess per video
+# file) is I/O-bound, not CPU-bound -- most of the wait is this weak
+# Pi 2's slow USB/FUSE reads, not computation. Running them concurrently
+# instead of one-by-one cuts wall-clock time roughly in proportion to
+# this, confirmed live (2026-10-02): a real login-to-songs-loaded gap of
+# ~37 seconds with ~24 songs, several multi-GB videos. 4, not higher --
+# this Pi is a quad-core, and pedal-core.service's own playback still
+# needs real CPU headroom alongside whatever this borrows briefly.
+_CODEC_CHECK_WORKERS = 4
 
 PIN_FILENAME = ".setlist-admin/pin.hash"
 SESSION_KEY_FILENAME = ".setlist-admin/session.key"
@@ -180,21 +191,24 @@ class AdminAPI:
     # -- Song library (reuse across Sets) -------------------------------------
 
     def list_songs(self) -> dict:
-        songs = []
-        for s in library_ops.list_songs(self.config.usb_root):
-            path = os.path.join(self.config.usb_root, "_Songs", s.filename)
-            optimized = codec_check.is_optimized(path, s.extension)
-            job = None if optimized else optimize_queue.get_status(self.config.usb_root, s.filename)
-            songs.append({
-                "filename": s.filename, "display_name": s.display_name,
-                "extension": s.extension, "is_audio_only": s.is_audio_only,
-                "needs_optimization": not optimized,
-                "optimization_status": job.get("status") if job else None,
-                "optimization_error": (
-                    job.get("message") if job and job.get("status") == optimize_queue.STATUS_ERROR else None
-                ),
-            })
+        song_infos = list(library_ops.list_songs(self.config.usb_root))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=_CODEC_CHECK_WORKERS) as pool:
+            songs = list(pool.map(self._describe_song, song_infos))
         return {"songs": songs}
+
+    def _describe_song(self, s) -> dict:
+        path = os.path.join(self.config.usb_root, "_Songs", s.filename)
+        optimized = codec_check.is_optimized(path, s.extension)
+        job = None if optimized else optimize_queue.get_status(self.config.usb_root, s.filename)
+        return {
+            "filename": s.filename, "display_name": s.display_name,
+            "extension": s.extension, "is_audio_only": s.is_audio_only,
+            "needs_optimization": not optimized,
+            "optimization_status": job.get("status") if job else None,
+            "optimization_error": (
+                job.get("message") if job and job.get("status") == optimize_queue.STATUS_ERROR else None
+            ),
+        }
 
     def request_song_optimization(self, filename: str) -> None:
         """Queues a background re-encode for this library song, picked
