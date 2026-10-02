@@ -35,11 +35,27 @@ became a 38MB output in the real incident this was built for) output
 file is copied onto the USB at the end -- a brief pedal_core_guard.
 writable_usb() window, the same few-seconds pattern every other write
 in this app already uses, not the whole encode.
+
+Real incident found live (2026-10-02): the source file was originally
+read *in place* off the USB -- `ffmpeg -i /media/usb/_Songs/<file>`,
+no local copy first -- which meant ffmpeg kept that file open for its
+*entire* encode, confirmed live at 45+ minutes for one 4K source.
+`umount` refuses outright while anything holds a file open on that
+mount, for any reason, reading included -- so every other library
+write (even an unrelated "create Bank") failed with a 500 the whole
+time, since `pedal_core_guard`'s fallback only knows how to stop
+`pedal-core.service`, not this daemon. Fixed: the source is now copied
+to local scratch *first* (a brief, bounded read, same as any other file
+copy) and `ffmpeg` runs entirely against that local copy -- the USB
+mount is never held open for anywhere near the encode's own duration,
+closing the same class of problem the output side was already designed
+to avoid.
 """
 
 import argparse
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -104,26 +120,45 @@ def _process_job(usb_root: str, mount_point: str, scratch_dir: str, filename: st
         _fail(usb_root, mount_point, filename, "Song no longer in the library")
         return
 
+    # Real incident (2026-10-02): copy to local scratch *before*
+    # encoding, rather than pointing ffmpeg straight at the USB-mounted
+    # source -- see the module docstring. This copy is the only moment
+    # the USB is touched for the source at all, and it needs no
+    # pedal_core_guard window of its own: reading from the normally-ro
+    # mount never needs rw access.
+    _, source_ext = os.path.splitext(filename)
+    scratch_input = os.path.join(scratch_dir, f"{uuid.uuid4().hex}{source_ext}")
     scratch_output = os.path.join(scratch_dir, f"{uuid.uuid4().hex}.mp4")
     try:
-        _encode(source_path, scratch_output)
-    except subprocess.TimeoutExpired:
-        _fail(usb_root, mount_point, filename, "Encoding took too long and was stopped")
-        return
-    except subprocess.CalledProcessError as e:
-        stderr_tail = (e.stderr or "")[-500:]
-        logger.error("ffmpeg failed optimizing %s: %s", filename, stderr_tail)
-        _fail(usb_root, mount_point, filename, "Encoding failed -- the file may be corrupt or unreadable")
-        return
+        try:
+            shutil.copyfile(source_path, scratch_input)
+        except OSError as e:
+            logger.error("Could not copy %s to local scratch: %s", filename, e)
+            _fail(usb_root, mount_point, filename, "Could not read the source file")
+            return
 
-    try:
-        with pedal_core_guard.writable_usb(mount_point):
-            library_ops._atomic_copy_file(scratch_output, source_path)
-            optimize_queue.clear(usb_root, filename)
-        logger.info("Optimized %s", filename)
+        try:
+            _encode(scratch_input, scratch_output)
+        except subprocess.TimeoutExpired:
+            _fail(usb_root, mount_point, filename, "Encoding took too long and was stopped")
+            return
+        except subprocess.CalledProcessError as e:
+            stderr_tail = (e.stderr or "")[-500:]
+            logger.error("ffmpeg failed optimizing %s: %s", filename, stderr_tail)
+            _fail(usb_root, mount_point, filename, "Encoding failed -- the file may be corrupt or unreadable")
+            return
+
+        try:
+            with pedal_core_guard.writable_usb(mount_point):
+                library_ops._atomic_copy_file(scratch_output, source_path)
+                optimize_queue.clear(usb_root, filename)
+            logger.info("Optimized %s", filename)
+        finally:
+            if os.path.exists(scratch_output):
+                os.remove(scratch_output)
     finally:
-        if os.path.exists(scratch_output):
-            os.remove(scratch_output)
+        if os.path.exists(scratch_input):
+            os.remove(scratch_input)
 
 
 def _fail(usb_root: str, mount_point: str, filename: str, message: str) -> None:

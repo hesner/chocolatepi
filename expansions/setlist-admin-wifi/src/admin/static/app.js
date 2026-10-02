@@ -491,9 +491,6 @@ document.getElementById("btn-new-set").addEventListener("click", async () => {
 
 // -- Export Set: full-screen "cheat sheet" view + share-as-image ------------
 
-const SUPPORTED_FORMATS_DISCLAIMER =
-  "Supported formats for uploading: audio MP3, WAV — video MP4, MOV, MPEG, MPG (with embedded audio).";
-
 let exportSetName = null;
 let exportEntries = [];
 
@@ -613,16 +610,12 @@ async function renderSetlistToPngBlob(setName, entries) {
   const paddingX = 64;
   const headerHeight = 160;
   const lineHeight = 76;
-  const disclaimerLineHeight = 34;
-  const footerPadding = 40;
+  const footerHeight = 48;
 
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
-  // Measuring the wrapped disclaimer needs a sized context first.
   canvas.width = width;
-  const disclaimerLines = wrapTextLines(ctx, SUPPORTED_FORMATS_DISCLAIMER, width - paddingX * 2, "24px -apple-system, sans-serif");
   const bodyHeight = Math.max(entries.length, 1) * lineHeight;
-  const footerHeight = footerPadding + disclaimerLines.length * disclaimerLineHeight + footerPadding;
   canvas.height = headerHeight + bodyHeight + footerHeight;
 
   // Background
@@ -659,34 +652,7 @@ async function renderSetlistToPngBlob(setName, entries) {
     });
   }
 
-  // Footer disclaimer
-  ctx.fillStyle = "#9aa0ab";
-  ctx.font = "24px -apple-system, sans-serif";
-  let disclaimerY = headerHeight + bodyHeight + footerPadding + 20;
-  for (const line of disclaimerLines) {
-    ctx.fillText(line, paddingX, disclaimerY);
-    disclaimerY += disclaimerLineHeight;
-  }
-
   return new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
-}
-
-function wrapTextLines(ctx, text, maxWidth, font) {
-  ctx.font = font;
-  const words = text.split(" ");
-  const lines = [];
-  let line = "";
-  for (const word of words) {
-    const testLine = line ? `${line} ${word}` : word;
-    if (line && ctx.measureText(testLine).width > maxWidth) {
-      lines.push(line);
-      line = word;
-    } else {
-      line = testLine;
-    }
-  }
-  if (line) lines.push(line);
-  return lines;
 }
 
 document.getElementById("btn-new-bank").addEventListener("click", async () => {

@@ -85,6 +85,35 @@ class TestProcessJob(LibraryOptimizerTestCase):
         self.assertEqual(os.listdir(self.scratch_dir), [])
 
     @patch("admin.library_optimizer.subprocess.run")
+    def test_ffmpeg_runs_against_a_local_scratch_copy_not_the_usb_path(self, mock_run):
+        """Real incident (2026-10-02): ffmpeg used to run straight
+        against the USB-mounted source, keeping it open for the whole
+        encode -- long enough (45+ minutes for one real 4K file) that
+        every other library write failed, since umount refuses outright
+        while anything holds a file open on that mount, reading
+        included. The source is now copied to scratch first; ffmpeg
+        must never see the real USB path as its input."""
+        source_path = self._write_song("Song.mp4", b"old hevc bytes")
+        optimize_queue.enqueue(self.usb_root, "Song.mp4")
+
+        def fake_ffmpeg(cmd, **kwargs):
+            input_path = cmd[cmd.index("-i") + 1]
+            self.assertNotEqual(input_path, source_path)
+            self.assertTrue(input_path.startswith(self.scratch_dir))
+            self.assertTrue(os.path.isfile(input_path))
+            with open(cmd[-1], "wb") as f:
+                f.write(b"optimized h264 bytes")
+            return subprocess.CompletedProcess(args=cmd, returncode=0)
+
+        mock_run.side_effect = fake_ffmpeg
+
+        library_optimizer._process_job(self.usb_root, "/media/usb", self.scratch_dir, "Song.mp4")
+
+        # Both the scratch input copy and the scratch output are
+        # cleaned up -- nothing lingers once the job is done.
+        self.assertEqual(os.listdir(self.scratch_dir), [])
+
+    @patch("admin.library_optimizer.subprocess.run")
     def test_missing_source_file_marks_error_without_calling_ffmpeg(self, mock_run):
         optimize_queue.enqueue(self.usb_root, "Does Not Exist.mp4")
 
@@ -92,6 +121,18 @@ class TestProcessJob(LibraryOptimizerTestCase):
 
         mock_run.assert_not_called()
         status = optimize_queue.get_status(self.usb_root, "Does Not Exist.mp4")
+        self.assertEqual(status["status"], optimize_queue.STATUS_ERROR)
+
+    @patch("admin.library_optimizer.shutil.copyfile", side_effect=OSError("boom"))
+    @patch("admin.library_optimizer.subprocess.run")
+    def test_a_failed_scratch_copy_marks_error_without_calling_ffmpeg(self, mock_run, mock_copy):
+        self._write_song("Song.mp4", b"original bytes")
+        optimize_queue.enqueue(self.usb_root, "Song.mp4")
+
+        library_optimizer._process_job(self.usb_root, "/media/usb", self.scratch_dir, "Song.mp4")
+
+        mock_run.assert_not_called()
+        status = optimize_queue.get_status(self.usb_root, "Song.mp4")
         self.assertEqual(status["status"], optimize_queue.STATUS_ERROR)
 
     @patch("admin.library_optimizer.subprocess.run")
