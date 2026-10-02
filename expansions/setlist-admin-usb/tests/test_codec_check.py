@@ -82,6 +82,25 @@ class TestProbeCaching(CodecCheckTestCase):
         self.assertEqual(mock_run.call_count, 2)
 
     @patch("admin.codec_check.subprocess.run")
+    def test_a_transient_probe_failure_on_an_existing_file_is_not_cached(self, mock_run):
+        """Real incident (2026-10-02), minutes after this cache first
+        shipped: several ffprobes run concurrently (list_songs()'s
+        ThreadPoolExecutor) while the Pi was already saturated by a
+        real Optimize job hit the 30s timeout at once -- caching that
+        failure the same way as a success left an already-H.264 file
+        permanently stuck showing "Optimize", no refresh or retry ever
+        fixing it, since the file's own (path, mtime, size) never
+        changes just because the *system* was briefly overloaded."""
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd=["ffprobe"], timeout=30)
+        self.assertFalse(codec_check.is_optimized(self.path, "mp4"))
+
+        mock_run.side_effect = None
+        mock_run.return_value = _ffprobe_result("h264")
+
+        self.assertTrue(codec_check.is_optimized(self.path, "mp4"))
+        self.assertEqual(mock_run.call_count, 2)
+
+    @patch("admin.codec_check.subprocess.run")
     def test_a_missing_file_is_never_cached(self, mock_run):
         missing_path = os.path.join(self.tmpdir.name, "Gone.mp4")
         mock_run.side_effect = subprocess.CalledProcessError(1, ["ffprobe"])

@@ -83,8 +83,21 @@ def is_optimized(path: str, extension: str) -> bool:
 
 def _probe_video_codec(path: str) -> "str | None":
     """Returns the file's video stream codec name (e.g. "h264", "hevc"),
-    or None if ffprobe failed or the result couldn't be parsed. Cached
-    by (path, mtime, size) -- see _codec_cache's own comment."""
+    or None if ffprobe failed or the result couldn't be parsed. A
+    successful result is cached by (path, mtime, size) -- see
+    _codec_cache's own comment. A *failed* probe (None) is deliberately
+    never cached: real incident found live (2026-10-02), minutes after
+    this cache first shipped -- running several ffprobes concurrently
+    (list_songs()'s new ThreadPoolExecutor) while this hardware was
+    already saturated by a real Optimize job's ffmpeg made three of them
+    hit the 30s timeout at once, and because that failure used to be
+    cached just like a success, those files (including one already
+    confirmed H.264) got permanently stuck showing the "Optimize" button
+    -- no refresh, no amount of retrying from the app, would ever fix it
+    again, since the file's own (path, mtime, size) never changes just
+    because the *system* was briefly overloaded. Only ever caching a
+    genuine codec result -- never "I couldn't tell" -- means a transient
+    failure simply gets retried, for real, on the very next call."""
     try:
         stat = os.stat(path)
     except OSError:
@@ -95,7 +108,7 @@ def _probe_video_codec(path: str) -> "str | None":
 
     codec = _probe_video_codec_uncached(path)
 
-    if cache_key is not None:
+    if cache_key is not None and codec is not None:
         _codec_cache[cache_key] = codec
     return codec
 
