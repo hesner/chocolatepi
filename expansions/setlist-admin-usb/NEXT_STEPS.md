@@ -322,14 +322,19 @@ actively enforces "`setlist-admin.service` only runs while a phone is
 USB-tethered" -- it re-stops the admin app within a few seconds of any
 manual `systemctl start`, confirmed live via its own `journalctl`
 output (repeated `systemctl stop setlist-admin.service` calls, several
-seconds apart). To reach the admin app over WiFi with no phone
-tethered (the same need as item 5 at the very top of this file):
-`sudo systemctl stop usb-tether-watchdog.service` *first*, then
-`sudo systemctl start setlist-admin.service` -- and remember to
-`sudo systemctl start usb-tether-watchdog.service` again afterward to
+seconds apart). **As of 2026-10-03, this is no longer the only way
+in** -- the watchdog also starts the admin app automatically whenever
+the Pi's WiFi is connected to its own trusted home network, with no
+manual override needed (see the entry right below, and
+`USAGE.md`'s "Reaching the app over WiFi"). The override trick below
+is now mainly useful for reaching the admin app over some *other*
+network the watchdog doesn't trust (developer/SSH use): `sudo
+systemctl stop usb-tether-watchdog.service` *first*, then `sudo
+systemctl start setlist-admin.service` -- and remember to `sudo
+systemctl start usb-tether-watchdog.service` again afterward to
 restore the normal automatic behavior, or the admin app will simply
 stay up (and reachable) indefinitely instead of following the
-USB-tether convention the rest of this project relies on.
+tether/WiFi convention the rest of this project relies on.
 
 ## 2026-10-03: resource-aware video lane (base pedal), and the WiFi
 expansion formally deferred to the roadmap

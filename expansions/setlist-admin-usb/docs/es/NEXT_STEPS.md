@@ -381,16 +381,20 @@ admin.service` solo corre mientras haya un teléfono conectado por
 USB" — vuelve a detener la app admin a los pocos segundos de cualquier
 `systemctl start` manual, confirmado en vivo vía su propia salida de
 `journalctl` (llamadas repetidas a `systemctl stop setlist-admin.
-service`, con pocos segundos de diferencia). Para llegar a la app
-admin por WiFi sin ningún teléfono conectado por cable (la misma
-necesidad del ítem 5 al principio de este archivo):
-`sudo systemctl stop usb-tether-watchdog.service` *primero*, luego
-`sudo systemctl start setlist-admin.service` — y recordar hacer
-`sudo systemctl start usb-tether-watchdog.service` de nuevo después
-para restaurar el comportamiento automático normal, o la app admin se
-quedará corriendo (y alcanzable) indefinidamente en vez de seguir la
-convención de conexión por USB de la que depende el resto de este
-proyecto.
+service`, con pocos segundos de diferencia). **Desde el 2026-10-03,
+esta ya no es la única forma de entrar** — el watchdog también arranca
+la app admin automáticamente cuando el WiFi de la Pi está conectado a
+su propia red de casa de confianza, sin necesitar ningún truco manual
+(ver la entrada justo abajo, y "Reaching the app over WiFi" en
+`USAGE.md`). El truco de abajo ahora sirve principalmente para llegar
+a la app admin por alguna *otra* red en la que el watchdog no confía
+(uso de desarrollo/SSH): `sudo systemctl stop
+usb-tether-watchdog.service` *primero*, luego `sudo systemctl start
+setlist-admin.service` — y recordar hacer `sudo systemctl start
+usb-tether-watchdog.service` de nuevo después para restaurar el
+comportamiento automático normal, o la app admin se quedará corriendo
+(y alcanzable) indefinidamente en vez de seguir la convención de
+cable/WiFi de la que depende el resto de este proyecto.
 
 ## 2026-10-03: carril de video consciente de recursos (pedal base), y
 la expansión de WiFi formalmente diferida al roadmap

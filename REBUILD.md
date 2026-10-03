@@ -170,12 +170,19 @@ SSH; see the root `README.md`'s "Optional expansions" table for the
 current one-line description and status of each.
 
 **Do not install either without asking first.** Tell the user both
-exist, in plain terms (one works over a USB cable to the phone, no
-WiFi hardware needed; the other works over WiFi but needs a working
-WiFi adapter on the Pi), and let them choose: both, one, or neither.
-They're independent of each other and of the base pedal -- installing
-or skipping one has no effect on the other or on anything in Phases
-1-8 above.
+exist, in plain terms: `setlist-admin-usb` reaches the admin app over
+a USB cable to the phone (no WiFi hardware needed), *and*, as of
+2026-10-03, also automatically over the Pi's own home WiFi if a USB
+WiFi dongle is connected to it -- no extra install or configuration
+for that second path, it's built into the same expansion. The separate
+`setlist-admin-wifi` expansion is a fuller, more complex feature (its
+own hotspot-configuration UI, encrypted on-USB credential storage) --
+currently a deliberate roadmap item, not recommended to install unless
+the user specifically wants that hotspot-configuration capability over
+what `setlist-admin-usb` already covers. Let them choose: both, one,
+or neither. They're independent of each other and of the base pedal --
+installing or skipping one has no effect on the other or on anything
+in Phases 1-8 above.
 
 If the user wants one (or both) installed, follow that expansion's own
 `USAGE.md` "Installing" section exactly -- each has its own
