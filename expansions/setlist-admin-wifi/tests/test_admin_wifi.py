@@ -1,7 +1,7 @@
 """
 wifi.py tests. `nmcli` calls are mocked throughout -- this exercises
 the config encryption/decision logic, not real networking, per the
-network testing safety protocol (SETLIST_ADMIN_SPECIFICATION.md section
+network testing safety protocol (SPECIFICATION.md section
 8a): touching real `nmcli` state is only ever done on real hardware,
 staged, with Ethernet connected as a safety net, never in a unit test.
 

@@ -2,7 +2,7 @@
 Description=Chocolate Pi -- Setlist Admin (web UI for the library USB and WiFi)
 # install_setlist_admin.sh deliberately does NOT `systemctl enable` this
 # unit -- setlist-network-watchdog.service starts and stops it directly
-# based on whether there's a usable IP (SETLIST_ADMIN_SPECIFICATION.md
+# based on whether there's a usable IP (SPECIFICATION.md
 # section 5, step 4). Running with no network at all would just be a
 # listening server no one can reach, wasting the RAM/CPU section 7 is
 # explicit about not spending. The [Install] section below only matters

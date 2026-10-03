@@ -2,7 +2,7 @@
 Request handling logic for setlist-admin, kept separate from `server.py`'s
 raw HTTP plumbing so it's testable by calling methods directly, with a
 mocked filesystem/subprocess layer -- no real HTTP server, no real USB,
-no real `nmcli` needed to exercise this (SETLIST_ADMIN_SPECIFICATION.md
+no real `nmcli` needed to exercise this (SPECIFICATION.md
 section 8).
 
 Every method that mutates the library wraps its single filesystem

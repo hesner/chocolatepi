@@ -2,7 +2,7 @@
 WiFi profile storage and application, for both setlist-admin (the web
 app, when someone sets the home WiFi from the UI) and
 setlist_network_watchdog (which reapplies profiles at boot -- see that
-module and SETLIST_ADMIN_SPECIFICATION.md section 5).
+module and SPECIFICATION.md section 5).
 
 Two profiles are tracked, both stored the same encrypted way on the USB
 for consistency (section 5): "home" (the user's own network, optional)

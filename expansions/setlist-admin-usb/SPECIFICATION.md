@@ -322,11 +322,17 @@ This whole feature lives under `expansions/setlist-admin-usb/` -- an
 addon to the base project, never required for the base pedal to work
 (see the repo root's `expansions/README.md` for the general model).
 Optional install via `expansions/setlist-admin-usb/scripts/install.sh`
-(installs `setlist-admin.service` + `usb-tether-watchdog.service`),
-never auto-enabled by the base `systemd/README.md` setup,
+(installs `setlist-admin.service`, `usb-tether-watchdog.service`, and
+`library-optimizer.service` -- section 15), never auto-enabled by the
+base `systemd/README.md` setup,
 `expansions/setlist-admin-usb/scripts/rollback.sh` to remove cleanly
-(stops/removes the services only -- doesn't touch git state, so it
-can't collaterally affect any other expansion).
+(stops/removes the three services, and the local scratch directories
+`library-optimizer.service` and the upload-receiving code each use
+-- `~/pedal-optimizer-scratch/`, `~/pedal-admin-upload-scratch/` --
+only; doesn't touch git state or the library USB by default, so it
+can't collaterally affect any other expansion or lose any data; see
+`rollback.sh`'s own `--purge`/`--purge-library` flags (section 13) for
+the explicit opt-in to delete more).
 
 ## 12. Open questions for approval
 

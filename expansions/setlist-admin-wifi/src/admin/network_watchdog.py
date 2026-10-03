@@ -1,7 +1,7 @@
 """
 setlist-network-watchdog: reapplies WiFi profiles to NetworkManager at
 boot and periodically thereafter, and starts/stops setlist-admin.service
-based on whether there's an actual usable IP (SETLIST_ADMIN_SPECIFICATION.md
+based on whether there's an actual usable IP (SPECIFICATION.md
 section 5).
 
 Entry point for `setlist-network-watchdog.service`. Run directly with

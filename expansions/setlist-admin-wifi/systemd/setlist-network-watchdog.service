@@ -2,7 +2,7 @@
 Description=Chocolate Pi -- Setlist Admin network watchdog
 # Starts early and stays running for the Pi's whole uptime -- this is
 # what reapplies WiFi profiles every boot (they don't survive under the
-# read-only root overlay otherwise, SETLIST_ADMIN_SPECIFICATION.md
+# read-only root overlay otherwise, SPECIFICATION.md
 # section 3, point 2) and what decides whether setlist-admin.service
 # should be running at all.
 After=network.target NetworkManager.service

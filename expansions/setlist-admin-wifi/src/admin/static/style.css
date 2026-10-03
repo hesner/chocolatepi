@@ -1,5 +1,5 @@
 /* Mobile-first, deliberately: this app's primary use case is a phone on
-   the band's hotspot (SETLIST_ADMIN_SPECIFICATION.md section 1). Wider
+   the band's hotspot (SPECIFICATION.md section 1). Wider
    layouts are the exception (@media min-width), not the default. */
 
 :root {

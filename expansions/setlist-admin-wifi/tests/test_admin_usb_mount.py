@@ -1,7 +1,7 @@
 """Tests for admin.usb_mount -- specifically that _remount uses a real
 umount+mount cycle, not `mount -o remount,X`, since ntfs-3g (the library
 USB's actual filesystem driver, a FUSE filesystem) refuses in-place
-remounts outright. Found the hard way against real hardware: SETLIST_ADMIN_SPECIFICATION.md's
+remounts outright. Found the hard way against real hardware: SPECIFICATION.md's
 own section 8a testing protocol is what caught this, since no unit test
 exercised the real subprocess calls before then.
 """

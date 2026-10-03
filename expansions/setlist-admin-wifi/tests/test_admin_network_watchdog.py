@@ -3,7 +3,7 @@ network_watchdog.py tests. Everything real (nmcli, systemctl,
 /etc/machine-id) is mocked -- this only exercises the decision logic:
 what gets applied/started/stopped under which conditions, and crucially,
 that --dry-run (network testing safety protocol stage 3,
-SETLIST_ADMIN_SPECIFICATION.md section 8a) truly never calls any of the
+SPECIFICATION.md section 8a) truly never calls any of the
 real-effecting functions.
 
 Run with: python -m unittest tests/test_admin_network_watchdog.py

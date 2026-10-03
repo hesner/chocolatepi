@@ -1,5 +1,5 @@
 """
-Upload-time codec validation (SETLIST_ADMIN_SPECIFICATION.md section 9:
+Upload-time codec validation (SPECIFICATION.md section 9:
 "the app runs ffprobe on any uploaded video and warns -- not blocks --
 if it's not H.264").
 

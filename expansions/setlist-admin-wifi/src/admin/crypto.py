@@ -1,6 +1,6 @@
 """
 Encryption for the one secret this project needs to persist somewhere
-other than git: the home WiFi password (SETLIST_ADMIN_SPECIFICATION.md
+other than git: the home WiFi password (SPECIFICATION.md
 section 5).
 
 Deliberately not a Python crypto library (no `cryptography`, no `pip

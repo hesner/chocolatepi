@@ -1,5 +1,5 @@
 """
-The rw/ro remount discipline from SETLIST_ADMIN_SPECIFICATION.md section 6,
+The rw/ro remount discipline from SPECIFICATION.md section 6,
 as a context manager: the library USB is read-only during normal
 operation (MASTER_SPECIFICATION.md section 2), so every write this app
 makes briefly remounts it read-write, does exactly one logical

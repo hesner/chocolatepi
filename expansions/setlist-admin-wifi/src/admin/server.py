@@ -1,7 +1,7 @@
 """
 setlist-admin's HTTP server. Standard library only (`http.server`) --
 no Flask, no third-party WSGI stack, matching this project's existing
-"no `pip install`" rule (SETLIST_ADMIN_SPECIFICATION.md section 2).
+"no `pip install`" rule (SPECIFICATION.md section 2).
 
 Entry point for `setlist-admin.service` (only ever started by
 setlist-network-watchdog.service while there's a usable IP -- section 5).

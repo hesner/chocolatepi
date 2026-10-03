@@ -1,5 +1,5 @@
 """
-PIN-based auth for the setlist-admin web app (SETLIST_ADMIN_SPECIFICATION.md
+PIN-based auth for the setlist-admin web app (SPECIFICATION.md
 section 2: a single shared PIN, not per-user accounts).
 
 Standard library only: `hashlib`/`hmac`/`secrets`, the same way the rest
