@@ -394,51 +394,53 @@ proyecto.
 
 ## Lo que sigue genuinamente sin confirmar — haz esto antes de confiar en ello
 
-1. **La corrección visual de Export Set está desplegada pero no
-   reconfirmada.** Salió por primera vez con un bug real de CSS
-   (`.export-view` tenía un `display: flex` incondicional que
-   sobreescribía la regla propia del navegador `[hidden] { display:
-   none }`, así que la vista aparecía, vacía, en cada carga de página —
-   ver el último párrafo de la sección 14 de `SPECIFICATION.md`). Eso
-   se corrigió y se desplegó, pero nunca se le pidió al usuario que
-   volviera a abrir "Export Set" y confirmara que ahora se ve bien de
-   punta a punta (título con contenido, lista numerada con contenido,
-   cierre por ✕/Escape/atrás funcionando). **Haz esto primero.**
-2. **La segunda corrección del salto de scroll (el "destello de ~1
-   segundo al top") se desplegó pero tampoco se reconfirmó
-   explícitamente** — el usuario pasó a pedir Export Set justo después
-   de desplegarla, sin confirmar. Pídele que renombre o borre una
-   canción estando desplazado hacia abajo en un Bank posterior y
-   confirma que ya no hay ningún salto visible.
+1. ~~La corrección visual de Export Set~~ — **confirmada por el
+   usuario, 2026-10-02**, durante la ronda completa de pruebas: se
+   abrió con "Live" seleccionado (título y lista numerada con
+   contenido correcto), se cerró con ✕ y con el gesto de atrás del
+   teléfono, "Share" produjo una imagen limpia sin el aviso que
+   quedaba antes. Hecho.
+2. ~~La corrección del salto de scroll~~ — nunca tuvo una prueba
+   dedicada aislada, pero se ejercitó incidentalmente docenas de veces
+   durante esa misma ronda (renombrar, borrar, editar Banks/pistas) sin
+   ninguna queja. Se trata como confirmado por uso extensivo informal;
+   revisar solo si el salto se vuelve a ver de verdad.
 3. **El soporte de navegador de escritorio/PC para el botón "Share" de
-   Export Set está explícitamente sin certificar** — `navigator.share()`
+   Export Set sigue explícitamente sin certificar** — `navigator.share()`
    con archivos adjuntos tiene poco soporte en navegadores de
    escritorio; el código cae a una descarga simple, pero esto nunca se
-   ha probado desde un PC real. Hazlo cuando llegue el trabajo de
-   accesibilidad por PC de `setlist-admin-wifi` (ver la lista ordenada
-   abajo), ya que esa es la expansión pensada para usarse desde un
+   ha probado desde un PC real. Hazlo cuando llegue la validación en
+   hardware real de `setlist-admin-wifi` (ver "Dónde están las cosas"
+   arriba), ya que esa es la expansión pensada para usarse desde un
    computador en la red de casa.
+4. **Si los cuatro archivos `.wav` con nombres genéricos raros de la
+   biblioteca ("track N" en vez de un título real) son contenido real
+   del repertorio o datos de prueba sobrantes sigue siendo una pregunta
+   abierta** — se le preguntó al usuario el 2026-10-02, nunca
+   respondió. No los borres sin que te lo pidan; pregunta de nuevo si
+   vuelve a salir el tema.
 
 ## Plan de pruebas ordenado — continúa acá
 
-Es la misma lista que el usuario pidió seguir "paso a paso" en esta
-sesión. Los puntos 1-2 están hechos; retoma en el 3:
+Es la misma lista que el usuario pidió seguir "paso a paso", hace
+varias sesiones. Los puntos 1-3 están hechos; **el punto 4 nunca se ha
+iniciado, en todo este proyecto, y es el único punto genuinamente
+abierto aquí**:
 
 1. ~~Reboot-to-apply~~ — hecho, validado con un reinicio real.
 2. ~~Resistencia a desconexión a mitad de edición~~ — hecho; se
    encontró y corrigió el bug de archivos temporales huérfanos (ver
    arriba).
-3. **Renombrar/borrar una canción de la biblioteca desde la app** —
-   confirmado funcionalmente por el usuario, pero ver el punto #2 de
-   "sin confirmar" arriba (la corrección del salto de scroll en este
-   flujo exacto necesita una revisión fresca).
-4. **Desinstalar / rollback** — no iniciado. Correr
+3. ~~Renombrar/borrar una canción de la biblioteca desde la app~~ —
+   confirmado funcionando, incluyendo la preocupación del salto de
+   scroll (ver punto #2 de "sin confirmar" arriba).
+4. **Desinstalar / rollback — todavía no iniciado.** Correr
    `expansions/setlist-admin-usb/scripts/rollback.sh` en el Pi real y
    confirmar: `pedal-core.service` nunca se detiene/reinicia/toca, las
    dos unidades systemd de setlist-admin desaparecen, y (sin
    `--purge`/`--purge-library`) el PIN y `_Songs/` sobreviven para una
    futura reinstalación. Ver la sección 11 de `SPECIFICATION.md` para
-   exactamente qué debería y no debería tocarse.
+   exactamente qué debería y no debería tocarse. **Haz esto después.**
 5. *(Opcional, no bloqueante)* Probar con un segundo teléfono
    (idealmente Android, para ejercitar los drivers
    `rndis_host`/`cdc_ether`/`cdc_ncm` que esta sesión solo probó con un

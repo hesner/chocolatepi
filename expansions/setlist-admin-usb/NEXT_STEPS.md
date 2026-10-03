@@ -333,47 +333,49 @@ USB-tether convention the rest of this project relies on.
 
 ## What's genuinely unconfirmed -- do these before trusting them
 
-1. **Export Set's visual fix is deployed but not re-confirmed.** It
-   first shipped with a real CSS bug (`.export-view` had an
-   unconditional `display: flex` that overrode the browser's own
-   `[hidden] { display: none }` rule, so the view showed, empty, on
-   every page load -- see `SPECIFICATION.md` section 14's last
-   paragraph). That was fixed and deployed, but the user was never
-   asked to re-open "Export Set" and confirm it now looks right
-   end-to-end (title populated, numbered list populated, close via ✕/
-   Escape/back all working). **Do this first.**
-2. **The second scroll-jump fix (the "~1s flash to top" one) was
-   deployed but never explicitly re-confirmed either** -- the user
-   moved on to requesting Export Set right after it was deployed,
-   without confirming. Ask them to rename or delete a song while
-   scrolled down to a later Bank and confirm there's no visible jump at
-   all now.
+1. ~~Export Set's visual fix~~ -- **confirmed by the user, 2026-10-02**,
+   during the full QA pass: opened with "Live" selected (title +
+   numbered list populated correctly), closed via ✕ and via the
+   phone's back gesture, "Share" produced a clean image with no leftover
+   disclaimer. Done.
+2. ~~The scroll-jump fix~~ -- never got one isolated, dedicated check,
+   but was exercised incidentally dozens of times across the same QA
+   pass (renames, deletes, Bank/track edits) with no complaint raised.
+   Treating this as confirmed by extensive informal use; revisit only
+   if a jump is ever actually seen again.
 3. **Desktop/PC browser support for Export Set's "Share" button is
-   explicitly uncertified** -- `navigator.share()` with file attachments
-   has poor desktop browser support; the code falls back to a plain
-   download, but this has never been tested from an actual PC. Do this
-   once `setlist-admin-wifi`'s PC-accessibility work happens (see the
-   ordered list below), since that's the expansion meant to be reached
-   from a computer on the home network.
+   still explicitly uncertified** -- `navigator.share()` with file
+   attachments has poor desktop browser support; the code falls back to
+   a plain download, but this has never been tested from an actual PC.
+   Do this once `setlist-admin-wifi`'s own real-hardware validation
+   happens (see "Where things stand" above), since that's the expansion
+   meant to be reached from a computer on the home network.
+4. **Whether the four oddly-generic-named `.wav` files in the library
+   ("track N" rather than a real song title, ~180MB combined) are real
+   setlist content or leftover test data is still an open question** --
+   flagged to the user 2026-10-02, never answered. Don't delete them
+   without being told to; ask again if it comes up.
 
 ## Ordered test plan -- continue here
 
 This is the same list the user asked to go through "paso a paso"
-(step by step) this session. Items 1-2 are done; resume at 3:
+(step by step), several sessions ago. Items 1-3 are done; **item 4 has
+never been started, across this entire project, and is the one
+genuinely open item here**:
 
 1. ~~Reboot-to-apply~~ -- done, validated with a real reboot.
 2. ~~Mid-edit disconnect resilience~~ -- done; found and fixed the
    orphaned-temp-file bug (see above).
-3. **Rename/delete a song from the library UI** -- functionally
-   confirmed working by the user, but see "genuinely unconfirmed" #2
-   above (the scroll-jump fix on this exact flow needs a fresh check).
-4. **Uninstall / rollback** -- not started. Run
+3. ~~Rename/delete a song from the library UI~~ -- confirmed working,
+   including the scroll-jump concern (see "genuinely unconfirmed" #2
+   above).
+4. **Uninstall / rollback -- still not started.** Run
    `expansions/setlist-admin-usb/scripts/rollback.sh` on the real Pi
    and confirm: `pedal-core.service` is never stopped/restarted/
    touched, the two setlist-admin systemd units are gone, and (without
    `--purge`/`--purge-library`) the PIN and `_Songs/` survive for a
    future reinstall. See `SPECIFICATION.md` section 11 for exactly what
-   should and shouldn't be touched.
+   should and shouldn't be touched. **Do this next.**
 5. *(Optional, non-blocking)* Test with a second phone (ideally
    Android, to exercise the `rndis_host`/`cdc_ether`/`cdc_ncm` driver
    paths that this session only ever exercised with one iPhone's
