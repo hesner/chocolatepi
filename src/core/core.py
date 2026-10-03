@@ -129,9 +129,19 @@ class Core:
 
         if resolved.is_audio_only or not self._display_connected:
             if resolved.is_audio_only:
+                # Real bug found live (2026-10-03): this unconditionally
+                # said "standby video keeps looping" even with no
+                # display connected at all (and so no video lane
+                # running to loop anything) -- misleading, not just
+                # cosmetic, when reading the log to diagnose a real
+                # display issue.
+                looping_note = (
+                    "standby video keeps looping" if self._video_lane_running
+                    else "no display connected, nothing to show"
+                )
                 logger.info(
-                    "Playing audio-only setlist=%d track=%d -> %s (standby video keeps looping)",
-                    setlist, track, resolved.path,
+                    "Playing audio-only setlist=%d track=%d -> %s (%s)",
+                    setlist, track, resolved.path, looping_note,
                 )
             else:
                 logger.info(

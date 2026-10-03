@@ -116,6 +116,23 @@ class _MpvProcess:
         self.on_end_file: Optional[Callable[[str], None]] = None
 
     def start(self):
+        # Real incident (2026-10-03): this same instance can now be
+        # stopped and started again within one long-running process
+        # (the video lane stopping/starting as a display disconnects/
+        # reconnects -- see Player.start()/stop() and Core.
+        # set_display_connected()) -- previously it was only ever
+        # started once per process lifetime, so stop()'s
+        # _stop_listener.set() being permanent (never reset) was never
+        # exercised. Confirmed live: without resetting this fresh here,
+        # the *next* start()'s brand-new reader threads saw "already
+        # told to stop" on their very first loop check and closed the
+        # just-connected sockets immediately -- go_to_standby()'s own
+        # commands right after then failed to send ("Bad file
+        # descriptor"), leaving mpv showing its idle "Drop files or
+        # URLs to play here" screen instead of standby.
+        self._stop_listener = threading.Event()
+        self._reader_threads = []
+
         if os.path.exists(self.socket_path):
             os.remove(self.socket_path)
 
