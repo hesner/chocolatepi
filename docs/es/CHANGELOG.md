@@ -43,6 +43,62 @@ publicar]` nuevo y vacío arriba para lo que siga.
 
 ## [Sin publicar]
 
+- **Corregido un lote de problemas reales encontrados durante una
+  ronda completa de pruebas de usuario (2026-10-02)**, ambas
+  expansiones salvo que se indique lo contrario:
+  - `pedal-core.service` podía entrar en un ciclo de caídas durante
+    varios minutos bajo carga pesada de CPU: una escritura cuyo
+    remontaje de limpieza perdía la carrera contra el propio `mpv` de
+    `pedal-core.service` (un mecanismo de respaldo ya existente y
+    legítimo — detenerlo, forzar el remontaje, reiniciarlo) implica
+    que un `mpv` recién creado tiene que abrir su socket de control
+    desde cero, y eso tardaba más de los 5s de margen mientras el
+    `ffmpeg` de un trabajo de "Optimize" concurrente saturaba la CPU —
+    confirmado en vivo, el pedal mostró la pantalla de inactividad de
+    `mpv` durante un par de minutos. Se subió a 20s en
+    `src/core/player.py` (sistema base del pedal, no una expansión) —
+    el arranque normal no se ve afectado (bien por debajo de 1s sin
+    contención).
+  - `list_sets()` listaba carpetas reservadas del sistema de archivos
+    (p. ej. una carpeta que crea NTFS) como Sets seleccionables —
+    confirmado en vivo en el USB real de la biblioteca.
+  - Los estados "Optimizando"/"En cola" se mostraban idénticos (ambos
+    en verde "Optimizando") — con dos trabajos a la vez, no había forma
+    de saber cuál estaba realmente corriendo y cuál solo esperaba su
+    turno. Confirmado en vivo: esto causó cancelar el equivocado por
+    error. Ahora son visualmente distintos.
+  - Subir una canción a la biblioteca siempre mandaba el archivo
+    completo antes de enterarse de un nombre duplicado — normalmente
+    rápido, pero puede tardar minutos si el USB está ocupado con una
+    copia a scratch sin relación. Ahora revisa la lista de canciones ya
+    cargada del lado del cliente primero, al instante, para el caso
+    común.
+  - Una Pi lenta o sobrecargada podía abortar una solicitud a nivel de
+    red, mostrando un "TypeError" crudo y sin traducir en vez de un
+    mensaje claro.
+  - Los botones "Set as standby"/"Unlock"/"Set PIN" no daban ninguna
+    retroalimentación al tocarlos, y el selector de standby se quedaba
+    mostrando el video recién aplicado después, como si no hubiera
+    terminado.
+  - Crear un Bank nuevo pedía un número a mano — los Banks son espacios
+    secuenciales que un controlador MIDI recorre uno a la vez, así que
+    ahora se asigna automáticamente el siguiente. No tiene tope según
+    la cantidad física de bancos de ningún controlador en particular.
+- **Corregido, incidente real (2026-10-02)**: iniciar un segundo
+  trabajo de "Optimize" mientras la fuente de otro todavía se estaba
+  copiando desde el USB podía arrojar error 500 (`RemountError`) —
+  `setlist-admin.service` y `library-optimizer.service` son dos
+  procesos de sistema operativo independientes con memoria separada,
+  así que el `threading.Lock()` dentro de un solo proceso que ya tenía
+  `usb_mount.py` no hacía nada para evitar que una escritura en uno
+  compitiera con una lectura larga en el otro. Se agregó un candado
+  real entre procesos (`flock()` sobre una ruta conocida, omitido en
+  Windows donde `fcntl` no existe — las pruebas locales siguen
+  dependiendo solo del candado dentro del proceso) que ahora comparten
+  cada escritura y el paso de copia a scratch, vía una nueva
+  `usb_mount.exclusive_read()` — una escritura concurrente ahora
+  simplemente espera su turno (acotado a 5 minutos) en vez de competir
+  contra un `umount` con un descriptor de archivo abierto y perder.
 - **Corregido, incidente real (2026-10-02)**: cancelar un trabajo de
   "Optimize" podía arrojar error 500 (`RemountError`) si se tocaba
   dentro del primer tramo de vida del trabajo — el marcador de

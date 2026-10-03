@@ -155,15 +155,15 @@ does `_atomic_copy_file()` straight over `standby.mp4`; it never backs
 up whatever it's replacing. Searched the whole USB (library, every
 Set/Bank, the old `backup/` folder) -- no trace. Recovered only
 because the user still had the original, unconverted source file
-(`nofuturo-visuales-julio10.mp4`, 6.68GB, H.264 1080p but at ~15.7Mbps
--- far too heavy to use directly) on a separate computer. Re-encoded it
+(a real band video file, 6.68GB, H.264 1080p but at ~15.7Mbps -- far
+too heavy to use directly) on a separate computer. Re-encoded it
 to ~1.8Mbps (matching the lost original's own bitrate almost exactly:
 754MB over 55.66 minutes is ~1.8Mbps) using `h264_v4l2m2m` for *both*
 decode and encode -- confirmed live at ~0.87x realtime, dramatically
 faster than the ~0.1x this project saw earlier for software-only HEVC
 decode, since the source here was already H.264 and this Pi's
 hardware codec handles that natively both ways. Uploaded the ~800MB
-result into the library as "Standby Original.mp4" (plain
+result into the library under a new name (plain
 `AdminAPI.upload_song()`, deliberately not `set_standby_video()` --
 the user wanted to choose if/when to make it standby again themselves,
 not have it forced). They later did exactly that through a temporary
@@ -266,6 +266,68 @@ bumped (no version was "cut" this session; everything above still sits
 in `[Unreleased]`). If a clean checkpoint is wanted, that's the next
 small step: confirm nothing's regressed, bump both expansions'
 `VERSION` files, rename `[Unreleased]` to today's date.
+
+**2026-10-02, later the same day -- a second real incident, a full
+user QA pass, and a disk-space cleanup.** Starting a second "Optimize"
+job while another's source was still mid-copy off the USB could also
+500, for the same underlying reason as the cancel fix above
+(`setlist-admin.service` and `library-optimizer.service` are two
+separate processes -- the in-process lock in `usb_mount.py` never
+coordinated between them). Fixed with a real cross-process file lock;
+see `CHANGELOG.md`'s Unreleased entry.
+
+The user then ran a full manual QA pass against every feature touched
+today, reporting back item by item. Real findings, all fixed the same
+session (detailed, one per item, in `CHANGELOG.md`): a `pedal-core.
+service` crash-loop under heavy CPU load (confirmed live -- the pedal
+showed `mpv`'s idle screen for a couple of minutes); `list_sets()`
+listing filesystem-reserved folders as selectable Sets; "Queued" and
+"Optimizing" rendering identically (confirmed live: this caused
+cancelling the wrong job by mistake); a slow library upload with no
+early duplicate-name check; raw untranslated network errors; missing
+tap feedback on the login/standby buttons; and manual Bank numbering
+(now auto-sequential, real user request: a MIDI controller steps
+through Banks one at a time, so there's never a real reason to pick
+anything but the next number -- not capped at any specific
+controller's own physical bank count).
+
+Two things that came up during this pass are **not code bugs,
+confirmed by digging into the actual behavior rather than guessing**:
+- A delay the user measured informally as "~40 seconds" for an
+  Optimize/Cancel action to visually update turned out, per the
+  server's own access log timestamps, to be ~2 seconds end to end --
+  no backend bottleneck found. Noted for next time: if this recurs,
+  capture the exact wall-clock tap time to compare against the log,
+  since "it felt slow" isn't enough on its own to chase a specific fix.
+- Setting a large, not-yet-optimized video directly as standby failed
+  outright with a real `OSError: [Errno 28] No space left on device`
+  -- the library USB was down to ~925MB free (89% used, confirmed via
+  `df`), nowhere near enough for a multi-GB raw video copy. Not a code
+  bug -- the fix was freeing space, not changing behavior.
+
+That low-disk-space finding led to a real cleanup: the two largest
+not-yet-optimized video files in the library (several GB combined)
+were deleted by the user from the app itself, freeing roughly 2.7GB
+(from ~925MB to ~3.7GB free, confirmed via `df` before/after). A
+smaller handful of oddly-generic-named `.wav` files (named like
+"track N" rather than a real song title, ~180MB combined) were
+flagged as possible leftover test data but intentionally **left
+alone** pending the user's own confirmation -- don't delete those
+without being told to.
+
+**Operational note, worth remembering**: `usb-tether-watchdog.service`
+actively enforces "`setlist-admin.service` only runs while a phone is
+USB-tethered" -- it re-stops the admin app within a few seconds of any
+manual `systemctl start`, confirmed live via its own `journalctl`
+output (repeated `systemctl stop setlist-admin.service` calls, several
+seconds apart). To reach the admin app over WiFi with no phone
+tethered (the same need as item 5 at the very top of this file):
+`sudo systemctl stop usb-tether-watchdog.service` *first*, then
+`sudo systemctl start setlist-admin.service` -- and remember to
+`sudo systemctl start usb-tether-watchdog.service` again afterward to
+restore the normal automatic behavior, or the admin app will simply
+stay up (and reachable) indefinitely instead of following the
+USB-tether convention the rest of this project relies on.
 
 ## What's genuinely unconfirmed -- do these before trusting them
 

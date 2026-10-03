@@ -40,6 +40,55 @@ above it for whatever comes next.
 
 ## [Unreleased]
 
+- **Fixed a batch of real issues found during a full user QA pass
+  (2026-10-02)**, both expansions unless noted:
+  - `pedal-core.service` could crash-loop for several minutes under
+    heavy CPU load: a library write's cleanup remount losing a race
+    with `pedal-core.service`'s own `mpv` (an existing, legitimate
+    fallback -- stop it, force the remount, restart it) means a
+    brand-new `mpv` has to spawn and open its IPC socket from scratch,
+    and that took longer than the 5s budget while a concurrent
+    "Optimize" job's `ffmpeg` was pinning the CPU -- confirmed live,
+    the pedal showed `mpv`'s idle screen for a couple of minutes.
+    Raised to 20s in `src/core/player.py` (base pedal system, not an
+    expansion) -- normal startup is unaffected (well under 1s with no
+    contention).
+  - `list_sets()` listed filesystem-reserved folders (e.g. an
+    NTFS-created system folder) as selectable Sets -- confirmed live
+    on the real library USB.
+  - The "Optimizing"/"Queued" states rendered identically (both green
+    "Optimizing") -- with two jobs in flight, there was no way to tell
+    which was actually running vs. just waiting its turn. Confirmed
+    live: this caused cancelling the wrong one by mistake. Now
+    visually distinct.
+  - Uploading to the library always sent the whole file before
+    learning about a name collision -- normally fast, but can wait
+    minutes if the USB is busy with an unrelated scratch-copy. Now
+    checks the already-loaded song list client-side first, instantly,
+    for the common case.
+  - A slow/overloaded Pi could abort a request at the network level,
+    surfacing a raw, untranslated "TypeError" instead of a clear
+    message.
+  - "Set as standby"/"Unlock"/"Set PIN" buttons gave no tap feedback,
+    and the standby dropdown stayed on the just-applied video
+    afterward, looking unfinished.
+  - New Bank creation asked for a number by hand -- Banks are
+    sequential slots a MIDI controller steps through one at a time, so
+    it now auto-assigns the next one. Not capped at any specific
+    controller's own physical bank count.
+- **Fixed, real incident (2026-10-02)**: starting a second "Optimize"
+  job while another's source was still being copied off the USB could
+  500 (`RemountError`) -- `setlist-admin.service` and
+  `library-optimizer.service` are two independent OS processes with
+  separate memory, so `usb_mount.py`'s existing in-process
+  `threading.Lock()` did nothing to stop a write in one from racing a
+  long read in the other. Added a real cross-process file lock
+  (`flock()` on a well-known path, skipped on Windows where `fcntl`
+  doesn't exist -- local tests still rely on the in-process lock alone)
+  that every write and the scratch-copy step now share, via a new
+  `usb_mount.exclusive_read()` -- a concurrent write now simply waits
+  its turn (bounded at 5 minutes) instead of racing a `umount` against
+  an open file descriptor and losing.
 - **Fixed, real incident (2026-10-02)**: cancelling an "Optimize" job
   could 500 (`RemountError`) if tapped within the first stretch of a
   job's life -- the cancel marker lived on the USB alongside every

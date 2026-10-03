@@ -192,7 +192,7 @@ y autocontenido una vez que alguien decida la forma exacta del nombre/
 retención del respaldo. Ver "Decisiones de producto pendientes" abajo.
 
 Se recuperó solo porque el usuario todavía tenía el archivo fuente
-original, sin convertir (`nofuturo-visuales-julio10.mp4`, 6.68GB,
+original, sin convertir (un video real de la banda, 6.68GB,
 H.264 1080p pero a ~15.7Mbps — demasiado pesado para usar directo), en
 otro computador. Se re-codificó a ~1.8Mbps (coincide casi exacto con el
 bitrate del original perdido: 754MB en 55.66 minutos son ~1.8Mbps)
@@ -201,7 +201,7 @@ confirmado en vivo a ~0.87x en tiempo real, muchísimo más rápido que el
 ~0.1x que este proyecto vio antes con decodificación HEVC solo por
 software, ya que la fuente aquí ya era H.264 y el códec por hardware
 de esta Pi lo maneja nativo en ambos sentidos. El resultado (~800MB) se
-subió a la biblioteca como "Standby Original.mp4" (`AdminAPI.upload_song()`
+subió a la biblioteca con un nombre nuevo (`AdminAPI.upload_song()`
 simple, deliberadamente no `set_standby_video()` — el usuario quería
 decidir él mismo si y cuándo volver a hacerlo standby, no que se
 forzara). Después lo hizo exactamente así, desde una sesión web
@@ -318,6 +318,78 @@ sesión; todo lo anterior sigue en `[Sin publicar]`). Si se quiere un
 punto de control limpio, ese es el siguiente paso pequeño: confirmar
 que nada se regresionó, subir el `VERSION` de ambas expansiones,
 renombrar `[Sin publicar]` a la fecha de hoy.
+
+**2026-10-02, más tarde el mismo día — un segundo incidente real, una
+ronda completa de pruebas de usuario, y una limpieza de espacio en
+disco.** Iniciar un segundo trabajo de "Optimize" mientras la fuente
+de otro todavía se copiaba desde el USB también podía arrojar error
+500, por la misma razón de fondo que el arreglo de cancelar de arriba
+(`setlist-admin.service` y `library-optimizer.service` son dos
+procesos separados — el candado dentro de un solo proceso en
+`usb_mount.py` nunca coordinaba entre ellos). Arreglado con un candado
+real entre procesos; ver la entrada "Sin publicar" de `CHANGELOG.md`.
+
+El usuario luego corrió una ronda completa de pruebas manuales contra
+cada función tocada ese día, reportando uno por uno. Hallazgos reales,
+todos corregidos la misma sesión (detallados, uno por ítem, en
+`CHANGELOG.md`): un ciclo de caídas de `pedal-core.service` bajo carga
+pesada de CPU (confirmado en vivo — el pedal mostró la pantalla de
+inactividad de `mpv` durante un par de minutos); `list_sets()`
+listando carpetas reservadas del sistema de archivos como Sets
+seleccionables; "En cola" y "Optimizando" mostrándose idénticos
+(confirmado en vivo: esto causó cancelar el trabajo equivocado por
+error); una subida a la biblioteca lenta sin verificación temprana de
+nombre duplicado; errores de red crudos sin traducir; falta de
+retroalimentación táctil en los botones de login/standby; y
+numeración manual de Banks (ahora automática y secuencial, pedido real
+del usuario: un controlador MIDI recorre los Banks uno a la vez, así
+que nunca hay una razón real para elegir algo distinto al siguiente
+número — sin tope según la cantidad física de Banks de ningún
+controlador en particular).
+
+Dos cosas que surgieron durante esta ronda **no son bugs de código,
+confirmado investigando el comportamiento real en vez de suponer**:
+- Una demora que el usuario midió informalmente como "~40 segundos"
+  para que una acción de Optimizar/Cancelar se actualizara visualmente
+  resultó, según las marcas de tiempo del propio log de acceso del
+  servidor, ser de ~2 segundos de punta a punta — no se encontró
+  ningún cuello de botella en el backend. Nota para la próxima vez: si
+  esto se repite, captura la hora exacta en que tocaste el botón para
+  compararla con el log, ya que "se sintió lento" no basta por sí solo
+  para perseguir un arreglo específico.
+- Poner un video grande, todavía sin optimizar, directamente como
+  standby falló de plano con un `OSError: [Errno 28] No space left on
+  device` real — el USB de la biblioteca estaba en ~925MB libres (89%
+  usado, confirmado con `df`), muy lejos de lo necesario para copiar un
+  video sin procesar de varios GB. No es un bug de código — el arreglo
+  fue liberar espacio, no cambiar el comportamiento.
+
+Ese hallazgo de poco espacio llevó a una limpieza real: los dos
+archivos de video más grandes sin optimizar en la biblioteca (varios
+GB combinados) fueron eliminados por el usuario desde la propia app,
+liberando aproximadamente 2.7GB (de ~925MB a ~3.7GB libres, confirmado
+con `df` antes/después). Un puñado más pequeño de archivos `.wav` con
+nombres genéricos raros (nombrados como "track N" en vez de un título
+de canción real, ~180MB combinados) se marcó como posible dato de
+prueba sobrante pero se **dejó intacto** a propósito, pendiente de que
+el usuario mismo confirme — no borrarlos sin que él lo pida.
+
+**Nota operativa, vale la pena recordar**:
+`usb-tether-watchdog.service` hace cumplir activamente "`setlist-
+admin.service` solo corre mientras haya un teléfono conectado por
+USB" — vuelve a detener la app admin a los pocos segundos de cualquier
+`systemctl start` manual, confirmado en vivo vía su propia salida de
+`journalctl` (llamadas repetidas a `systemctl stop setlist-admin.
+service`, con pocos segundos de diferencia). Para llegar a la app
+admin por WiFi sin ningún teléfono conectado por cable (la misma
+necesidad del ítem 5 al principio de este archivo):
+`sudo systemctl stop usb-tether-watchdog.service` *primero*, luego
+`sudo systemctl start setlist-admin.service` — y recordar hacer
+`sudo systemctl start usb-tether-watchdog.service` de nuevo después
+para restaurar el comportamiento automático normal, o la app admin se
+quedará corriendo (y alcanzable) indefinidamente en vez de seguir la
+convención de conexión por USB de la que depende el resto de este
+proyecto.
 
 ## Lo que sigue genuinamente sin confirmar — haz esto antes de confiar en ello
 
