@@ -373,6 +373,63 @@ over WiFi" in `USAGE.md`. `setlist-admin-wifi` itself is untouched
 code-wise -- just reframed in its own docs as "implemented, unit-
 tested, deliberately not being taken further for now."
 
+**Later the same day: the WiFi-reachability feature's first real
+incidents, a design question answered, and the first-ever uninstall/
+reinstall run.** A real user QA pass against the new feature found a
+real bug within minutes of using it: `upload_song()`/`assign_track()`
+used to read an upload's network-backed stream *inside*
+`_writable_usb()`, so a slow WiFi upload (confirmed live, 76MB over
+~15 minutes) held `pedal-core.service` stopped -- no standby, no
+playback at all -- for the entire transfer, not just the actual (fast)
+disk write. Fixed by receiving to local scratch first
+(`AdminAPI._receive_to_scratch()`), same scratch-then-copy pattern
+`library_optimizer.py` already used. Verified live with a throttled
+synthetic upload against the real Pi: `pedal-core.service` stayed
+active for the whole "slow" phase, down only ~1.4s at the very end --
+the same brief, pre-existing cost any write already has when `mpv`
+happens to have the file open.
+
+Checking on that same Optimize job surfaced a second real finding:
+~470MB of orphaned scratch files had piled up in
+`~/pedal-optimizer-scratch/` from a day of service restarts
+interrupting in-progress jobs -- `recover_orphaned_jobs()` reset the
+*queue's* state but never knew those files existed. Fixed with the
+same pattern: `run_forever()` now sweeps the whole scratch directory
+unconditionally at every startup, before the first tick -- always
+safe, since a job reset to "queued" gets a fresh scratch copy under a
+new random name next time. Confirmed live: a restart logged "Removed 7
+leftover scratch file(s)," ~391MB freed instantly.
+
+**Design question, explicitly asked by the user**: does relocating the
+band's whole setup to a new home WiFi network (new router, new
+location) need any code change, or does the admin app just come back
+up automatically once the documented network-change procedure is
+followed? Confirmed **no code change needed**, by the implementation
+itself -- `wifi_connected_to_profile()` only ever reads the active
+connection's *name* via `nmcli`, never its SSID or password, so it
+structurally cannot be affected by which real network a profile points
+to, as long as the profile keeps the name `"preconfigured"` (which the
+documented `nmcli connection modify` procedure does). Added a
+dedicated regression test proving this and documented the guarantee
+explicitly in `SPECIFICATION.md`, `USAGE.md`, `systemd/README.md`, and
+`TROUBLESHOOTING.md` (all EN+ES).
+
+That same documentation pass also caught a few smaller, pre-existing
+loose ends while reviewing everything end to end: a stale
+"`SETLIST_ADMIN_USB_SPECIFICATION.md`" filename reference (the real
+file has always been `SPECIFICATION.md`) left over in several
+docstrings from before a rename, the same issue in
+`setlist-admin-wifi`'s own code (27 occurrences, mechanically fixed the
+same way), and `SPECIFICATION.md` section 11 undercounting
+`install.sh`'s services (said two, it's actually three, has been since
+2026-10-01) with no mention of the scratch directories `rollback.sh`
+cleans up.
+
+Finally: see item 4 in the "Ordered test plan" below -- `rollback.sh`
+was run for real, for the first time ever, which is how the ordering
+bug above was actually found (not by reading the code -- by running
+it).
+
 ## What's genuinely unconfirmed -- do these before trusting them
 
 1. ~~Export Set's visual fix~~ -- **confirmed by the user, 2026-10-02**,
@@ -401,9 +458,7 @@ tested, deliberately not being taken further for now."
 ## Ordered test plan -- continue here
 
 This is the same list the user asked to go through "paso a paso"
-(step by step), several sessions ago. Items 1-3 are done; **item 4 has
-never been started, across this entire project, and is the one
-genuinely open item here**:
+(step by step), several sessions ago. Items 1-4 are now done:
 
 1. ~~Reboot-to-apply~~ -- done, validated with a real reboot.
 2. ~~Mid-edit disconnect resilience~~ -- done; found and fixed the
@@ -411,13 +466,20 @@ genuinely open item here**:
 3. ~~Rename/delete a song from the library UI~~ -- confirmed working,
    including the scroll-jump concern (see "genuinely unconfirmed" #2
    above).
-4. **Uninstall / rollback -- still not started.** Run
-   `expansions/setlist-admin-usb/scripts/rollback.sh` on the real Pi
-   and confirm: `pedal-core.service` is never stopped/restarted/
-   touched, the two setlist-admin systemd units are gone, and (without
-   `--purge`/`--purge-library`) the PIN and `_Songs/` survive for a
-   future reinstall. See `SPECIFICATION.md` section 11 for exactly what
-   should and shouldn't be touched. **Do this next.**
+4. ~~Uninstall / rollback~~ -- **done, 2026-10-03, run for the first
+   time across this entire project's history.** Found and fixed a real
+   bug doing it: `rollback.sh` disabled `setlist-admin.service` before
+   `usb-tether-watchdog.service`, leaving a window where the watchdog
+   (now also WiFi-aware, not just phone-tether-aware) started it right
+   back up moments later -- confirmed live via `systemctl status`
+   showing it `active` again minutes later with `Loaded: not-found`.
+   Fixed by disabling the watchdog first. Re-ran the full cycle after
+   the fix (`rollback.sh` → `install.sh`) and confirmed: `pedal-core.
+   service` was active throughout, never touched; the PIN hash
+   (`md5sum`-compared before/after) and all 6 Banks in the `Live` Set
+   survived byte-for-byte; the admin app came back up on its own over
+   WiFi with no phone tethered, immediately after the fresh install,
+   exactly as designed.
 5. *(Optional, non-blocking)* Test with a second phone (ideally
    Android, to exercise the `rndis_host`/`cdc_ether`/`cdc_ncm` driver
    paths that this session only ever exercised with one iPhone's

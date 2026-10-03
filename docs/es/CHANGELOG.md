@@ -43,6 +43,20 @@ publicar]` nuevo y vacío arriba para lo que siga.
 
 ## [Sin publicar]
 
+- **Corregida una condición de carrera real en `rollback.sh`,
+  encontrada corriéndolo por primera vez contra la Pi real
+  (2026-10-03)**: desactivar `setlist-admin.service` antes que
+  `usb-tether-watchdog.service` dejaba una ventana donde el watchdog —
+  ahora también consciente de WiFi, no solo de teléfono por cable —
+  lo volvía a arrancar momentos después, mientras su archivo de unidad
+  todavía estaba en disco. Confirmado en vivo: `systemctl status` lo
+  mostró `active` de nuevo minutos después de que el script terminara,
+  con `Loaded: not-found`. Corregido desactivando primero el watchdog,
+  cerrando la ventana. Se repitió el ciclo completo de desinstalación →
+  reinstalación después y se confirmó que `pedal-core.service` nunca
+  se tocó, el hash del PIN y cada Bank de la biblioteca sobrevivieron
+  byte por byte, y la app admin volvió a subir sola por WiFi
+  inmediatamente después de una instalación nueva.
 - **`library-optimizer.service` ahora limpia automáticamente los
   archivos temporales sobrantes de un trabajo interrumpido, pedido real
   del usuario después de notar que se habían acumulado ~470MB en un

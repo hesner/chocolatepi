@@ -438,6 +438,68 @@ cuanto a código — solo se replanteó en su propia documentación como
 "implementada, con tests unitarios, deliberadamente no avanzada por
 ahora."
 
+**Más tarde el mismo día: los primeros incidentes reales de la
+funcionalidad de alcance por WiFi, una pregunta de diseño respondida, y
+la primera corrida de desinstalación/reinstalación.** Una prueba QA
+real del usuario contra la funcionalidad nueva encontró un bug real a
+los pocos minutos de usarla: `upload_song()`/`assign_track()` leían el
+flujo de red de una subida *dentro* de `_writable_usb()`, así que una
+subida lenta por WiFi (confirmado en vivo, 76MB en ~15 minutos) dejaba
+a `pedal-core.service` detenido — sin standby, sin ninguna reproducción
+— durante toda la transferencia, no solo la escritura real (rápida) al
+disco. Corregido recibiendo primero a un archivo temporal local
+(`AdminAPI._receive_to_scratch()`), el mismo patrón de "copiar local
+primero, luego copiar" que ya usaba `library_optimizer.py`. Verificado
+en vivo con una subida sintética y controlada contra la Pi real:
+`pedal-core.service` se mantuvo activo durante toda la fase "lenta",
+detenido solo ~1.4s al final — el mismo costo breve y preexistente que
+ya tiene cualquier escritura cuando `mpv` tiene el archivo abierto en
+ese momento.
+
+Revisar ese mismo trabajo de Optimize sacó a la luz un segundo hallazgo
+real: se habían acumulado ~470MB de archivos temporales huérfanos en
+`~/pedal-optimizer-scratch/` por un día de reinicios del servicio que
+interrumpían trabajos en curso — `recover_orphaned_jobs()` reseteaba el
+estado de la *cola* pero nunca supo que esos archivos existían.
+Corregido con el mismo patrón: `run_forever()` ahora limpia todo el
+directorio temporal sin condiciones en cada arranque, antes del primer
+ciclo — siempre seguro, ya que un trabajo que vuelve a "queued" recibe
+una copia temporal nueva con un nombre aleatorio distinto la próxima
+vez. Confirmado en vivo: un reinicio registró "Removed 7 leftover
+scratch file(s)," liberando ~391MB al instante.
+
+**Pregunta de diseño, planteada explícitamente por el usuario**:
+¿relocalizar todo el montaje de la banda a una red de WiFi de casa
+nueva (router nuevo, lugar nuevo) necesita algún cambio de código, o la
+app admin simplemente vuelve a subir sola una vez se sigue el
+procedimiento documentado de cambio de red? Confirmado que **no se
+necesita ningún cambio de código**, por la propia implementación —
+`wifi_connected_to_profile()` solo lee el *nombre* de la conexión
+activa vía `nmcli`, nunca su SSID ni su contraseña, así que
+estructuralmente no puede verse afectada por a qué red real apunte un
+perfil, siempre que el perfil mantenga el nombre `"preconfigured"` (que
+es justo lo que hace el procedimiento documentado de `nmcli connection
+modify`). Se agregó un test de regresión dedicado que prueba esto y se
+documentó la garantía explícitamente en `SPECIFICATION.md`,
+`USAGE.md`, `systemd/README.md`, y `TROUBLESHOOTING.md` (ambos
+idiomas).
+
+Esa misma revisión de documentación encontró de paso algunos cabos
+sueltos menores, ya preexistentes, al revisar todo de punta a punta:
+una referencia obsoleta al nombre de archivo
+"`SETLIST_ADMIN_USB_SPECIFICATION.md`" (el archivo real siempre se ha
+llamado `SPECIFICATION.md`) que quedó en varios docstrings desde antes
+de un renombre, el mismo problema en el propio código de
+`setlist-admin-wifi` (27 apariciones, corregidas mecánicamente de la
+misma forma), y que la sección 11 de `SPECIFICATION.md` contaba mal los
+servicios de `install.sh` (decía dos, en realidad son tres desde el
+2026-10-01) sin mencionar los directorios temporales que limpia
+`rollback.sh`.
+
+Finalmente: ver el punto 4 del "Plan de pruebas ordenado" abajo —
+`rollback.sh` se corrió de verdad, por primera vez, que es justo cómo
+se encontró el bug de orden de arriba (no leyendo el código — corriéndolo).
+
 ## Lo que sigue genuinamente sin confirmar — haz esto antes de confiar en ello
 
 1. ~~La corrección visual de Export Set~~ — **confirmada por el
@@ -469,9 +531,7 @@ ahora."
 ## Plan de pruebas ordenado — continúa acá
 
 Es la misma lista que el usuario pidió seguir "paso a paso", hace
-varias sesiones. Los puntos 1-3 están hechos; **el punto 4 nunca se ha
-iniciado, en todo este proyecto, y es el único punto genuinamente
-abierto aquí**:
+varias sesiones. Los puntos 1-4 ya están hechos:
 
 1. ~~Reboot-to-apply~~ — hecho, validado con un reinicio real.
 2. ~~Resistencia a desconexión a mitad de edición~~ — hecho; se
@@ -480,13 +540,22 @@ abierto aquí**:
 3. ~~Renombrar/borrar una canción de la biblioteca desde la app~~ —
    confirmado funcionando, incluyendo la preocupación del salto de
    scroll (ver punto #2 de "sin confirmar" arriba).
-4. **Desinstalar / rollback — todavía no iniciado.** Correr
-   `expansions/setlist-admin-usb/scripts/rollback.sh` en el Pi real y
-   confirmar: `pedal-core.service` nunca se detiene/reinicia/toca, las
-   dos unidades systemd de setlist-admin desaparecen, y (sin
-   `--purge`/`--purge-library`) el PIN y `_Songs/` sobreviven para una
-   futura reinstalación. Ver la sección 11 de `SPECIFICATION.md` para
-   exactamente qué debería y no debería tocarse. **Haz esto después.**
+4. ~~Desinstalar / rollback~~ — **hecho, 2026-10-03, corrido por primera
+   vez en toda la historia de este proyecto.** Se encontró y corrigió
+   un bug real haciéndolo: `rollback.sh` desactivaba
+   `setlist-admin.service` antes que `usb-tether-watchdog.service`,
+   dejando una ventana donde el watchdog (ahora también consciente de
+   WiFi, no solo de teléfono por cable) lo volvía a arrancar momentos
+   después — confirmado en vivo vía `systemctl status` mostrándolo
+   `active` de nuevo minutos después, con `Loaded: not-found`.
+   Corregido desactivando primero el watchdog. Se repitió el ciclo
+   completo después del arreglo (`rollback.sh` → `install.sh`) y se
+   confirmó: `pedal-core.service` se mantuvo activo todo el tiempo,
+   nunca se tocó; el hash del PIN (comparado con `md5sum` antes/después)
+   y las 6 Banks del Set `Live` sobrevivieron byte por byte; la app
+   admin volvió a subir sola por WiFi sin ningún teléfono conectado,
+   justo después de la instalación nueva, exactamente como está
+   diseñado.
 5. *(Opcional, no bloqueante)* Probar con un segundo teléfono
    (idealmente Android, para ejercitar los drivers
    `rndis_host`/`cdc_ether`/`cdc_ncm` que esta sesión solo probó con un

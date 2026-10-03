@@ -40,6 +40,18 @@ above it for whatever comes next.
 
 ## [Unreleased]
 
+- **Fixed a real race in `rollback.sh`, found running it for the first
+  time ever against the real Pi (2026-10-03)**: disabling
+  `setlist-admin.service` before `usb-tether-watchdog.service` left a
+  window where the watchdog -- now also WiFi-aware, not just
+  phone-tether-aware -- started it right back up moments later, while
+  its unit file was still on disk. Confirmed live: `systemctl status`
+  showed it `active` again minutes after the script finished,
+  `Loaded: not-found`. Fixed by disabling the watchdog first, closing
+  the window. Re-ran the full uninstall → reinstall cycle afterward and
+  confirmed `pedal-core.service` was never touched, the PIN hash and
+  every Bank in the library survived byte-for-byte, and the admin app
+  came back up on its own over WiFi immediately after a fresh install.
 - **`library-optimizer.service` now automatically cleans up leftover
   scratch files from an interrupted job, real user request after
   noticing ~470MB of them had piled up over one day of testing
