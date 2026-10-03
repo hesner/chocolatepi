@@ -10,13 +10,18 @@ la Pi desde el navegador de un teléfono o computador, en vez de SSH +
 [`SPECIFICATION.md`](../../SPECIFICATION.md). No se instala por defecto —
 ver "Instalación" abajo.
 
-**Estado**: implementada y con tests unitarios; su bloqueo de hardware
-original (un dongle USB de WiFi muerto) se encontró y resolvió a nivel
-de sistema operativo (2026-10-01, un dongle de repuesto funcional —
-ver la nota de estado en `SPECIFICATION.md` y el `CHANGELOG.md` en la
-raíz del repo), pero esta expansión en sí todavía no se ha instalado
-ni probado en hardware real con él. Trátala como no validada hasta que
-eso pase.
+**Estado (2026-10-03)**: en el roadmap, no planeada para desarrollo a
+corto plazo — una decisión deliberada. Implementada y con tests
+unitarios; su bloqueo de hardware original (un dongle USB de WiFi
+muerto) se encontró y resolvió a nivel de sistema operativo
+(2026-10-01, un dongle de repuesto funcional — ver la nota de estado en
+`SPECIFICATION.md`), pero esta expansión en sí todavía no se ha
+instalado ni probado en hardware real con él, y no hay más trabajo
+planeado sobre ella por ahora. Si solo quieres llegar a la app admin de
+`setlist-admin-usb` por tu WiFi de casa existente (sin la propia
+interfaz de configuración de hotspot de esta expansión), ver el
+`USAGE.md` de esa expansión en su lugar — "Llegar a la app por WiFi"
+cubre exactamente eso, de forma mucho más simple.
 
 **Solo pre/post-Set.** Esto no está diseñado ni probado para editar la
 biblioteca con un Set en curso — la app muestra una advertencia si

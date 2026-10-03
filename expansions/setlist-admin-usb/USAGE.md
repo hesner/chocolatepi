@@ -240,11 +240,43 @@ Unplugging mid-edit is safe -- every write to the USB completes fully
 or not at all (never partially), so a dropped cable can't corrupt the
 library. Just plug back in and pick up where you left off.
 
-**Reaching the app over WiFi instead, with no phone tethered**
-(developer/SSH use -- confirmed live, 2026-10-02): the watchdog
-actively enforces the tethering rule above, re-stopping the admin
-server within a few seconds of any manual `systemctl start
-setlist-admin.service`. To override it temporarily:
+### Reaching the app over WiFi
+
+As of 2026-10-03, the same watchdog also starts the admin app
+automatically whenever a USB WiFi dongle on the Pi is connected to the
+band's own home WiFi network -- the one already saved during this
+Pi's very first setup (`systemd/README.md` section 0). No extra
+installation or configuration needed: plug in the dongle, wait for it
+to join that network (same as it always has), then visit
+`http://pedal.local:8080` (or the Pi's WiFi IP directly) from any
+phone or computer on that same network.
+
+This is independent of, and fully compatible with, the USB-tether
+connection above:
+- Phone tethered, no WiFi: works exactly as described above.
+- WiFi connected, no phone tethered: the admin app comes up on its
+  own, reachable from any device on that network -- useful for
+  managing the library from a computer instead of a phone.
+- Both at once: no conflict, the app simply stays up either way.
+- Unplugging the WiFi dongle (or losing that network) while the phone
+  stays tethered: no change, tethering keeps it up. Unplugging the
+  phone while WiFi stays connected: no change either, WiFi keeps it
+  up. Only losing *both* stops the service, a few seconds later, same
+  as always.
+
+**Security note**: this only ever trusts that one specific, named WiFi
+profile (`preconfigured` by default) -- plugging the dongle into a
+different network (a venue's guest WiFi, for instance) never starts
+the admin app over it, even if that network has its own internet
+access. See `systemd/README.md`'s "Changing which WiFi network the Pi
+connects to" section if the band's home network ever changes and this
+needs to point at a new one.
+
+**Reaching the app over WiFi on a network the watchdog doesn't trust**
+(developer/SSH use only -- confirmed live, 2026-10-02): the watchdog
+actively enforces the rules above, re-stopping the admin server within
+a few seconds of any manual `systemctl start setlist-admin.service`
+that doesn't meet them. To override it temporarily:
 
 ```
 sudo systemctl stop usb-tether-watchdog.service
@@ -253,7 +285,7 @@ sudo systemctl start setlist-admin.service
 
 Remember to `sudo systemctl start usb-tether-watchdog.service` again
 once done, or the admin server stays reachable indefinitely instead of
-following the normal tether-only convention.
+following the normal tether/WiFi convention.
 
 ## Uninstalling / rolling back
 

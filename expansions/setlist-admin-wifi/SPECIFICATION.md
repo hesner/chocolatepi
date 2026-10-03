@@ -10,16 +10,27 @@ repo root's `expansions/README.md` for what that means, and
 that reuses this one's CRUD backend and frontend UX (kept convergeable
 on purpose).
 
-**Status: approved and implemented (158 tests, all passing). Real-
-hardware validation was shelved on a dead WiFi dongle, then unblocked
-(2026-10-01, see below) -- but this expansion itself still hasn't been
-installed or exercised on the working replacement.** It is not
-installed by default (same as every expansion), and
-`expansions/setlist-admin-usb/` was built in the meantime specifically
-to sidestep the original blocker with a different connectivity
-approach. Kept in code parity with `setlist-admin-usb`'s own
-real-hardware-driven fixes -- ported here too, though (like everything
-else in this expansion) not independently hardware-tested.
+**Status (2026-10-03): on the roadmap, not planned for near-term
+development** -- a deliberate decision, not a dead end. Approved and
+implemented (158 tests, all passing); real-hardware validation was
+shelved on a dead WiFi dongle, then unblocked (2026-10-01, see below),
+but this expansion itself still hasn't been installed or exercised on
+the working replacement, and no further work on it (hardware
+validation or otherwise) is currently planned. It is not installed by
+default (same as every expansion), and `expansions/setlist-admin-usb/`
+was built in the meantime specifically to sidestep the original
+blocker with a different connectivity approach -- which is also where
+a much smaller, simpler piece of this expansion's own idea (reaching
+the admin app over the *existing* home WiFi, without reviving this
+expansion's own hotspot-configuration UI or encrypted-profile storage)
+landed instead; see `setlist-admin-usb/USAGE.md`'s "Reaching the app
+over WiFi" section. Kept in code parity with `setlist-admin-usb`'s own
+real-hardware-driven fixes up to this point -- ported here too, though
+(like everything else in this expansion) not independently
+hardware-tested. If this expansion's own, fuller WiFi-configuration
+feature set (a UI for setting the home network's SSID/password,
+hotspot fallback, etc. -- `network_watchdog.py`, `wifi.py`, `crypto.py`)
+is ever revisited, start from here rather than rebuilding it.
 
 What happened during the first hardware validation attempt (section
 8a): install and the staged network-testing protocol worked correctly

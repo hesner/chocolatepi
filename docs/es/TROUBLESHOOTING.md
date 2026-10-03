@@ -72,6 +72,29 @@ proyecto midió pérdida de paquetes real y ~200ms de latencia por WiFi a
 distancia del router durante sus propias pruebas. Acércate, o cambia a
 Ethernet — no hay arreglo de software para el alcance físico del WiFi.
 
+## Necesito cambiar a qué red WiFi se conecta la Pi
+
+Las credenciales de WiFi configuradas durante el primer arranque (el
+paso "Configure WiFi" del Raspberry Pi Imager, `systemd/README.md`
+sección 0) solo aplican esa única vez — no hay una pantalla equivalente
+para volver a correr más adelante. Actualiza el perfil de
+NetworkManager guardado directamente en su lugar:
+
+```
+sudo nmcli connection modify preconfigured wifi.ssid "NombreDeTuNuevaRed"
+sudo nmcli connection modify preconfigured wifi-sec.psk "TuNuevaContraseña"
+sudo nmcli connection up preconfigured
+```
+
+`preconfigured` está confirmado (en vivo, en la propia Pi de este
+proyecto) como el nombre exacto de perfil que crea el Raspberry Pi
+Imager. Actualizarlo en el mismo lugar, en vez de crear un perfil
+nuevo con otro nombre, importa si `expansions/setlist-admin-usb` está
+instalada — su funcionalidad de alcance por WiFi confía en ese nombre
+de perfil exacto por defecto (procedimiento completo, incluyendo qué
+hacer si sí quieres un nombre distinto: la sección "Cambiar a qué red
+WiFi se conecta la Pi" de `systemd/README.md`).
+
 ## Arranca en "You are in emergency mode" (sin SSH, atascado)
 
 Este es el bug del overlay de solo lectura, y es serio en un appliance

@@ -40,6 +40,40 @@ above it for whatever comes next.
 
 ## [Unreleased]
 
+- **`setlist-admin-usb` can now also be reached over WiFi, no phone
+  needed, real user request (2026-10-03)**: `usb-tether-watchdog.service`
+  (`expansions/setlist-admin-usb/src/admin/usb_tether_watchdog.py`)
+  gained a second, independent condition alongside phone-tether
+  detection -- `wifi_connected_to_profile()` checks via `nmcli` whether
+  the Pi's active WiFi connection is an exact match for one specific,
+  named NetworkManager profile (default `"preconfigured"`, the one
+  Raspberry Pi Imager saves during initial setup -- confirmed live via
+  `nmcli` that this is exactly how the Pi already reconnects to the
+  band's home WiFi with no extra configuration whenever a USB WiFi
+  dongle is plugged in). `setlist-admin.service` now starts if *either*
+  a phone is tethered *or* the Pi is on that trusted WiFi network, with
+  both able to be true at once with no conflict; losing both stops the
+  service, same as before. Deliberately trusts only that one named
+  profile, never "any WiFi with a usable IP" -- an unrelated network
+  (a venue's guest WiFi, say) must never expose the PIN-gated admin
+  app. See that expansion's `SPECIFICATION.md` section 16 and
+  `USAGE.md`'s "Reaching the app over WiFi" for the full design and
+  usage. 10 new tests in
+  `expansions/setlist-admin-usb/tests/test_admin_usb_tether_watchdog.py`.
+
+  As part of the same work, `setlist-admin-wifi` (the separate, more
+  complex expansion with its own hotspot-configuration UI and
+  encrypted on-USB credential storage) is now formally reframed in its
+  own docs as a roadmap item, not near-term work -- it's implemented
+  and unit-tested, and its original hardware blocker (a dead USB WiFi
+  dongle) was resolved 2026-10-01, but a full revival isn't worth doing
+  now that the simpler feature above covers the actual need. No code
+  in that expansion changed. Also documented: the actual procedure for
+  changing which WiFi network the Pi connects to after its initial
+  setup (`systemd/README.md`'s new "Changing which WiFi network the Pi
+  connects to" section, cross-referenced from `TROUBLESHOOTING.md` and
+  `setlist-admin-usb`'s `USAGE.md`) -- there wasn't one written down
+  anywhere before this.
 - **Added a resource-aware video lane, real user request (2026-10-03)**:
   the video lane's `mpv` process was measured live costing a full CPU
   core (~106%) and ~300MB RAM (34% of the reference Pi 2's total

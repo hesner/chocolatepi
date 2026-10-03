@@ -43,6 +43,45 @@ publicar]` nuevo y vacío arriba para lo que siga.
 
 ## [Sin publicar]
 
+- **`setlist-admin-usb` ahora también se puede alcanzar por WiFi, sin
+  necesitar un teléfono, pedido real del usuario (2026-10-03)**:
+  `usb-tether-watchdog.service`
+  (`expansions/setlist-admin-usb/src/admin/usb_tether_watchdog.py`)
+  ganó una segunda condición, independiente de la detección de
+  teléfono por cable — `wifi_connected_to_profile()` revisa vía `nmcli`
+  si la conexión WiFi activa de la Pi coincide exactamente con un
+  perfil específico y nombrado de NetworkManager (por defecto
+  `"preconfigured"`, el que guarda el Raspberry Pi Imager durante la
+  configuración inicial — confirmado en vivo vía `nmcli` que así es
+  exactamente como la Pi ya se reconecta a la red de WiFi de casa de la
+  banda sin configuración adicional cada vez que se conecta un dongle
+  USB de WiFi). `setlist-admin.service` ahora arranca si *o bien* hay
+  un teléfono conectado por cable *o* la Pi está en esa red WiFi de
+  confianza, pudiendo ser ambas verdaderas a la vez sin conflicto;
+  perder ambas detiene el servicio, igual que antes. Deliberadamente
+  solo confía en ese perfil nombrado específico, nunca en "cualquier
+  WiFi con una IP usable" — una red ajena (el WiFi de invitados de un
+  lugar donde tocan, por ejemplo) nunca debe exponer la app admin
+  protegida por PIN. Ver la sección 16 del `SPECIFICATION.md` de esa
+  expansión y "Reaching the app over WiFi" en su `USAGE.md` para el
+  diseño y uso completos. 10 tests nuevos en
+  `expansions/setlist-admin-usb/tests/test_admin_usb_tether_watchdog.py`.
+
+  Como parte del mismo trabajo, `setlist-admin-wifi` (la expansión
+  separada y más compleja, con su propia interfaz de configuración de
+  hotspot y almacenamiento cifrado de credenciales en el USB) ahora se
+  replantea formalmente en su propia documentación como un ítem de
+  roadmap, no de corto plazo — está implementada y con tests
+  unitarios, y su bloqueo de hardware original (un dongle USB de WiFi
+  muerto) se resolvió el 2026-10-01, pero una revivificación completa
+  no vale la pena ahora que la funcionalidad más simple de arriba
+  cubre la necesidad real. No cambió nada de código en esa expansión.
+  También se documentó: el procedimiento real para cambiar a qué red
+  WiFi se conecta la Pi después de su configuración inicial (la nueva
+  sección "Cambiar a qué red WiFi se conecta la Pi" en
+  `systemd/README.md`, referenciada desde `TROUBLESHOOTING.md` y el
+  `USAGE.md` de `setlist-admin-usb`) — no existía ninguna en ningún
+  lado antes de esto.
 - **Se agregó una línea de video consciente de recursos, pedido real
   del usuario (2026-10-03)**: se midió en vivo que el proceso `mpv` de
   la línea de video costaba un core completo de CPU (~106%) y ~300MB

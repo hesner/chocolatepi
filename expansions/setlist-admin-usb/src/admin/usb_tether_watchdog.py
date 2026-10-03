@@ -1,16 +1,26 @@
 """
 usb-tether-watchdog: detects a phone tethered over USB (Android's USB
-tethering or iPhone's Personal Hotspot via cable) and starts/stops
-setlist-admin.service accordingly (SETLIST_ADMIN_USB_SPECIFICATION.md
-section 4c).
+tethering or iPhone's Personal Hotspot via cable) *or* a USB WiFi
+dongle connected to the Pi's own preconfigured home network, and
+starts/stops setlist-admin.service accordingly
+(SETLIST_ADMIN_USB_SPECIFICATION.md section 4c).
 
-Detection is by kernel driver name, not IP range or interface name --
-those vary too much across phone models/OS versions to hardcode, but
-the driver a tethered phone's virtual network adapter binds to is
-stable: rndis_host / cdc_ether / cdc_ncm for Android, ipheth for
-iPhone. A permanently-attached Ethernet cable (used for development)
-never matches any of these, so it never spuriously starts the admin
-server.
+Phone detection is by kernel driver name, not IP range or interface
+name -- those vary too much across phone models/OS versions to
+hardcode, but the driver a tethered phone's virtual network adapter
+binds to is stable: rndis_host / cdc_ether / cdc_ncm for Android,
+ipheth for iPhone. A permanently-attached Ethernet cable (used for
+development) never matches any of these, so it never spuriously
+starts the admin server.
+
+WiFi detection deliberately trusts exactly one NetworkManager profile
+by name (default "preconfigured" -- the profile Raspberry Pi Imager
+saves during initial setup, see systemd/README.md section 0) and
+never any other network: plugging the Pi into an unrelated WiFi
+network, even one with internet access, must never expose the admin
+app. Either condition on its own is enough to start the service; both
+can be true at once (phone *and* home WiFi both connected) with no
+conflict.
 
 Run directly with `--dry-run` for hardware testing (section 10): every
 decision is logged, nothing is actually started/stopped.
@@ -27,6 +37,7 @@ logger = logging.getLogger(__name__)
 _ADMIN_SERVICE_NAME = "setlist-admin.service"
 _DEFAULT_CHECK_INTERVAL_SECONDS = 5
 _DEFAULT_SYS_CLASS_NET = "/sys/class/net"
+_DEFAULT_WIFI_PROFILE_NAME = "preconfigured"
 
 PHONE_TETHER_DRIVERS = frozenset({"rndis_host", "cdc_ether", "cdc_ncm", "ipheth"})
 
@@ -66,11 +77,45 @@ def _has_usable_ip(iface: str) -> bool:
     return bool(result.stdout.strip())
 
 
-def run_forever(check_interval: int, dry_run: bool, sys_class_net: str = _DEFAULT_SYS_CLASS_NET) -> None:
+def wifi_connected_to_profile(profile_name: str = _DEFAULT_WIFI_PROFILE_NAME) -> bool:
+    """Returns True if NetworkManager's currently active WiFi
+    connection is exactly profile_name (default: "preconfigured", the
+    profile Raspberry Pi Imager saves during initial setup) and that
+    connection has a usable IPv4 address. Any other network name --
+    even one with a working internet connection -- returns False on
+    purpose; this is a security boundary, not a connectivity check."""
+    iface = _wifi_interface_for_profile(profile_name)
+    return iface is not None and _has_usable_ip(iface)
+
+
+def _wifi_interface_for_profile(profile_name: str):
+    try:
+        result = subprocess.run(
+            ["nmcli", "-t", "-f", "NAME,TYPE,DEVICE", "connection", "show", "--active"],
+            capture_output=True, text=True, timeout=5,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+    for line in result.stdout.splitlines():
+        parts = line.split(":")
+        if len(parts) != 3:
+            continue
+        name, conn_type, device = parts
+        if name == profile_name and conn_type == "802-11-wireless" and device:
+            return device
+    return None
+
+
+def run_forever(
+    check_interval: int,
+    dry_run: bool,
+    sys_class_net: str = _DEFAULT_SYS_CLASS_NET,
+    wifi_profile_name: str = _DEFAULT_WIFI_PROFILE_NAME,
+) -> None:
     logger.info("usb-tether-watchdog starting (dry_run=%s)", dry_run)
     while True:
         try:
-            _tick(dry_run, sys_class_net)
+            _tick(dry_run, sys_class_net, wifi_profile_name)
         except Exception:
             # A single bad tick must never kill the watchdog -- there is
             # no one to restart it by hand on a headless appliance, same
@@ -79,16 +124,21 @@ def run_forever(check_interval: int, dry_run: bool, sys_class_net: str = _DEFAUL
         time.sleep(check_interval)
 
 
-def _tick(dry_run: bool, sys_class_net: str) -> None:
+def _tick(dry_run: bool, sys_class_net: str, wifi_profile_name: str = _DEFAULT_WIFI_PROFILE_NAME) -> None:
     iface = find_tethered_interface(sys_class_net)
-    logger.info("Tethered interface: %s", iface or "none")
+    wifi_ok = wifi_connected_to_profile(wifi_profile_name)
+    should_run = bool(iface) or wifi_ok
+    logger.info(
+        "Tethered interface: %s, WiFi (%s): %s",
+        iface or "none", wifi_profile_name, wifi_ok,
+    )
     if dry_run:
         logger.info(
             "[dry-run] would %s %s",
-            "start" if iface else "stop", _ADMIN_SERVICE_NAME,
+            "start" if should_run else "stop", _ADMIN_SERVICE_NAME,
         )
         return
-    _set_admin_service_running(bool(iface))
+    _set_admin_service_running(should_run)
 
 
 def _set_admin_service_running(should_run: bool) -> None:
@@ -112,6 +162,12 @@ def parse_args():
              "runs for real (SETLIST_ADMIN_USB_SPECIFICATION.md section 10).",
     )
     parser.add_argument("--sys-class-net", default=_DEFAULT_SYS_CLASS_NET)
+    parser.add_argument(
+        "--wifi-profile-name", default=_DEFAULT_WIFI_PROFILE_NAME,
+        help="The exact NetworkManager connection name to trust for WiFi access "
+             "(default: %(default)r, the profile saved by Raspberry Pi Imager "
+             "during initial setup -- see systemd/README.md section 0).",
+    )
     parser.add_argument("--log-file", default=None)
     return parser.parse_args()
 
@@ -123,7 +179,7 @@ def main():
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         filename=args.log_file,
     )
-    run_forever(args.check_interval, args.dry_run, args.sys_class_net)
+    run_forever(args.check_interval, args.dry_run, args.sys_class_net, args.wifi_profile_name)
 
 
 if __name__ == "__main__":

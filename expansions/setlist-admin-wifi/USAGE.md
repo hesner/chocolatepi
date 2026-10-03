@@ -9,12 +9,17 @@ phone or computer's browser, instead of SSH + `nano` + copying files by
 hand. Design and rationale: [`SPECIFICATION.md`](SPECIFICATION.md).
 Not installed by default -- see "Installing" below.
 
-**Status**: implemented and unit-tested; its original hardware blocker
-(a dead USB WiFi dongle) was found and resolved at the OS level
-(2026-10-01, a working replacement dongle -- see `SPECIFICATION.md`'s
-status note and the repo root's `CHANGELOG.md`), but this expansion
-itself still hasn't been installed or exercised on real hardware with
-it. Treat it as unvalidated until that happens.
+**Status (2026-10-03)**: on the roadmap, not planned for near-term
+development -- a deliberate decision. Implemented and unit-tested; its
+original hardware blocker (a dead USB WiFi dongle) was found and
+resolved at the OS level (2026-10-01, a working replacement dongle --
+see `SPECIFICATION.md`'s status note), but this expansion itself still
+hasn't been installed or exercised on real hardware with it, and no
+further work on it is currently planned. If you just want to reach
+`setlist-admin-usb`'s admin app over your existing home WiFi (without
+this expansion's own hotspot-configuration UI), see that expansion's
+own `USAGE.md` instead -- "Reaching the app over WiFi" covers exactly
+that, much more simply.
 
 **Pre/post-Set only.** This isn't designed or tested for editing the
 library while a Set is in progress -- the app shows a warning if it

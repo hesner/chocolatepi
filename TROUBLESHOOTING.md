@@ -20,6 +20,28 @@ real packet loss and ~200ms latency over WiFi at distance from the
 router during its own testing. Move closer, or switch to Ethernet --
 there's no software fix for physical WiFi range.
 
+## Need to change the WiFi network the Pi connects to
+
+The WiFi credentials set during the very first boot (Raspberry Pi
+Imager's "Configure WiFi" step, `systemd/README.md` section 0) only
+apply that one time -- there's no equivalent screen to re-run later.
+Update the saved NetworkManager profile directly instead:
+
+```
+sudo nmcli connection modify preconfigured wifi.ssid "YourNewNetworkName"
+sudo nmcli connection modify preconfigured wifi-sec.psk "YourNewPassword"
+sudo nmcli connection up preconfigured
+```
+
+`preconfigured` is confirmed (live, on this project's own Pi) to be
+the exact profile name Raspberry Pi Imager creates. Updating it in
+place, rather than creating a new profile under a different name,
+matters if `expansions/setlist-admin-usb` is installed -- its
+WiFi-reachability feature trusts that exact profile name by default
+(full procedure, including what to do if you *do* want a different
+name: `systemd/README.md`'s "Changing which WiFi network the Pi
+connects to" section).
+
 ## Boots into "You are in emergency mode" (no SSH, stuck)
 
 This is the read-only-root-overlay bug, and it's serious on a headless

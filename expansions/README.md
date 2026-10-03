@@ -61,7 +61,7 @@ Consequences of this shape, deliberately:
 | Expansion | What it does | Status | Version |
 |---|---|---|---|
 | [`setlist-admin-usb`](setlist-admin-usb/USAGE.md) | Manage the library USB (Sets/Banks/tracks) from a phone's browser, reachable by plugging the phone into the Pi over USB (Android tethering / iPhone Personal Hotspot over cable) | Implemented and validated end-to-end on real hardware (iPhone) | [v2026.10.01](setlist-admin-usb/VERSION) |
-| [`setlist-admin-wifi`](setlist-admin-wifi/USAGE.md) | The same library management, plus Pi WiFi configuration (home network / phone hotspot fallback), reachable over WiFi | Implemented and unit-tested; a working WiFi dongle was found after the original one died, but this expansion itself hasn't been validated on real hardware yet | [v2026.10.01](setlist-admin-wifi/VERSION) |
+| [`setlist-admin-wifi`](setlist-admin-wifi/USAGE.md) | The same library management, plus Pi WiFi configuration (home network / phone hotspot fallback), reachable over WiFi | On the roadmap, not planned for near-term development (2026-10-03) -- implemented and unit-tested, a working WiFi dongle was found, but real-hardware validation and further work are deliberately deferred. See its own `SPECIFICATION.md` | [v2026.10.01](setlist-admin-wifi/VERSION) |
 
 Each expansion's `VERSION` file (`vYYYY.MM.DD`) tracks its own version
 independently of the base project and of each other -- see the root

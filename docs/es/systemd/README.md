@@ -54,6 +54,49 @@ Usando [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
    <tu-usuario>@<esa-ip>`. El resto de esta guía se corre dentro de esta
    misma sesión SSH, salvo que un paso diga lo contrario.
 
+### Cambiar a qué red WiFi se conecta la Pi
+
+Las credenciales de WiFi que se configuran en el paso 3 de arriba (la
+opción "Configure WiFi" del Raspberry Pi Imager) solo aplican durante
+ese primer arranque — no hay una pantalla equivalente para volver a
+correr más adelante. Si la red de casa de la banda cambia alguna vez
+(router nuevo, contraseña nueva), actualízala directamente con
+NetworkManager en vez de eso. Confirmado en vivo en la propia Pi de
+este proyecto: el perfil que crea el Imager se llama exactamente
+`preconfigured` — la funcionalidad de alcance por WiFi de
+`expansions/setlist-admin-usb` (ver el `USAGE.md` de esa expansión)
+también confía en ese nombre exacto por defecto, así que actualizarlo
+en el mismo lugar (en vez de crear un perfil nuevo con otro nombre)
+mantiene esa funcionalidad andando sin configuración adicional.
+
+```
+nmcli connection show                      # confirma que "preconfigured" aparece listado
+sudo nmcli connection modify preconfigured wifi.ssid "NombreDeTuNuevaRed"
+sudo nmcli connection modify preconfigured wifi-sec.psk "TuNuevaContraseña"
+sudo nmcli connection up preconfigured
+```
+
+Confirma que realmente se conectó:
+
+```
+nmcli -t -f NAME,TYPE,DEVICE connection show --active
+```
+
+Debería listar `preconfigured:802-11-wireless:<interfaz>` entre las
+conexiones activas. Si la Pi no tiene ningún adaptador WiFi conectado
+en este momento, igual se guarda correctamente y aplica la próxima vez
+que se conecte un adaptador WiFi y esté dentro de rango.
+
+**¿Vas a usar un nombre de perfil distinto a propósito?** Ni
+`pedal-core.service` ni el watchdog de
+`expansions/setlist-admin-usb` tienen este nombre fijo en ningún lugar
+crítico, sino que leen sus propias banderas/configuración — pero si se
+crea un perfil nuevo en vez de reutilizar `preconfigured`, hay que
+actualizar también la bandera `--wifi-profile-name` de
+`usb-tether-watchdog.service` (ver el `USAGE.md` y la sección 16 del
+`SPECIFICATION.md` de esa expansión) para que coincida, o el alcance
+por WiFi de esa expansión deja de funcionar en silencio.
+
 ## 1. Prerequisitos de software
 
 Raspberry Pi OS (este proyecto se desarrolló contra Lite) ya trae

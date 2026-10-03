@@ -512,3 +512,57 @@ time someone chooses to (re-)assign that file.
 **Uninstalling**: `scripts/install.sh`/`rollback.sh` install/remove
 `library-optimizer.service` alongside the existing units;
 `rollback.sh` also deletes `~/pedal-optimizer-scratch/`.
+
+## 16. Reaching the app over WiFi, without the WiFi expansion -- approved 2026-10-03
+
+**Problem**: `setlist-admin-wifi` (the full, separate expansion --
+its own hotspot-configuration UI, encrypted on-USB credential
+storage) was deferred to the roadmap (see its own `SPECIFICATION.md`
+status note, and `NEXT_STEPS.md`'s 2026-10-03 entry) rather than
+pursued short-term. But confirmed live via `nmcli` on the real Pi:
+the band's home WiFi network was already saved as a NetworkManager
+profile (`autoconnect: yes`) during the Pi's very first setup
+(Raspberry Pi Imager's own "Configure wireless LAN" step -- see
+`systemd/README.md` section 0). So any USB WiFi dongle plugged into
+the Pi reconnects to that same network automatically, with zero
+further configuration -- and that fact alone is enough to reach the
+admin app over the local network, without reviving the full WiFi
+expansion.
+
+**Design**: `usb_tether_watchdog.py` (section 4c) gained a second,
+independent condition alongside phone-tether detection:
+`wifi_connected_to_profile(profile_name)` asks NetworkManager
+(`nmcli -t -f NAME,TYPE,DEVICE connection show --active`) whether the
+currently active WiFi connection's name is an exact match for one
+specific profile (default `"preconfigured"`, overridable via
+`--wifi-profile-name`) and has a usable IPv4 address. `_tick()`'s
+decision becomes `should_run = bool(tethered_iface) or wifi_ok` --
+either condition alone is enough to start `setlist-admin.service`;
+both can be true at once with no conflict (phone tethered *and* WiFi
+connected simultaneously), and disconnecting one while the other stays
+up simply falls back to the other's own behavior. Disconnecting both
+stops the service, same as today.
+
+**Why trust only one exact profile name, not "any WiFi with a usable
+IP"**: this is a security boundary, not a connectivity convenience --
+plugging the dongle into an unrelated WiFi network (a venue's guest
+WiFi, say) must never expose the admin app's PIN-gated interface to
+that network. Matching a specific, known profile name means the admin
+app only ever becomes reachable over a network this specific band
+already trusts (its own home WiFi), never an arbitrary one with
+internet access.
+
+**Why the existing `usb-tether-watchdog.service` and not a new,
+separate unit**: the two conditions are a straightforward `or`, not
+two independently-scheduled behaviors -- a second poller checking the
+same thing on its own schedule would just be two processes racing to
+start/stop the same service. Kept under its existing name/service
+deliberately (not renamed to something WiFi-aware) since its job --
+"decide if `setlist-admin.service` should be running" -- hasn't
+changed in kind, only gained a second signal.
+
+**Changing which WiFi network is trusted**: covered in
+`USAGE.md`'s "Reaching the app over WiFi" section, and in
+`systemd/README.md` and `TROUBLESHOOTING.md` (both at the base-pedal
+level, since the WiFi profile itself is set up during the base
+install, not by this expansion).

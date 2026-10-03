@@ -248,12 +248,48 @@ se completa por entero o no se completa (nunca parcialmente), así que
 un cable que se cae no puede corromper la biblioteca. Solo vuelve a
 conectarlo y sigue donde ibas.
 
-**Llegar a la app por WiFi en vez de por cable, sin ningún teléfono
-conectado** (uso de desarrollo/SSH — confirmado en vivo, 2026-10-02):
-el watchdog hace cumplir activamente la regla de arriba, volviendo a
+### Llegar a la app por WiFi
+
+Desde el 2026-10-03, el mismo watchdog también arranca la app admin
+automáticamente cuando un dongle USB de WiFi en la Pi está conectado a
+la propia red de WiFi de casa de la banda — la misma que ya se guardó
+durante la primera configuración de esta Pi (`systemd/README.md`
+sección 0). No necesita instalación ni configuración adicional:
+conecta el dongle, espera a que se una a esa red (igual que siempre),
+y luego visita `http://pedal.local:8080` (o la IP de WiFi de la Pi
+directamente) desde cualquier teléfono o computador en esa misma red.
+
+Esto es independiente de la conexión por cable USB de arriba, y
+totalmente compatible con ella:
+- Teléfono conectado por cable, sin WiFi: funciona exactamente como
+  se describió arriba.
+- WiFi conectado, sin ningún teléfono por cable: la app admin se
+  levanta sola, alcanzable desde cualquier dispositivo en esa red —
+  útil para administrar la biblioteca desde un computador en vez de un
+  teléfono.
+- Ambos a la vez: no hay conflicto, la app simplemente se queda arriba
+  de cualquiera de las dos formas.
+- Desconectar el dongle de WiFi (o perder esa red) mientras el
+  teléfono sigue conectado por cable: sin cambios, el cable la
+  mantiene arriba. Desconectar el teléfono mientras el WiFi sigue
+  conectado: sin cambios tampoco, el WiFi la mantiene arriba. Solo
+  perder **ambas** detiene el servicio, unos segundos después, igual
+  que siempre.
+
+**Nota de seguridad**: esto solo confía en ese perfil de WiFi
+específico y nombrado (`preconfigured` por defecto) — conectar el
+dongle a una red distinta (el WiFi de invitados de un lugar donde
+tocan, por ejemplo) nunca arranca la app admin por esa red, aunque esa
+red tenga su propio acceso a internet. Ver la sección "Cambiar a qué
+red WiFi se conecta la Pi" de `systemd/README.md` si la red de casa de
+la banda cambia alguna vez y esto necesita apuntar a una nueva.
+
+**Llegar a la app por WiFi en una red en la que el watchdog no
+confía** (solo uso de desarrollo/SSH — confirmado en vivo, 2026-10-02):
+el watchdog hace cumplir activamente las reglas de arriba, volviendo a
 detener el servidor admin a los pocos segundos de cualquier
-`systemctl start setlist-admin.service` manual. Para anularlo
-temporalmente:
+`systemctl start setlist-admin.service` manual que no las cumpla. Para
+anularlo temporalmente:
 
 ```
 sudo systemctl stop usb-tether-watchdog.service
@@ -262,7 +298,8 @@ sudo systemctl start setlist-admin.service
 
 Recuerda hacer `sudo systemctl start usb-tether-watchdog.service` de
 nuevo cuando termines, o el servidor admin se queda alcanzable
-indefinidamente en vez de seguir la convención normal de solo-por-cable.
+indefinidamente en vez de seguir la convención normal de
+cable/WiFi.
 
 ## Desinstalar / revertir
 

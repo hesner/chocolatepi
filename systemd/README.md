@@ -52,6 +52,46 @@ Using [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
    The rest of this guide is run from inside this same SSH session,
    unless a step says otherwise.
 
+### Changing which WiFi network the Pi connects to
+
+The WiFi credentials set in step 3 above (Raspberry Pi Imager's
+"Configure WiFi" option) only apply during that first boot -- there's
+no equivalent screen to re-run later. If the band's home network ever
+changes (new router, new password), update it directly with
+NetworkManager instead. Confirmed live on this project's own Pi: the
+profile Imager creates is named exactly `preconfigured` --
+`expansions/setlist-admin-usb`'s WiFi-reachability feature (see that
+expansion's `USAGE.md`) also trusts that exact name by default, so
+updating it in place (rather than creating a new, differently-named
+profile) keeps that feature working with no extra configuration.
+
+```
+nmcli connection show                      # confirm "preconfigured" is listed
+sudo nmcli connection modify preconfigured wifi.ssid "YourNewNetworkName"
+sudo nmcli connection modify preconfigured wifi-sec.psk "YourNewPassword"
+sudo nmcli connection up preconfigured
+```
+
+Confirm it actually connected:
+
+```
+nmcli -t -f NAME,TYPE,DEVICE connection show --active
+```
+
+Should list `preconfigured:802-11-wireless:<interface>` among the
+active connections. If the Pi has no WiFi hardware connected right
+now, this still saves correctly and takes effect the next time a WiFi
+adapter is plugged in and in range.
+
+**Using a different profile name on purpose?** Both
+`pedal-core.service` and `expansions/setlist-admin-usb`'s watchdog
+read their own flags/config rather than this name being hardcoded
+anywhere critical -- but if a new profile is created instead of
+reusing `preconfigured`, remember to also update
+`usb-tether-watchdog.service`'s `--wifi-profile-name` flag (see that
+expansion's `USAGE.md` and `SPECIFICATION.md` section 16) to match, or
+WiFi-based reachability for that expansion silently stops working.
+
 ## 1. Software prerequisites
 
 Raspberry Pi OS (this project was developed against Lite) already ships

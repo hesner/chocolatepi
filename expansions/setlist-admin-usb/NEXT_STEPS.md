@@ -331,6 +331,43 @@ restore the normal automatic behavior, or the admin app will simply
 stay up (and reachable) indefinitely instead of following the
 USB-tether convention the rest of this project relies on.
 
+## 2026-10-03: resource-aware video lane (base pedal), and the WiFi
+expansion formally deferred to the roadmap
+
+**Base pedal change, not this expansion, but relevant to anyone
+touching the Pi this week.** `src/core/` gained a resource-aware video
+lane: with no HDMI display connected, the video-playing `mpv` process
+(confirmed costing ~106% CPU and ~300MB RAM continuously, even just
+looping standby) is never started at all, audio-only tracks still play
+normally, and video tracks fall back to audio-only until a display
+shows up. Plugging in HDMI starts the video lane fresh (including
+catching a display connected *after* boot, which previously needed a
+manual `pedal-core.service` restart -- confirmed as today's opening
+bug report). Unplugging HDMI mid-clip never cuts the clip's audio --
+the lane only actually stops once the current clip (or standby) is
+free to do so. A real regression was found and fixed the same day:
+`_MpvProcess`'s stop flag was never reset between stop/start cycles,
+so the first reconnect after a disconnect left mpv showing its idle
+screen ("Drop files or urls to play here") instead of standby --
+confirmed fixed across multiple real disconnect/reconnect cycles via
+the user's own pasted logs. Unrelated to this expansion's own code;
+mentioned here only because it changes what "the pedal is idle" looks
+like on the Pi this expansion also runs on.
+
+**`setlist-admin-wifi` is now formally a roadmap item, not a
+near-term one.** Confirmed live via `nmcli` that the Pi's initial setup
+(Raspberry Pi Imager's wireless-LAN configuration step) already saved
+a WiFi profile (`autoconnect: yes`) for the band's home network --
+meaning any USB WiFi dongle plugged into the Pi reconnects to that
+same network by default, with no extra configuration needed. Given
+that, a full revival of the `setlist-admin-wifi` expansion (its own
+hotspot-configuration UI, encrypted on-USB credential storage, etc.)
+isn't worth doing short-term. Instead, a smaller, independent feature
+was added right here in `setlist-admin-usb`: see "Reaching the app
+over WiFi" in `USAGE.md`. `setlist-admin-wifi` itself is untouched
+code-wise -- just reframed in its own docs as "implemented, unit-
+tested, deliberately not being taken further for now."
+
 ## What's genuinely unconfirmed -- do these before trusting them
 
 1. ~~Export Set's visual fix~~ -- **confirmed by the user, 2026-10-02**,

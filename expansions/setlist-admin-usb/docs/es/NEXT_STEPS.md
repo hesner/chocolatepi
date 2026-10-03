@@ -392,6 +392,48 @@ quedará corriendo (y alcanzable) indefinidamente en vez de seguir la
 convención de conexión por USB de la que depende el resto de este
 proyecto.
 
+## 2026-10-03: carril de video consciente de recursos (pedal base), y
+la expansión de WiFi formalmente diferida al roadmap
+
+**Cambio en el pedal base, no en esta expansión, pero relevante para
+quien toque la Pi esta semana.** `src/core/` ganó un carril de video
+consciente de recursos: sin ninguna pantalla HDMI conectada, el
+proceso `mpv` que reproduce video (confirmado con un costo de ~106%
+CPU y ~300MB RAM de forma continua, incluso solo repitiendo el
+standby) nunca arranca, las pistas de solo audio siguen reproduciéndose
+normal, y las pistas de video caen a solo audio hasta que aparezca una
+pantalla. Conectar HDMI arranca el carril de video de nuevo (incluso
+detectando una pantalla conectada *después* del arranque, lo que antes
+necesitaba reiniciar manualmente `pedal-core.service` — confirmado
+como el reporte de bug con el que abrió el día de hoy). Desconectar
+HDMI en medio de un clip nunca corta el audio del clip — el carril
+solo se detiene realmente una vez que el clip actual (o el standby)
+queda libre para hacerlo. Se encontró y corrigió una regresión real el
+mismo día: la bandera de "detener" de `_MpvProcess` nunca se reseteaba
+entre ciclos de detener/arrancar, así que la primera reconexión después
+de una desconexión dejaba a mpv mostrando su pantalla ociosa ("Drop
+files or urls to play here") en vez del standby — confirmado corregido
+a través de varios ciclos reales de desconexión/reconexión vía los
+propios logs pegados por el usuario. No tiene relación con el código
+de esta expansión; se menciona acá solo porque cambia qué significa
+"el pedal está en reposo" en la misma Pi donde corre esta expansión.
+
+**`setlist-admin-wifi` ahora es formalmente un ítem de roadmap, no uno
+de corto plazo.** Se confirmó en vivo vía `nmcli` que la configuración
+inicial de la Pi (el paso de configuración de WiFi del Raspberry Pi
+Imager) ya guardó un perfil de WiFi (`autoconnect: yes`) para la red de
+casa de la banda — lo que significa que cualquier dongle USB de WiFi
+conectado a la Pi se reconecta a esa misma red por defecto, sin
+configuración adicional. Dado eso, revivir por completo la expansión
+`setlist-admin-wifi` (su propia interfaz de configuración de hotspot,
+almacenamiento cifrado de credenciales en el USB, etc.) no vale la pena
+a corto plazo. En su lugar, se agregó una funcionalidad más pequeña e
+independiente aquí mismo en `setlist-admin-usb`: ver "Alcanzar la app
+por WiFi" en `USAGE.md`. `setlist-admin-wifi` en sí queda intacta en
+cuanto a código — solo se replanteó en su propia documentación como
+"implementada, con tests unitarios, deliberadamente no avanzada por
+ahora."
+
 ## Lo que sigue genuinamente sin confirmar — haz esto antes de confiar en ello
 
 1. ~~La corrección visual de Export Set~~ — **confirmada por el
