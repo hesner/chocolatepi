@@ -49,8 +49,21 @@ done
 
 echo "Uninstalling the setlist-admin-usb expansion..."
 
-sudo systemctl disable --now setlist-admin.service 2>/dev/null || true
+# Real incident, found live running this script for the first time
+# (2026-10-03): usb-tether-watchdog.service actively enforces
+# "setlist-admin.service should be running" every few seconds whenever
+# its own start condition is true (a tethered phone, or -- since the
+# 2026-10-03 WiFi-reachability feature -- the Pi being on its trusted
+# WiFi network, which it normally is). Disabling setlist-admin.service
+# *first* left a real window where the watchdog was still active and
+# simply started it right back up moments later, with its unit file
+# still on disk at that exact moment -- confirmed live: `systemctl
+# status` showed it running again minutes after this script finished,
+# `Loaded: not-found` (the file was gone by then) but still genuinely
+# active. Disabling the watchdog *first* closes that window: nothing
+# is left that can restart setlist-admin.service once it's stopped.
 sudo systemctl disable --now usb-tether-watchdog.service 2>/dev/null || true
+sudo systemctl disable --now setlist-admin.service 2>/dev/null || true
 sudo systemctl disable --now library-optimizer.service 2>/dev/null || true
 echo "Stopped and disabled all three services."
 # Note: stopping library-optimizer.service mid-job (Restart=always
