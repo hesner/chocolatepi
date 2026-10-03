@@ -115,6 +115,23 @@ class OptimizationCancelled(Exception):
 def run_forever(usb_root: str, mount_point: str, scratch_dir: str, poll_interval: int) -> None:
     logger.info("library-optimizer starting (usb_root=%s)", usb_root)
     os.makedirs(scratch_dir, exist_ok=True)
+    # Real incident (2026-10-03): this service got restarted several
+    # times mid-job during a day of testing (each restart abandons
+    # whatever _process_job() was mid-copy/mid-encode, same as
+    # rollback.sh's own comment about this), and none of those jobs'
+    # scratch_input/scratch_output ever got cleaned up -- recover_
+    # orphaned_jobs() below only resets the *queue's* status back to
+    # "queued", it has no idea these files exist. ~470MB accumulated
+    # this way over one day of real use. Safe to wipe the whole
+    # directory unconditionally, every time, before the first tick:
+    # every file in here only ever exists for the duration of one
+    # _process_job() call, under a fresh uuid4 name each time, so
+    # nothing already on disk at startup can ever be resumed or
+    # referenced again -- a job reset to "queued" gets a brand new
+    # scratch copy once it's picked up again.
+    removed = _cleanup_scratch_dir(scratch_dir)
+    if removed:
+        logger.info("Removed %d leftover scratch file(s) from an interrupted job", removed)
     try:
         with pedal_core_guard.writable_usb(mount_point):
             optimize_queue.recover_orphaned_jobs(usb_root)
@@ -133,6 +150,25 @@ def run_forever(usb_root: str, mount_point: str, scratch_dir: str, poll_interval
             # reasoning as pedal-core.service's own Restart=always.
             logger.exception("Unhandled error in optimizer tick, continuing")
         time.sleep(poll_interval)
+
+
+def _cleanup_scratch_dir(scratch_dir: str) -> int:
+    """Removes every file directly under scratch_dir -- see the real
+    incident in run_forever()'s own comment for why this is always
+    safe to do unconditionally at startup. Mirrors
+    library_ops.cleanup_stale_temp_files()'s same reasoning for the
+    USB's own `.part` files, and AdminAPI's equivalent for its upload
+    scratch directory. Returns the count removed."""
+    if not os.path.isdir(scratch_dir):
+        return 0
+    removed = 0
+    for name in os.listdir(scratch_dir):
+        try:
+            os.remove(os.path.join(scratch_dir, name))
+            removed += 1
+        except OSError:
+            pass
+    return removed
 
 
 def _tick(usb_root: str, mount_point: str, scratch_dir: str) -> None:

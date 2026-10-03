@@ -56,9 +56,12 @@ echo "Stopped and disabled all three services."
 # Note: stopping library-optimizer.service mid-job (Restart=always
 # normally keeps it running forever) abandons whatever file it was
 # re-encoding -- its scratch output under ~/pedal-optimizer-scratch/
-# is left behind, harmless, never promoted to a real library file. The
-# original file in _Songs/ was never touched (only the already-finished
-# output ever gets copied in), so nothing is lost by stopping mid-job.
+# is left behind, harmless, never promoted to a real library file (the
+# daemon already sweeps this directory itself on every startup, so
+# this only matters because we're about to disable it rather than let
+# it restart). The original file in _Songs/ was never touched (only
+# the already-finished output ever gets copied in), so nothing is lost
+# by stopping mid-job.
 
 sudo rm -f /etc/systemd/system/setlist-admin.service
 sudo rm -f /etc/systemd/system/usb-tether-watchdog.service

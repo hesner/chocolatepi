@@ -43,6 +43,27 @@ publicar]` nuevo y vacío arriba para lo que siga.
 
 ## [Sin publicar]
 
+- **`library-optimizer.service` ahora limpia automáticamente los
+  archivos temporales sobrantes de un trabajo interrumpido, pedido real
+  del usuario después de notar que se habían acumulado ~470MB en un
+  solo día de pruebas (2026-10-03)**: un reinicio del servicio a mitad
+  de un trabajo (manual, un fallo, un reinicio de la Pi) abandona lo
+  que `_process_job()` estuviera copiando o codificando —
+  `recover_orphaned_jobs()` ya reseteaba el estado de la *cola* de
+  vuelta a "queued" en ese caso, pero no tenía idea de que existieran
+  los archivos `scratch_input`/`scratch_output` abandonados bajo
+  `~/pedal-optimizer-scratch/`, así que simplemente se quedaban ahí
+  para siempre (antes solo se borraban con `rollback.sh`, es decir,
+  solo al desinstalar por completo). `run_forever()` ahora limpia todo
+  el directorio de archivos temporales una vez, sin condiciones, en
+  cada arranque, antes del primer ciclo — siempre seguro, ya que un
+  trabajo que vuelve a "queued" recibe una copia temporal nueva con un
+  nombre de archivo aleatorio distinto la próxima vez que se procese,
+  así que nada que ya esté en disco al arrancar puede volver a
+  reanudarse ni referenciarse. Replica el mismo patrón ya usado para
+  los archivos `.part` del propio USB y para el directorio de subida
+  temporal de la app admin (ver la entrada de abajo). 5 tests nuevos en
+  `tests/test_library_optimizer.py`.
 - **Corregido: una subida lenta dejaba a `pedal-core.service` detenido
   (sin standby, sin ninguna reproducción) durante toda la transferencia
   de red, incidente real encontrado probando en vivo la nueva

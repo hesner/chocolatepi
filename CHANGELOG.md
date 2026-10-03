@@ -40,6 +40,24 @@ above it for whatever comes next.
 
 ## [Unreleased]
 
+- **`library-optimizer.service` now automatically cleans up leftover
+  scratch files from an interrupted job, real user request after
+  noticing ~470MB of them had piled up over one day of testing
+  (2026-10-03)**: a service restart mid-job (manual, a crash, a reboot)
+  abandons whatever `_process_job()` was mid-copy/mid-encode --
+  `recover_orphaned_jobs()` already reset the *queue's* status back to
+  "queued" in that case, but had no idea the abandoned
+  `scratch_input`/`scratch_output` files under
+  `~/pedal-optimizer-scratch/` existed, so they just sat there forever
+  (previously only removed by `rollback.sh`, i.e. only on a full
+  uninstall). `run_forever()` now sweeps the entire scratch directory
+  once, unconditionally, at every startup, before the first tick --
+  always safe, since a job reset to "queued" gets a brand new scratch
+  copy under a fresh random filename once it's picked up again, so
+  nothing already on disk at startup can ever be resumed or
+  referenced. Mirrors the same pattern already used for the USB's own
+  `.part` files and the admin app's upload-scratch directory (see the
+  entry below). 5 new tests in `tests/test_library_optimizer.py`.
 - **Fixed: a slow upload held `pedal-core.service` stopped (no
   standby, no playback at all) for its entire network-transfer time,
   real incident found live testing the new WiFi-reachability feature

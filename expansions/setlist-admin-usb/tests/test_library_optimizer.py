@@ -339,6 +339,70 @@ class TestRunForeverStartupRecovery(LibraryOptimizerTestCase):
 
         mock_tick.assert_called_once()
 
+    @patch("admin.library_optimizer._tick")
+    @patch("admin.library_optimizer.time.sleep", side_effect=KeyboardInterrupt)
+    @patch("admin.library_optimizer.optimize_queue.recover_orphaned_jobs")
+    def test_removes_leftover_scratch_files_from_an_interrupted_job(
+        self, mock_recover, mock_sleep, mock_tick,
+    ):
+        """Real incident (2026-10-03): a service restart mid-job
+        abandons that job's scratch_input/scratch_output (see
+        run_forever()'s own comment) -- confirmed live, ~470MB
+        accumulated this way over one day of real use. Nothing left on
+        disk at startup can ever be resumed (a job reset to "queued"
+        gets a brand new scratch copy under a fresh uuid4 name once
+        it's picked up again), so it's always safe to remove."""
+        leftover_input = os.path.join(self.scratch_dir, "leftover-input.mov")
+        leftover_output = os.path.join(self.scratch_dir, "leftover-output.mp4")
+        with open(leftover_input, "wb") as f:
+            f.write(b"abandoned mid-copy")
+        with open(leftover_output, "wb") as f:
+            f.write(b"abandoned mid-encode")
+
+        with self.assertRaises(KeyboardInterrupt):
+            library_optimizer.run_forever(self.usb_root, "/media/usb", self.scratch_dir, 5)
+
+        self.assertEqual(os.listdir(self.scratch_dir), [])
+
+    @patch("admin.library_optimizer._tick")
+    @patch("admin.library_optimizer.time.sleep", side_effect=KeyboardInterrupt)
+    @patch("admin.library_optimizer.optimize_queue.recover_orphaned_jobs")
+    def test_startup_with_no_leftover_scratch_files_is_a_no_op(
+        self, mock_recover, mock_sleep, mock_tick,
+    ):
+        with self.assertRaises(KeyboardInterrupt):
+            library_optimizer.run_forever(self.usb_root, "/media/usb", self.scratch_dir, 5)
+
+        self.assertEqual(os.listdir(self.scratch_dir), [])
+
+
+class TestCleanupScratchDir(unittest.TestCase):
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmpdir.cleanup)
+
+    def test_removes_every_file_in_the_directory(self):
+        for name in ("a.mov", "b.mp4"):
+            with open(os.path.join(self.tmpdir.name, name), "wb") as f:
+                f.write(b"data")
+
+        removed = library_optimizer._cleanup_scratch_dir(self.tmpdir.name)
+
+        self.assertEqual(removed, 2)
+        self.assertEqual(os.listdir(self.tmpdir.name), [])
+
+    def test_missing_directory_returns_zero_without_raising(self):
+        removed = library_optimizer._cleanup_scratch_dir(
+            os.path.join(self.tmpdir.name, "does-not-exist")
+        )
+
+        self.assertEqual(removed, 0)
+
+    def test_empty_directory_returns_zero(self):
+        removed = library_optimizer._cleanup_scratch_dir(self.tmpdir.name)
+
+        self.assertEqual(removed, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
