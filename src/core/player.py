@@ -132,6 +132,10 @@ class _MpvProcess:
         event_sock = self._connect()
         self._spawn_reader(event_sock, self._handle_event_line)
 
+    @property
+    def running(self) -> bool:
+        return self._process is not None
+
     def stop(self):
         self._stop_listener.set()
         if self._command_sock is not None:
@@ -326,15 +330,27 @@ class Player:
     def socket_path(self) -> str:
         return self._mpv.socket_path
 
+    @property
+    def running(self) -> bool:
+        """Real user request (2026-10-03): the video lane's mpv process
+        costs a full CPU core and ~300MB RAM continuously just to loop
+        standby (confirmed live), whether a display is attached or not
+        -- Core now starts/stops it on demand based on display
+        presence (see DisplayMonitor), and needs to know whether it's
+        currently running before sending it a command."""
+        return self._mpv.running
+
     def start(self):
         """Launches mpv, connects to its IPC socket, checks exactly once
         whether the library USB is present (see _usb_device_is_present()),
         and starts looping the resulting standby video (real or
-        fallback)."""
+        fallback). Safe to call again after stop() -- e.g. the display
+        reconnecting -- picks the USB presence check back up fresh."""
         self._mpv.start()
         self._resolved_standby = (
             self.standby_path if self._usb_device_is_present() else self.fallback_standby_path
         )
+        self._current_standby_path = None
         self.go_to_standby()
 
     def stop(self):

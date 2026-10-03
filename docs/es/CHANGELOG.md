@@ -43,6 +43,44 @@ publicar]` nuevo y vacío arriba para lo que siga.
 
 ## [Sin publicar]
 
+- **Se agregó una línea de video consciente de recursos, pedido real
+  del usuario (2026-10-03)**: se midió en vivo que el proceso `mpv` de
+  la línea de video costaba un core completo de CPU (~106%) y ~300MB
+  de RAM (34% del total de ~921MB de la Pi 2 de referencia) de forma
+  continua, solo para repetir el standby — un costo real y constante
+  por nada si no hay ninguna pantalla físicamente conectada para
+  mostrarlo. Un nuevo `DisplayMonitor` (`src/core/display_monitor.py`)
+  sondea el `status` en sysfs del conector DRM (con antirrebote, para
+  que un cable suelto o intermitente no haga parpadear la línea
+  encendida/apagada) y `Core.set_display_connected()` arranca/detiene
+  la línea de video según corresponda, incluyendo una vez al inicio
+  con el estado real al arrancar. Sin ninguna pantalla conectada, una
+  pista de video reproduce solo su audio (por la misma línea que ya
+  usa una pista de solo-audio) en vez de no hacer nada — el sistema
+  sigue funcionando completo. Deliberadamente nunca interrumpe lo que
+  ya está sonando: un clip que ya estaba sonando cuando la pantalla se
+  desconecta sigue sonando, audio y todo, hasta que termina solo o se
+  presiona STOP; se consideró y se rechazó un traspaso en vivo a mitad
+  de clip entre líneas (riesgo real de clic de audio al sincronizar
+  posición entre dos procesos `mpv` independientes). Ver la entrada
+  "Línea de video consciente de recursos" de `MASTER_SPECIFICATION.md`
+  para el registro completo de la decisión. 20 tests nuevos
+  (`tests/test_core.py`, `tests/test_display_monitor.py` — `core.py` y
+  `player.py` antes no tenían ningún test automatizado, solo el
+  `core_smoke_test.py` manual; la lógica nueva aquí es de
+  enrutamiento/estado puro, genuinamente testeable con `Player`/
+  `AudioPlayer` simulados).
+
+  Como efecto colateral, esto también autocorrige un incidente real
+  del mismo día: conectar el cable HDMI *después* de encender solía
+  dejar la Pi sin mostrar ningún video hasta un `systemctl restart
+  pedal-core.service` manual — la propia detección de hotplug DRM del
+  kernel funcionaba, pero el proceso `mpv` que ya estaba corriendo
+  nunca se re-vinculaba a ella. Ahora la línea de video simplemente
+  todavía no estaba corriendo en ese caso, y arranca de cero
+  (vinculándose correctamente a la pantalla ya conectada) a los pocos
+  segundos de que el monitor detecte el cable — ver la entrada
+  actualizada en `TROUBLESHOOTING.md`.
 - **Corregido un lote de problemas reales encontrados durante una
   ronda completa de pruebas de usuario (2026-10-02)**, ambas
   expansiones salvo que se indique lo contrario:

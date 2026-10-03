@@ -163,6 +163,37 @@ pre-encolado, la propia pantalla de reposo de mpv ("Drop files or URLs
 to play here") destella por un cuadro o dos entre que termina el clip y
 empieza el standby.
 
+## No hay video de standby al conectar el cable HDMI después de encender
+
+Esperado por el comportamiento real del hotplug de HDMI en este
+hardware, no es un bug: si la Pi se enciende sin ninguna pantalla
+conectada, el propio subsistema DRM del kernel puede no activar bien
+la salida HDMI incluso después de conectar un cable — un proceso que
+ya empezó a renderizar antes de que la pantalla estuviera conectada no
+se re-vincula a ella solo.
+
+**Desde el 2026-10-03, esto se autocorrige en unos segundos**: la
+línea de video ahora solo corre mientras se detecta una pantalla
+conectada (`src/core/display_monitor.py` sondea
+`/sys/class/drm/.../status` cada ~2s, confirmado con 2 lecturas
+consecutivas que coincidan antes de actuar — ver "Línea de video
+consciente de recursos" en `MASTER_SPECIFICATION.md`). Conectar el
+HDMI después de arrancar se detecta automáticamente y arranca la línea
+de video desde cero, la cual se vincula correctamente a la pantalla ya
+conectada — ya no hace falta un `systemctl restart pedal-core.service`
+manual. Si todavía no se recupera dentro de ~10s de conectar el cable,
+revisa `~/pedal-core.log` buscando "Display connected -- video lane
+started" para confirmar que el monitor realmente vio el cambio; si esa
+línea nunca aparece, confirma el nombre real del conector con
+`ls /sys/class/drm/` en la Pi y pasa el correcto con
+`--display-status-path` (ver `src/main.py --help`) — el valor por
+defecto asume `card0-HDMI-A-1`.
+
+Para la experiencia más confiable de todos modos, sigue siendo mejor
+conectar el HDMI **antes** de encender la Pi, igual que antes de este
+arreglo — esto solo hace que el caso de "lo conecté después de
+arrancar" se recupere solo en vez de necesitar un reinicio manual.
+
 ## Cuelgue aleatorio, "Undervoltage detected!" en pantalla
 
 Cargador con potencia insuficiente. Un cargador genérico de celular

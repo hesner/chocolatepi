@@ -40,6 +40,39 @@ above it for whatever comes next.
 
 ## [Unreleased]
 
+- **Added a resource-aware video lane, real user request (2026-10-03)**:
+  the video lane's `mpv` process was measured live costing a full CPU
+  core (~106%) and ~300MB RAM (34% of the reference Pi 2's total
+  ~921MB) continuously, just to loop standby -- real, ongoing cost for
+  nothing if no display is physically connected to show it. A new
+  `DisplayMonitor` (`src/core/display_monitor.py`) polls the DRM
+  connector's sysfs `status` (debounced, so a loose/flickering cable
+  doesn't flap the lane) and `Core.set_display_connected()` starts/
+  stops the video lane accordingly, including once at startup with the
+  real boot-time state. With no display connected, a video track plays
+  its audio only (through the same lane an audio-only track already
+  uses) instead of doing nothing -- the system stays fully functional.
+  Deliberately never interrupts what's already playing: a clip already
+  playing when the display disconnects keeps playing, audio and all,
+  until it ends on its own or STOP is pressed; a live mid-clip handoff
+  between lanes was considered and rejected (real audio-glitch risk
+  syncing position between two independent `mpv` processes). See
+  `MASTER_SPECIFICATION.md`'s "Resource-aware video lane" entry for the
+  full decision record. 20 new tests (`tests/test_core.py`,
+  `tests/test_display_monitor.py` -- `core.py` and `player.py`
+  previously had zero automated tests, only the manual
+  `core_smoke_test.py`; the new logic here is pure routing/state,
+  genuinely unit-testable with mocked `Player`/`AudioPlayer`).
+
+  As a side effect, this also self-heals a real incident from the same
+  day: connecting the HDMI cable *after* powering on used to leave the
+  Pi showing no video at all until a manual `systemctl restart
+  pedal-core.service` -- the kernel's own DRM hotplug detection worked,
+  but the already-running `mpv` process never rebound to it. Now the
+  video lane simply wasn't running yet in that case, and starts fresh
+  (correctly binding to the now-connected display) within a few
+  seconds of the monitor detecting the cable -- see
+  `TROUBLESHOOTING.md`'s updated entry.
 - **Fixed a batch of real issues found during a full user QA pass
   (2026-10-02)**, both expansions unless noted:
   - `pedal-core.service` could crash-loop for several minutes under

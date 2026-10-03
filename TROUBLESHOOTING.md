@@ -151,6 +151,34 @@ naturally and reacting afterward -- without the pre-queue, mpv's own
 "Drop files or URLs to play here" idle screen flashes for a frame or two
 between the clip ending and standby starting.
 
+## No standby video after connecting the HDMI cable after power-on
+
+Expected with the real hardware's HDMI hotplug behavior, not a bug: if
+the Pi is powered on with no display connected, the kernel's own DRM
+subsystem may not properly bring up the HDMI output even once a cable
+is plugged in afterward -- a process that already started rendering
+before the display was connected doesn't automatically rebind to it.
+
+**As of 2026-10-03, this self-heals within a few seconds**: the video
+lane now only runs while a display is detected connected
+(`src/core/display_monitor.py` polls `/sys/class/drm/.../status` every
+~2s, confirmed over 2 consecutive agreeing reads before acting --
+see "Resource-aware video lane" in `MASTER_SPECIFICATION.md`). Plugging
+in HDMI after boot is detected automatically and starts the video lane
+fresh, which correctly binds to the now-connected display -- no manual
+`systemctl restart pedal-core.service` needed anymore. If it still
+doesn't recover within ~10s of connecting the cable, check
+`~/pedal-core.log` for "Display connected -- video lane started" to
+confirm the monitor actually saw the change; if that line never
+appears, confirm the real connector name with `ls /sys/class/drm/` on
+the Pi and pass the right one via `--display-status-path` (see
+`src/main.py --help`) -- the default assumes `card0-HDMI-A-1`.
+
+For the most reliable experience regardless, still prefer connecting
+HDMI **before** powering the Pi on, same as before this fix existed --
+this just makes the "connected it after boot" case recover on its own
+instead of needing a manual restart.
+
 ## Random freeze, "Undervoltage detected!" on screen
 
 Underpowered charger. A generic phone charger (measured: a Chromecast

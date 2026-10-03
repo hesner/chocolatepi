@@ -21,7 +21,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 from adapter import MVaveAdapter, DeviceNotFoundError  # noqa: E402
 from mapper import Mapper  # noqa: E402
-from core import Library, Player, AudioPlayer, Core  # noqa: E402
+from core import Library, Player, AudioPlayer, Core, DisplayMonitor  # noqa: E402
+from core.display_monitor import DEFAULT_STATUS_PATH  # noqa: E402
 
 # How often to retry connecting to the M-VAVE while it isn't found (at
 # startup, or after a mid-session disconnect) -- see _run_midi_loop()'s
@@ -88,6 +89,21 @@ def parse_args():
         default=os.path.expanduser("~/pedal-core.log"),
         help="Where to write the Core's log (default: ~/pedal-core.log)",
     )
+    parser.add_argument(
+        "--display-status-path",
+        default=DEFAULT_STATUS_PATH,
+        help=(
+            "sysfs path reporting whether an HDMI display is connected "
+            "('connected'/'disconnected'/'unknown'). Real user request "
+            "(2026-10-03): the video lane costs a full CPU core and "
+            "~300MB RAM continuously just to loop standby, confirmed "
+            "live -- it's only started while a display is actually "
+            "connected here, checked at startup and then polled. Run "
+            "`ls /sys/class/drm/` on the Pi to confirm the connector "
+            "name if this default doesn't match the real hardware. "
+            f"(default: {DEFAULT_STATUS_PATH})"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -116,11 +132,22 @@ def main():
     core = Core(library=library, player=player, audio_player=audio_player)
     core.start()
 
+    # Real user request (2026-10-03): starts the video lane only while
+    # a display is actually connected (including an immediate check of
+    # the real state right now, inside start() below) -- see
+    # core.py's Core.set_display_connected() and display_monitor.py.
+    display_monitor = DisplayMonitor(
+        on_change=core.set_display_connected,
+        status_path=args.display_status_path,
+    )
+    display_monitor.start()
+
     try:
         _run_midi_loop(core, mapper, logger)
     except KeyboardInterrupt:
         logger.info("Exiting.")
     finally:
+        display_monitor.stop()
         core.stop()
 
 
