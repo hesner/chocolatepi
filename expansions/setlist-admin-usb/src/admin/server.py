@@ -22,7 +22,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from admin.api import AdminAPI, AdminConfig, ApiError  # noqa: E402
+from admin.api import AdminAPI, AdminConfig, ApiError, DEFAULT_UPLOAD_SCRATCH_DIR  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -457,6 +457,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--usb-root", required=True)
     parser.add_argument("--mount-point", default="/media/usb")
+    parser.add_argument("--upload-scratch-dir", default=DEFAULT_UPLOAD_SCRATCH_DIR)
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8080)
     parser.add_argument("--log-file", default=None)
@@ -470,7 +471,10 @@ def main():
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         filename=args.log_file,
     )
-    config = AdminConfig(usb_root=args.usb_root, mount_point=args.mount_point)
+    config = AdminConfig(
+        usb_root=args.usb_root, mount_point=args.mount_point,
+        upload_scratch_dir=args.upload_scratch_dir,
+    )
     api = AdminAPI(config)
     try:
         removed = api.cleanup_stale_temp_files()

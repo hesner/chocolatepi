@@ -40,6 +40,26 @@ above it for whatever comes next.
 
 ## [Unreleased]
 
+- **Fixed: a slow upload held `pedal-core.service` stopped (no
+  standby, no playback at all) for its entire network-transfer time,
+  real incident found live testing the new WiFi-reachability feature
+  above (2026-10-03)**: `upload_song()`/`assign_track()`
+  (`expansions/setlist-admin-usb/src/admin/api.py`) used to read the
+  upload's raw, network-backed stream directly inside
+  `_writable_usb()` -- so the window pedal-core.service stayed down
+  for was bounded by the *uploader's own connection speed*, not by the
+  USB write itself. Confirmed live: a 76MB upload over a weak WiFi
+  connection left the pedal dark for roughly 15 minutes. Fixed by
+  receiving the upload to local scratch storage on the Pi first
+  (`AdminAPI._receive_to_scratch()`, new `--upload-scratch-dir`,
+  cleaned up at startup the same way `.part` files on the USB already
+  were) and only wrapping the short, local-disk-speed copy from there
+  onto the USB in `_writable_usb()` -- the same scratch-then-copy
+  pattern `library_optimizer.py` already uses for its own, often
+  larger, `ffmpeg` output. 4 new tests in `tests/test_admin_api.py`,
+  two of which fail immediately (by design) if a future change ever
+  goes back to reading the upload stream inside the writable-USB
+  window.
 - **`setlist-admin-usb` can now also be reached over WiFi, no phone
   needed, real user request (2026-10-03)**: `usb-tether-watchdog.service`
   (`expansions/setlist-admin-usb/src/admin/usb_tether_watchdog.py`)

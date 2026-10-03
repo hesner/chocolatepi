@@ -51,7 +51,10 @@ class ServerIntegrationTestCase(unittest.TestCase):
         state_dir_patcher = patch("admin.optimize_queue.DEFAULT_STATE_DIR", state_dir)
         state_dir_patcher.start()
         self.addCleanup(state_dir_patcher.stop)
-        api = AdminAPI(AdminConfig(usb_root=self.tmpdir.name))
+        api = AdminAPI(AdminConfig(
+            usb_root=self.tmpdir.name,
+            upload_scratch_dir=os.path.join(self.tmpdir.name, "upload-scratch"),
+        ))
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler_class(api))
         self.port = self.server.server_address[1]
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)

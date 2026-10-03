@@ -43,6 +43,28 @@ publicar]` nuevo y vacío arriba para lo que siga.
 
 ## [Sin publicar]
 
+- **Corregido: una subida lenta dejaba a `pedal-core.service` detenido
+  (sin standby, sin ninguna reproducción) durante toda la transferencia
+  de red, incidente real encontrado probando en vivo la nueva
+  funcionalidad de WiFi de arriba (2026-10-03)**:
+  `upload_song()`/`assign_track()`
+  (`expansions/setlist-admin-usb/src/admin/api.py`) leían el flujo
+  crudo de red de la subida directamente dentro de `_writable_usb()` —
+  así que la ventana en la que `pedal-core.service` quedaba detenido
+  dependía de la *velocidad de la propia conexión de quien sube el
+  archivo*, no de la escritura al USB en sí. Confirmado en vivo: una
+  subida de 76MB por una conexión WiFi débil dejó el pedal apagado
+  durante aproximadamente 15 minutos. Se corrigió recibiendo la subida
+  primero a almacenamiento local de la propia Pi
+  (`AdminAPI._receive_to_scratch()`, nuevo `--upload-scratch-dir`,
+  limpiado al inicio igual que ya se hacía con los archivos `.part` del
+  USB) y envolviendo en `_writable_usb()` solo la copia corta, a
+  velocidad de disco local, desde ahí hacia el USB — el mismo patrón de
+  "copiar local primero, luego copiar" que `library_optimizer.py` ya
+  usa para su propia salida de `ffmpeg`, a menudo más grande. 4 tests
+  nuevos en `tests/test_admin_api.py`, dos de los cuales fallan de
+  inmediato (a propósito) si algún cambio futuro vuelve a leer el flujo
+  de la subida dentro de la ventana de escritura del USB.
 - **`setlist-admin-usb` ahora también se puede alcanzar por WiFi, sin
   necesitar un teléfono, pedido real del usuario (2026-10-03)**:
   `usb-tether-watchdog.service`

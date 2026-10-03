@@ -69,6 +69,9 @@ echo "Removed unit files."
 rm -rf "$HOME/pedal-optimizer-scratch"
 echo "Removed the optimizer's local scratch directory."
 
+rm -rf "$HOME/pedal-admin-upload-scratch"
+echo "Removed the upload scratch directory."
+
 if [ "$PURGE" = "1" ] || [ "$PURGE_LIBRARY" = "1" ]; then
   # Not `mount -o remount,rw` -- ntfs-3g (a FUSE filesystem) refuses
   # in-place remounts outright, confirmed against the real library USB.

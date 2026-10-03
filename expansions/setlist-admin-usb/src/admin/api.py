@@ -13,12 +13,26 @@ import concurrent.futures
 import logging
 import os
 import subprocess
+import uuid
 from dataclasses import dataclass
 from typing import BinaryIO, Optional
 
 from admin import auth, codec_check, library_ops, optimize_queue, pedal_core_guard, usb_mount
 
 logger = logging.getLogger(__name__)
+
+# Real incident (2026-10-03): a slow WiFi upload of a 76MB file held
+# pedal-core.service stopped (no standby, no playback at all) for its
+# entire ~15-minute network transfer, not just the brief disk write --
+# upload_song()/assign_track() used to read the network-backed `source`
+# stream directly inside `_writable_usb()`, so the window lasted as long
+# as the uploader's own connection took, not as long as the USB write
+# itself. Receiving to local scratch storage first (same pattern
+# library_optimizer.py already uses for its own, often larger, ffmpeg
+# output -- SPECIFICATION.md section 15) means only the short,
+# local-disk-speed copy from here onto the USB still needs that window.
+DEFAULT_UPLOAD_SCRATCH_DIR = os.path.expanduser("~/pedal-admin-upload-scratch")
+_UPLOAD_CHUNK_SIZE = 1024 * 1024  # 1 MiB -- streamed, never the whole file in RAM (section 7)
 
 # list_songs()'s per-song codec check (ffprobe, one subprocess per video
 # file) is I/O-bound, not CPU-bound -- most of the wait is this weak
@@ -49,6 +63,7 @@ class ApiError(Exception):
 class AdminConfig:
     usb_root: str
     mount_point: str = usb_mount.DEFAULT_MOUNT_POINT
+    upload_scratch_dir: str = DEFAULT_UPLOAD_SCRATCH_DIR
 
 
 class AdminAPI:
@@ -118,6 +133,29 @@ class AdminAPI:
     def _writable_usb(self):
         return pedal_core_guard.writable_usb(self.config.mount_point)
 
+    def _receive_to_scratch(self, source: BinaryIO) -> str:
+        """Copies `source` -- the raw, network-backed request body --
+        onto the Pi's own local storage, outside any `_writable_usb()`
+        window, before an upload touches the USB at all. See the module
+        docstring above: this is what keeps a slow network transfer from
+        determining how long pedal-core.service stays stopped. The
+        caller is responsible for removing the returned path once done
+        with it (`os.remove()`, typically in a `finally`)."""
+        os.makedirs(self.config.upload_scratch_dir, exist_ok=True)
+        scratch_path = os.path.join(self.config.upload_scratch_dir, uuid.uuid4().hex)
+        try:
+            with open(scratch_path, "wb") as dest:
+                while True:
+                    chunk = source.read(_UPLOAD_CHUNK_SIZE)
+                    if not chunk:
+                        break
+                    dest.write(chunk)
+        except Exception:
+            if os.path.exists(scratch_path):
+                os.remove(scratch_path)
+            raise
+        return scratch_path
+
     # -- Sets ------------------------------------------------------------
 
     def list_sets(self) -> dict:
@@ -167,12 +205,22 @@ class AdminAPI:
                       display_name: str, extension: str, source: BinaryIO) -> Optional[str]:
         """Returns a codec warning string if the upload is a video that
         isn't H.264, or None if it's fine (or not a video). The warning
-        never blocks the upload -- see codec_check.py's docstring."""
-        with self._writable_usb():
-            info = library_ops.assign_track(
-                self.config.usb_root, set_name, bank_number, letter,
-                display_name, extension, source,
-            )
+        never blocks the upload -- see codec_check.py's docstring.
+
+        `source` is received to local scratch *before* touching the USB
+        (see `_receive_to_scratch()`) -- only the fast, local-disk-speed
+        copy from there onto the USB needs `_writable_usb()`'s window,
+        not the whole, potentially slow, network transfer."""
+        scratch_path = self._receive_to_scratch(source)
+        try:
+            with open(scratch_path, "rb") as scratch_file:
+                with self._writable_usb():
+                    info = library_ops.assign_track(
+                        self.config.usb_root, set_name, bank_number, letter,
+                        display_name, extension, scratch_file,
+                    )
+        finally:
+            os.remove(scratch_path)
         bank_path = os.path.join(self.config.usb_root, set_name, f"Bank {bank_number}")
         return codec_check.check_video_codec(os.path.join(bank_path, info.filename), extension)
 
@@ -263,14 +311,22 @@ class AdminAPI:
         user request, 2026-10-01, after a real duplicate-name rejection
         during testing broke the client connection -- see
         `_LimitedReader.drain()` in `server.py` for *that* fix; this is
-        the separate, requested "let me replace it" feature)."""
+        the separate, requested "let me replace it" feature).
+
+        `source` is received to local scratch *before* touching the USB,
+        same as `assign_track()` -- see `_receive_to_scratch()`."""
+        scratch_path = self._receive_to_scratch(source)
         try:
-            with self._writable_usb():
-                info = library_ops.upload_song(
-                    self.config.usb_root, display_name, extension, source, overwrite=overwrite,
-                )
-        except library_ops.SongAlreadyExistsError as e:
-            raise ApiError(409, str(e)) from e
+            with open(scratch_path, "rb") as scratch_file:
+                try:
+                    with self._writable_usb():
+                        info = library_ops.upload_song(
+                            self.config.usb_root, display_name, extension, scratch_file, overwrite=overwrite,
+                        )
+                except library_ops.SongAlreadyExistsError as e:
+                    raise ApiError(409, str(e)) from e
+        finally:
+            os.remove(scratch_path)
         songs_path = os.path.join(self.config.usb_root, "_Songs")
         return codec_check.check_video_codec(os.path.join(songs_path, info.filename), extension)
 
@@ -305,9 +361,13 @@ class AdminAPI:
         library_ops.cleanup_stale_temp_files()'s docstring for why this
         is needed (a SIGTERM mid-upload, e.g. from usb-tether-watchdog
         stopping this service the instant a phone disconnects, skips the
-        normal per-write cleanup)."""
+        normal per-write cleanup). Also sweeps the local upload-scratch
+        directory for the same reason -- since 2026-10-03, that's where
+        an interrupted upload's partial bytes land, not the USB, so it
+        needs the same one-time startup cleanup."""
+        removed = _cleanup_scratch_dir(self.config.upload_scratch_dir)
         with self._writable_usb():
-            return library_ops.cleanup_stale_temp_files(self.config.usb_root)
+            return removed + library_ops.cleanup_stale_temp_files(self.config.usb_root)
 
     # -- Playback status (advisory warning, section 1) -----------------------
 
@@ -341,3 +401,22 @@ class AdminAPI:
         except (subprocess.TimeoutExpired, FileNotFoundError) as e:
             logger.error("Failed to trigger reboot: %s", e)
             raise ApiError(500, "Could not reboot") from e
+
+
+def _cleanup_scratch_dir(scratch_dir: str) -> int:
+    """Every file under the local upload-scratch directory only ever
+    exists for the duration of one upload_song()/assign_track() call
+    (see `AdminAPI._receive_to_scratch()`) -- never valid data by
+    construction, so always safe to remove at startup, same reasoning
+    as `library_ops.cleanup_stale_temp_files()`. Returns the count
+    removed."""
+    if not os.path.isdir(scratch_dir):
+        return 0
+    removed = 0
+    for name in os.listdir(scratch_dir):
+        try:
+            os.remove(os.path.join(scratch_dir, name))
+            removed += 1
+        except OSError:
+            pass
+    return removed

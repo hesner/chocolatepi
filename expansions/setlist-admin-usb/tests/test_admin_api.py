@@ -30,7 +30,14 @@ class ApiTestCase(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.usb_root = self.tmpdir.name
-        self.api = AdminAPI(AdminConfig(usb_root=self.usb_root))
+        # Same reasoning as optimizer-state below: upload_scratch_dir's
+        # real default is a path under the developer's/Pi's home dir --
+        # pointed at an isolated per-test directory instead so tests
+        # never touch it or collide with each other.
+        self.api = AdminAPI(AdminConfig(
+            usb_root=self.usb_root,
+            upload_scratch_dir=os.path.join(self.usb_root, "upload-scratch"),
+        ))
 
         remount_patcher = patch("admin.usb_mount._remount")
         self.mock_remount = remount_patcher.start()
@@ -429,6 +436,85 @@ class TestUploadSongOverwrite(ApiTestCase):
 
         songs = self.api.list_songs()["songs"]
         self.assertEqual(len(songs), 1)
+
+
+class TestUploadReceivesToScratchFirst(ApiTestCase):
+    """Real incident (2026-10-03): upload_song()/assign_track() used to
+    read the network-backed `source` stream directly inside
+    `_writable_usb()`, so a slow upload (weak/distant WiFi) held
+    pedal-core.service stopped -- no standby, no playback at all -- for
+    its entire transfer time, confirmed live on real hardware (~15
+    minutes for a 76MB file). Fixed by receiving to local scratch first
+    (`AdminAPI._receive_to_scratch()`) and only wrapping the short,
+    local-disk-speed copy onto the USB in `_writable_usb()`. These tests
+    fail immediately if that ordering ever regresses."""
+
+    def _fake_writable_usb_tracking(self, flags):
+        import contextlib
+
+        @contextlib.contextmanager
+        def fake(mount_point):
+            flags.append(True)
+            try:
+                yield
+            finally:
+                flags.pop()
+        return fake
+
+    def test_upload_song_source_is_fully_read_before_writable_usb_opens(self):
+        in_writable_window = []
+
+        class TrackingSource(io.BytesIO):
+            def read(self, size=-1):
+                if in_writable_window:
+                    raise AssertionError(
+                        "source was read while pedal-core.service was stopped"
+                    )
+                return super().read(size)
+
+        with patch(
+            "admin.api.pedal_core_guard.writable_usb",
+            self._fake_writable_usb_tracking(in_writable_window),
+        ):
+            self.api.upload_song("Song", "mp3", TrackingSource(b"audio bytes"))
+
+        with open(os.path.join(self.usb_root, "_Songs", "Song.mp3"), "rb") as f:
+            self.assertEqual(f.read(), b"audio bytes")
+
+    def test_assign_track_source_is_fully_read_before_writable_usb_opens(self):
+        self.api.create_set("Live")
+        self.api.create_bank("Live", 1)
+        in_writable_window = []
+
+        class TrackingSource(io.BytesIO):
+            def read(self, size=-1):
+                if in_writable_window:
+                    raise AssertionError(
+                        "source was read while pedal-core.service was stopped"
+                    )
+                return super().read(size)
+
+        with patch(
+            "admin.api.pedal_core_guard.writable_usb",
+            self._fake_writable_usb_tracking(in_writable_window),
+        ):
+            self.api.assign_track("Live", 1, "A", "Song", "mp3", TrackingSource(b"audio bytes"))
+
+        tracks = self.api.list_tracks("Live", 1)
+        self.assertEqual(tracks["A"]["display_name"], "Song")
+
+    def test_scratch_file_is_removed_after_a_successful_upload(self):
+        self.api.upload_song("Song", "mp3", io.BytesIO(b"audio bytes"))
+
+        self.assertEqual(os.listdir(self.api.config.upload_scratch_dir), [])
+
+    def test_scratch_file_is_removed_even_after_a_duplicate_name_error(self):
+        self.api.upload_song("Song", "mp3", io.BytesIO(b"first"))
+
+        with self.assertRaises(ApiError):
+            self.api.upload_song("Song", "mp3", io.BytesIO(b"second"))
+
+        self.assertEqual(os.listdir(self.api.config.upload_scratch_dir), [])
 
 
 class TestListSongsOptimizationFields(ApiTestCase):
