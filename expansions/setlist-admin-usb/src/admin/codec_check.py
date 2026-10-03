@@ -1,5 +1,5 @@
 """
-Upload-time codec validation, reused unchanged (SETLIST_ADMIN_USB_SPECIFICATION.md
+Upload-time codec validation, reused unchanged (SPECIFICATION.md
 section 3): the app runs ffprobe on any uploaded video and warns -- not
 blocks -- if it's not H.264.
 

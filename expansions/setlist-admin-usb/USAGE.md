@@ -270,7 +270,9 @@ different network (a venue's guest WiFi, for instance) never starts
 the admin app over it, even if that network has its own internet
 access. See `systemd/README.md`'s "Changing which WiFi network the Pi
 connects to" section if the band's home network ever changes and this
-needs to point at a new one.
+needs to point at a new one -- that procedure updates the same named
+profile in place, so this feature keeps working automatically against
+the new network, no further setup needed here.
 
 **Reaching the app over WiFi on a network the watchdog doesn't trust**
 (developer/SSH use only -- confirmed live, 2026-10-02): the watchdog

@@ -1,6 +1,6 @@
 """
 PIN-based auth for the setlist-admin web app, reused unchanged from the
-earlier WiFi design (SETLIST_ADMIN_USB_SPECIFICATION.md section 7: a
+earlier WiFi design (SPECIFICATION.md section 7: a
 single shared PIN, not per-user accounts).
 
 Standard library only: `hashlib`/`hmac`/`secrets`, the same way the rest

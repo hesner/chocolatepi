@@ -3,7 +3,7 @@ Description=Chocolate Pi -- Setlist Admin (web UI for the library USB)
 # install_setlist_admin.sh deliberately does NOT `systemctl enable` this
 # unit -- usb-tether-watchdog.service starts and stops it directly
 # based on whether a phone is currently tethered over USB
-# (SETLIST_ADMIN_USB_SPECIFICATION.md section 4c). Running with no
+# (SPECIFICATION.md section 4c). Running with no
 # phone attached would just be a listening server no one can reach,
 # wasting the RAM/CPU section 9 is explicit about not spending. The
 # [Install] section below only matters if someone deliberately runs

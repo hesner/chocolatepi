@@ -2,7 +2,8 @@
 Description=Chocolate Pi -- Setlist Admin USB-tether watchdog
 # Starts early and stays running for the Pi's whole uptime -- this is
 # what notices a phone tethered over USB (by kernel driver name, not
-# IP range -- SETLIST_ADMIN_USB_SPECIFICATION.md section 4c) and
+# IP range -- SPECIFICATION.md section 4c) *or* a USB WiFi dongle
+# connected to the Pi's own trusted home network (section 16) and
 # starts/stops setlist-admin.service accordingly.
 After=network.target NetworkManager.service
 

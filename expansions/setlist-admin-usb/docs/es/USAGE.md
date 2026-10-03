@@ -282,7 +282,10 @@ dongle a una red distinta (el WiFi de invitados de un lugar donde
 tocan, por ejemplo) nunca arranca la app admin por esa red, aunque esa
 red tenga su propio acceso a internet. Ver la sección "Cambiar a qué
 red WiFi se conecta la Pi" de `systemd/README.md` si la red de casa de
-la banda cambia alguna vez y esto necesita apuntar a una nueva.
+la banda cambia alguna vez y esto necesita apuntar a una nueva — ese
+procedimiento actualiza el mismo perfil nombrado en su lugar, así que
+esta funcionalidad sigue funcionando automáticamente contra la red
+nueva, sin ninguna configuración adicional acá.
 
 **Llegar a la app por WiFi en una red en la que el watchdog no
 confía** (solo uso de desarrollo/SSH — confirmado en vivo, 2026-10-02):

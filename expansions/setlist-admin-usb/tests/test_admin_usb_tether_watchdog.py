@@ -1,5 +1,5 @@
 """Tests for admin.usb_tether_watchdog's driver-matching logic
-(SETLIST_ADMIN_USB_SPECIFICATION.md section 10) -- no real hardware or
+(SPECIFICATION.md section 10) -- no real hardware or
 real /sys tree needed: os.listdir is exercised against a real temp
 directory (plain subdirectories, no symlinks required), and driver
 resolution / IP checks are mocked directly so this runs identically on
@@ -156,6 +156,26 @@ class WifiConnectedToProfileTests(unittest.TestCase):
         )
 
         self.assertFalse(watchdog.wifi_connected_to_profile("preconfigured"))
+
+    @patch("admin.usb_tether_watchdog._has_usable_ip", return_value=True)
+    @patch("admin.usb_tether_watchdog.subprocess.run")
+    def test_matches_regardless_of_which_actual_network_the_profile_points_at(self, mock_run, mock_ip):
+        """Real user request (2026-10-03): confirm that relocating the
+        band's home WiFi -- a different SSID/password entirely, applied
+        via the documented `nmcli connection modify preconfigured ...`
+        procedure that updates the *same* profile in place -- needs no
+        code change here. This function only ever asks `nmcli` for
+        NAME/TYPE/DEVICE, never SSID or password, so it has no way to
+        notice (or care) that the underlying network changed, as long
+        as the profile keeps the same name."""
+        mock_run.return_value = self._mock_result(
+            "preconfigured:802-11-wireless:wlan0\n"
+        )
+
+        self.assertTrue(watchdog.wifi_connected_to_profile("preconfigured"))
+        called_args = mock_run.call_args[0][0]
+        self.assertNotIn("ssid", " ".join(called_args).lower())
+        self.assertNotIn("psk", " ".join(called_args).lower())
 
     @patch("admin.usb_tether_watchdog.subprocess.run")
     def test_no_active_connections_returns_false(self, mock_run):

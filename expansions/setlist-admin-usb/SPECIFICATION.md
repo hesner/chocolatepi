@@ -566,3 +566,18 @@ changed in kind, only gained a second signal.
 `systemd/README.md` and `TROUBLESHOOTING.md` (both at the base-pedal
 level, since the WiFi profile itself is set up during the base
 install, not by this expansion).
+
+**Confirmed, real user request (2026-10-03): relocating the band's
+entire setup to a new home WiFi network needs zero code or config
+changes here.** `wifi_connected_to_profile()` asks `nmcli` for the
+active connection's NAME/TYPE/DEVICE fields only -- it never reads the
+SSID or password, so it has no way to notice (or care) that the
+underlying network changed. The documented procedure for changing
+networks updates the *same* `"preconfigured"` profile in place (new
+SSID, new password, same name) rather than creating a new one -- the
+moment the Pi successfully rejoins under that name, this feature works
+against the new network automatically, exactly like it does today.
+Verified both by the function's own implementation (it structurally
+cannot depend on SSID/password) and by a dedicated test
+(`test_matches_regardless_of_which_actual_network_the_profile_points_at`
+in `tests/test_admin_usb_tether_watchdog.py`).

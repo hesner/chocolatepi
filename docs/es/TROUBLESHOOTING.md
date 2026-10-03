@@ -91,9 +91,12 @@ proyecto) como el nombre exacto de perfil que crea el Raspberry Pi
 Imager. Actualizarlo en el mismo lugar, en vez de crear un perfil
 nuevo con otro nombre, importa si `expansions/setlist-admin-usb` está
 instalada — su funcionalidad de alcance por WiFi confía en ese nombre
-de perfil exacto por defecto (procedimiento completo, incluyendo qué
-hacer si sí quieres un nombre distinto: la sección "Cambiar a qué red
-WiFi se conecta la Pi" de `systemd/README.md`).
+de perfil exacto por defecto — mantener el nombre significa que esa
+funcionalidad empieza a funcionar contra la red nueva automáticamente,
+en el momento en que la Pi se une a ella, igual que lo hace hoy, sin
+configuración adicional (procedimiento completo, incluyendo qué hacer
+si sí quieres un nombre distinto: la sección "Cambiar a qué red WiFi
+se conecta la Pi" de `systemd/README.md`).
 
 ## Arranca en "You are in emergency mode" (sin SSH, atascado)
 

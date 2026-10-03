@@ -67,7 +67,11 @@ este proyecto: el perfil que crea el Imager se llama exactamente
 `expansions/setlist-admin-usb` (ver el `USAGE.md` de esa expansión)
 también confía en ese nombre exacto por defecto, así que actualizarlo
 en el mismo lugar (en vez de crear un perfil nuevo con otro nombre)
-mantiene esa funcionalidad andando sin configuración adicional.
+mantiene esa funcionalidad andando sin configuración adicional: en el
+momento en que la Pi se conecta exitosamente a la red nueva, esa
+funcionalidad arranca la app admin automáticamente contra ella, igual
+que lo hace hoy — confirmado porque el propio código de detección solo
+revisa el *nombre* de la conexión, nunca su SSID ni su contraseña.
 
 ```
 nmcli connection show                      # confirma que "preconfigured" aparece listado

@@ -63,7 +63,11 @@ profile Imager creates is named exactly `preconfigured` --
 `expansions/setlist-admin-usb`'s WiFi-reachability feature (see that
 expansion's `USAGE.md`) also trusts that exact name by default, so
 updating it in place (rather than creating a new, differently-named
-profile) keeps that feature working with no extra configuration.
+profile) keeps that feature working with no extra configuration: the
+moment the Pi successfully joins the new network, that feature starts
+the admin app automatically against it, exactly like it does today --
+confirmed by the detection code itself only ever checking the
+connection's *name*, never its SSID or password.
 
 ```
 nmcli connection show                      # confirm "preconfigured" is listed

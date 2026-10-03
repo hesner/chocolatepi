@@ -37,10 +37,12 @@ sudo nmcli connection up preconfigured
 the exact profile name Raspberry Pi Imager creates. Updating it in
 place, rather than creating a new profile under a different name,
 matters if `expansions/setlist-admin-usb` is installed -- its
-WiFi-reachability feature trusts that exact profile name by default
-(full procedure, including what to do if you *do* want a different
-name: `systemd/README.md`'s "Changing which WiFi network the Pi
-connects to" section).
+WiFi-reachability feature trusts that exact profile name by default --
+keeping the name means that feature starts working against the new
+network automatically, the moment the Pi joins it, exactly like it
+does today, no further setup needed (full procedure, including what to
+do if you *do* want a different name: `systemd/README.md`'s "Changing
+which WiFi network the Pi connects to" section).
 
 ## Boots into "You are in emergency mode" (no SSH, stuck)
 

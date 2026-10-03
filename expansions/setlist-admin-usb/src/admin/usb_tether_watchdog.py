@@ -3,7 +3,7 @@ usb-tether-watchdog: detects a phone tethered over USB (Android's USB
 tethering or iPhone's Personal Hotspot via cable) *or* a USB WiFi
 dongle connected to the Pi's own preconfigured home network, and
 starts/stops setlist-admin.service accordingly
-(SETLIST_ADMIN_USB_SPECIFICATION.md section 4c).
+(SPECIFICATION.md section 4c).
 
 Phone detection is by kernel driver name, not IP range or interface
 name -- those vary too much across phone models/OS versions to
@@ -83,7 +83,20 @@ def wifi_connected_to_profile(profile_name: str = _DEFAULT_WIFI_PROFILE_NAME) ->
     profile Raspberry Pi Imager saves during initial setup) and that
     connection has a usable IPv4 address. Any other network name --
     even one with a working internet connection -- returns False on
-    purpose; this is a security boundary, not a connectivity check."""
+    purpose; this is a security boundary, not a connectivity check.
+
+    Deliberately checks the connection's *name* only, via `nmcli`'s
+    NAME/TYPE/DEVICE fields -- never the SSID or password. Real
+    consequence (2026-10-03, explicit user request to confirm this
+    stays true): changing the band's home WiFi to a different network
+    entirely -- new router, new location, new SSID/password -- via the
+    documented procedure (`systemd/README.md`'s "Changing which WiFi
+    network the Pi connects to", which updates the *same* "preconfigured"
+    profile in place rather than creating a new one) needs zero changes
+    here. The moment the Pi successfully joins that new network under
+    the same profile name, this function (and the WiFi-reachability
+    feature built on it) starts working against it automatically, same
+    as today."""
     iface = _wifi_interface_for_profile(profile_name)
     return iface is not None and _has_usable_ip(iface)
 
@@ -159,7 +172,7 @@ def parse_args():
         "--dry-run", action="store_true",
         help="Log every decision without starting/stopping setlist-admin.service "
              "-- required for the first hardware-testing stage before this ever "
-             "runs for real (SETLIST_ADMIN_USB_SPECIFICATION.md section 10).",
+             "runs for real (SPECIFICATION.md section 10).",
     )
     parser.add_argument("--sys-class-net", default=_DEFAULT_SYS_CLASS_NET)
     parser.add_argument(
