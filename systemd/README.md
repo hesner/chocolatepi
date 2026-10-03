@@ -246,11 +246,28 @@ spontaneous reboot -- see "Random freeze, Undervoltage detected!" in
 **Apply this last, once there's no more Pi-side development expected**:
 anything written to the Pi while the overlay is active (including
 syncing a new version of this code) is lost on the next reboot, since it
-only ever lands in the RAM-backed upper layer. To make further changes:
-temporarily disable (`do_overlayfs 1`, reboot), make and verify the
-changes normally, then re-enable -- `do_overlayfs 0` resets
-`overlayroot=tmpfs` **without** `:recurse=0`, so redo that edit to
-`cmdline.txt` every time before rebooting back into it.
+only ever lands in the RAM-backed upper layer. To make further changes,
+temporarily disable, make and verify the changes normally, then
+re-enable -- **`sudo raspi-config nonint do_overlayfs 1` does not
+actually disable it here** (confirmed live, 2026-10-01: its matching
+logic doesn't recognize the custom `:recurse=0` suffix, so it leaves
+`cmdline.txt` untouched and the overlay stays active after the reboot).
+Use the direct edit instead, same as enabling it but in reverse:
+
+```
+sudo mount -o remount,rw /boot/firmware
+sudo sed -i 's/overlayroot=tmpfs:recurse=0 //' /boot/firmware/cmdline.txt
+sudo mount -o remount,ro /boot/firmware
+sudo reboot
+```
+
+Confirm with `mount | grep ' / '` after reboot (plain `ext4 rw`, not
+`overlay`), then make/verify your changes, then re-enable:
+`do_overlayfs 0` resets `overlayroot=tmpfs` **without** `:recurse=0`,
+so redo that edit to `cmdline.txt` every time before rebooting back
+into it (same `sed` pattern as the enable step above, in reverse).
+See `TROUBLESHOOTING.md`'s "Code/config changes on the Pi disappear
+after a reboot" for the full commands both ways.
 
 Accepted trade-off, confirmed acceptable: `~/pedal-core.log` and the
 systemd journal become ephemeral too (wiped every reboot, along with

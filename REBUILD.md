@@ -161,6 +161,33 @@ into unrecoverable emergency mode instead of the standby fallback).
 overlay is active, to confirm the lock-down didn't silently break any
 of them.
 
+## Phase 9 -- Optional expansions (ask before installing either)
+
+The pedal above is already a complete, working appliance -- nothing
+past this point is required. Two independently-installable expansions
+exist for managing the library USB from a phone's browser instead of
+SSH; see the root `README.md`'s "Optional expansions" table for the
+current one-line description and status of each.
+
+**Do not install either without asking first.** Tell the user both
+exist, in plain terms (one works over a USB cable to the phone, no
+WiFi hardware needed; the other works over WiFi but needs a working
+WiFi adapter on the Pi), and let them choose: both, one, or neither.
+They're independent of each other and of the base pedal -- installing
+or skipping one has no effect on the other or on anything in Phases
+1-8 above.
+
+If the user wants one (or both) installed, follow that expansion's own
+`USAGE.md` "Installing" section exactly -- each has its own
+prerequisites, install script, and rollback script, and each requires
+temporarily disabling the overlay from Phase 8 first (same dance as
+any other change after lock-down -- see `TROUBLESHOOTING.md`'s "Code/
+config changes on the Pi disappear after a reboot").
+
+**Checkpoint, per expansion installed**: that expansion's own
+`USAGE.md` "First use" section, followed end to end -- don't consider
+an expansion done just because its install script exited 0.
+
 ## Done
 
 At this point the rebuild matches this project's own validated

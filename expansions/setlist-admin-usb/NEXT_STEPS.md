@@ -17,8 +17,10 @@ pass of `setlist-admin-usb` are **committed, pushed to `main`, and
 confirmed persistent on the real Pi** (survived an actual reboot cycle
 after being deployed correctly -- see "Deploying to the Pi" below for
 why that's not automatic). `setlist-admin-wifi` got the same code
-changes for parity but has **not** been hardware-tested itself (still
-blocked on a dead USB WiFi dongle -- see its own `SPECIFICATION.md`).
+changes for parity but has **not** been hardware-tested itself (this
+snapshot is from 2026-09-27, before a working WiFi dongle was found --
+see "Where things stand" entries below and its own `SPECIFICATION.md`
+for the current status).
 
 Real bugs found and fixed during this pass are listed in detail in
 `CHANGELOG.md`'s Unreleased section and in `SPECIFICATION.md` sections

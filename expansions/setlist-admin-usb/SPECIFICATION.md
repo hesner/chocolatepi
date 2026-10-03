@@ -39,12 +39,16 @@ see `CHANGELOG.md`'s rename entry and `LIBRARY.md` for the full
 rationale and folder-naming details.
 
 This is a **separate design track** from the earlier WiFi-based
-attempt (preserved, unfinished, on the `explore/setlist-admin` branch
--- not on `main`, not this file). That one is not abandoned, just
-paused on a hardware blocker (a dead USB WiFi dongle); it may be
-resumed later. This document deliberately keeps its **user experience**
-compatible with that one (section 3) so the two can converge cleanly
-whenever the WiFi track picks back up.
+attempt, since merged onto `main` as its own expansion
+(`expansions/setlist-admin-wifi/`, not a branch -- see its own
+`SPECIFICATION.md` for its current status). That one is not
+abandoned: its original hardware blocker (a dead USB WiFi dongle) was
+found and resolved at the OS level (2026-10-01, a working replacement
+dongle), though the expansion itself still hasn't been re-validated on
+real hardware with it. This document deliberately keeps its **user
+experience** compatible with that one (section 3) so the two can
+converge cleanly whenever the WiFi expansion's own hardware validation
+resumes.
 
 ---
 
@@ -56,7 +60,9 @@ it over that network. It was fully implemented and passed every stage
 of hardware testing except one: the USB WiFi dongle itself turned out
 to be failing hardware (confirmed dead by testing it on a separate
 computer, not a Pi-side power or software problem). The design and
-code were never at fault -- the radio was.
+code were never at fault -- the radio was. (A working replacement
+dongle was found afterward -- see `expansions/setlist-admin-wifi/
+SPECIFICATION.md` for the current status.)
 
 **This design removes the WiFi radio from the picture entirely.**
 Instead of the phone joining the Pi's network over the air, the phone

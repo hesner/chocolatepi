@@ -7,14 +7,16 @@ Esta es una **expansión** (`expansions/setlist-admin-wifi/`) — ver el
 la app web opcional para administrar el USB de biblioteca y el WiFi de
 la Pi desde el navegador de un teléfono o computador, en vez de SSH +
 `nano` + copiar archivos a mano. Diseño y razonamiento:
-[`SPECIFICATION.md`](SPECIFICATION.md). No se instala por defecto —
+[`SPECIFICATION.md`](../../SPECIFICATION.md). No se instala por defecto —
 ver "Instalación" abajo.
 
-**Estado**: en pausa por un bloqueo de hardware (un dongle USB de WiFi
-muerto, no un problema de diseño/código — ver la nota de estado en
-`SPECIFICATION.md` y el `CHANGELOG.md` en la raíz del repo). Instala
-esto cuando haya un adaptador de WiFi en buen estado con el cual
-probar.
+**Estado**: implementada y con tests unitarios; su bloqueo de hardware
+original (un dongle USB de WiFi muerto) se encontró y resolvió a nivel
+de sistema operativo (2026-10-01, un dongle de repuesto funcional —
+ver la nota de estado en `SPECIFICATION.md` y el `CHANGELOG.md` en la
+raíz del repo), pero esta expansión en sí todavía no se ha instalado
+ni probado en hardware real con él. Trátala como no validada hasta que
+eso pase.
 
 **Solo pre/post-Set.** Esto no está diseñado ni probado para editar la
 biblioteca con un Set en curso — la app muestra una advertencia si

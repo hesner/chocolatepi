@@ -189,19 +189,64 @@ edits will appear to work over SSH and then silently vanish.
 The read-only root overlay (`systemd/README.md` section 4) discards
 every write to `/` on every reboot, on purpose -- that's the power-loss
 protection. If you're actively developing on the Pi itself, disable the
-overlay first (`sudo raspi-config nonint do_overlayfs 1`, reboot), make
-and verify your changes, then re-enable it (`do_overlayfs 0` **plus the
-`:recurse=0` edit to `cmdline.txt`**, reboot) once done. Forgetting the
-`:recurse=0` step re-introduces the emergency-mode bug above.
+overlay first, make and verify your changes, then re-enable it once done.
+
+**`sudo raspi-config nonint do_overlayfs 1` does not actually disable
+it here** -- confirmed live (2026-10-01): its matching logic doesn't
+recognize the custom `:recurse=0` suffix this project's `cmdline.txt`
+uses, so it leaves the file completely untouched and the overlay stays
+active after the reboot, silently discarding whatever you just tried to
+deploy. Use the direct edit instead:
+
+```
+sudo mount -o remount,rw /boot/firmware
+sudo sed -i 's/overlayroot=tmpfs:recurse=0 //' /boot/firmware/cmdline.txt
+sudo mount -o remount,ro /boot/firmware
+sudo reboot
+```
+
+Confirm with `mount | grep ' / '` after reboot: it should show a plain
+`ext4 rw` root, not `overlay`. Make and verify your changes, then
+re-enable:
+
+```
+sudo raspi-config nonint do_overlayfs 0
+sudo mount -o remount,rw /boot/firmware
+sudo sed -i 's/overlayroot=tmpfs /overlayroot=tmpfs:recurse=0 /' /boot/firmware/cmdline.txt
+sudo mount -o remount,ro /boot/firmware
+sudo reboot
+```
+
+`do_overlayfs 0` strips `:recurse=0` again every time it runs -- always
+re-append it by hand before this reboot, or you'll hit the
+emergency-mode bug above the next time the library USB isn't present at
+boot.
+
+**Deploying several files back onto the Pi?** A loop of individual `scp`
+calls has been observed to silently fail to transfer most of them (no
+error shown) -- confirmed live. Bundle them into one tarball instead:
+`tar czf /tmp/x.tar.gz <files>`, `scp /tmp/x.tar.gz <host>:/tmp/`, then
+`ssh <host> "cd <repo> && tar xzf /tmp/x.tar.gz && rm /tmp/x.tar.gz"`.
 
 ## Service fails once immediately after boot, then recovers on its own
 
-Expected, not a bug: `RuntimeError: Could not connect to mpv's IPC
-socket ... No such file or directory` on the very first start attempt
-is a startup-order race (the Python process starts slightly before
-`mpv`'s socket is ready). `Restart=always` retries after 5 seconds and
-normally succeeds on the second attempt. Only worth investigating
-further if it keeps failing repeatedly rather than recovering.
+Usually expected, not a bug: `RuntimeError: Could not connect to mpv's
+IPC socket ... No such file or directory` on the very first start
+attempt is a startup-order race (the Python process starts slightly
+before `mpv`'s socket is ready). `Restart=always` retries after 5
+seconds and normally recovers on the second attempt.
+
+**If this repeats for more than a couple of cycles (confirmed live,
+2026-10-02: a multi-minute crash-loop)**, it's CPU starvation, not the
+normal startup race: `mpv` has up to 20s (`_CONNECT_TIMEOUT_S` in
+`src/core/player.py`) to open its socket, but a fresh `mpv` process
+spawned while something else is pinning the CPU (confirmed cause: a
+`setlist-admin` expansion's "Optimize" job running `ffmpeg` at ~200%)
+can still miss even that window. This only bites when `pedal-core.
+service` has to *restart* while something else is already CPU-heavy --
+normal playback alone never triggers it. If it keeps happening, check
+`ps aux` for a competing CPU-heavy process before assuming the timeout
+itself needs raising further.
 
 ## Audio (and video) stop completely after a while, screen flickering
 

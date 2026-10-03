@@ -118,7 +118,7 @@ sistema base del pedal y se pueden desinstalar por completo de vuelta a
 | Expansión | Qué hace | Estado | Versión |
 |---|---|---|---|
 | [`setlist-admin-usb`](../../expansions/setlist-admin-usb/docs/es/USAGE.md) | Administra Sets/Banks/pistas desde el navegador de un teléfono, conectando el teléfono a la Pi por USB (tethering de Android / Personal Hotspot por cable en iPhone), sin necesitar hardware de WiFi | Implementada y validada de punta a punta en hardware real | [v2026.10.01](../../expansions/setlist-admin-usb/VERSION) |
-| [`setlist-admin-wifi`](../../expansions/setlist-admin-wifi/docs/es/USAGE.md) | La misma administración de biblioteca, más configuración del WiFi de la Pi, alcanzable por WiFi | Implementada; validación en hardware real en pausa por un dongle USB de WiFi muerto | [v2026.10.01](../../expansions/setlist-admin-wifi/VERSION) |
+| [`setlist-admin-wifi`](../../expansions/setlist-admin-wifi/docs/es/USAGE.md) | La misma administración de biblioteca, más configuración del WiFi de la Pi, alcanzable por WiFi | Implementada; se encontró un dongle WiFi funcional después de que el original se dañara, pero esta expansión en sí todavía no se ha validado en hardware real | [v2026.10.01](../../expansions/setlist-admin-wifi/VERSION) |
 
 Ver [`expansions/README.md`](expansions/README.md) para el modelo
 completo (instalador/desinstalador propio de cada expansión, las

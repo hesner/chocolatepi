@@ -248,6 +248,22 @@ se completa por entero o no se completa (nunca parcialmente), así que
 un cable que se cae no puede corromper la biblioteca. Solo vuelve a
 conectarlo y sigue donde ibas.
 
+**Llegar a la app por WiFi en vez de por cable, sin ningún teléfono
+conectado** (uso de desarrollo/SSH — confirmado en vivo, 2026-10-02):
+el watchdog hace cumplir activamente la regla de arriba, volviendo a
+detener el servidor admin a los pocos segundos de cualquier
+`systemctl start setlist-admin.service` manual. Para anularlo
+temporalmente:
+
+```
+sudo systemctl stop usb-tether-watchdog.service
+sudo systemctl start setlist-admin.service
+```
+
+Recuerda hacer `sudo systemctl start usb-tether-watchdog.service` de
+nuevo cuando termines, o el servidor admin se queda alcanzable
+indefinidamente en vez de seguir la convención normal de solo-por-cable.
+
 ## Desinstalar / revertir
 
 Si esto alguna vez necesita salir — un bug, o simplemente decidir no

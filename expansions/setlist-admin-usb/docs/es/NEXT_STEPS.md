@@ -18,9 +18,10 @@ validación completa en hardware real de `setlist-admin-usb` ya están
 Pi real** (sobrevivieron un reinicio real después de desplegarse
 correctamente — ver "Desplegar al Pi" más abajo sobre por qué eso no es
 automático). `setlist-admin-wifi` recibió los mismos cambios de código
-por paridad, pero **no** se ha probado en hardware propio (sigue
-bloqueada por un dongle USB de WiFi muerto — ver su propio
-`SPECIFICATION.md`).
+por paridad, pero **no** se ha probado en hardware propio (esta
+instantánea es del 2026-09-27, antes de que se encontrara un dongle
+WiFi funcional — ver las entradas "Dónde están las cosas" más abajo y
+su propio `SPECIFICATION.md` para el estado actual).
 
 Los bugs reales encontrados y corregidos durante esta ronda están
 detallados en la sección "Sin publicar" de `docs/es/CHANGELOG.md` y en

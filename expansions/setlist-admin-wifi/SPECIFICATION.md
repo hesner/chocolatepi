@@ -10,38 +10,50 @@ repo root's `expansions/README.md` for what that means, and
 that reuses this one's CRUD backend and frontend UX (kept convergeable
 on purpose).
 
-**Status: approved and implemented (158 tests, all passing), but
-shelved after real-hardware testing hit a hardware blocker, not a
-design or code one.** This expansion preserves the full attempt for
-reference and future use; it is not installed by default (same as
-every expansion), and `expansions/setlist-admin-usb/` was built
-afterward specifically to sidestep this blocker with a different
-connectivity approach. Kept in code parity with `setlist-admin-usb`'s
-own real-hardware-driven fixes, including its most recent addition,
-standby video management (`USAGE.md`, `CHANGELOG.md`'s Unreleased
-section) -- ported here too, though (like everything else in this
-expansion) not independently hardware-tested.
+**Status: approved and implemented (158 tests, all passing). Real-
+hardware validation was shelved on a dead WiFi dongle, then unblocked
+(2026-10-01, see below) -- but this expansion itself still hasn't been
+installed or exercised on the working replacement.** It is not
+installed by default (same as every expansion), and
+`expansions/setlist-admin-usb/` was built in the meantime specifically
+to sidestep the original blocker with a different connectivity
+approach. Kept in code parity with `setlist-admin-usb`'s own
+real-hardware-driven fixes -- ported here too, though (like everything
+else in this expansion) not independently hardware-tested.
 
-What happened during hardware validation (section 8a): install and the
-staged network-testing protocol worked correctly through the watchdog
-dry-run and live-start stages (nothing about the design or code was at
-fault). Setting up the web UI for the first time then surfaced one real
-bug -- `usb_mount.py` used `mount -o remount,rw`, which `ntfs-3g` (the
-library USB's actual FUSE driver) refuses outright; fixed here to do a
-real umount+mount cycle instead (see git history). After
-that fix, though, the USB WiFi dongle (Realtek rtl8192cu) itself turned
-out to be failing: it intermittently mis-enumerated or didn't enumerate
-at all across several reboots and USB ports, and when tested directly
-on a separate computer it didn't appear as any USB device at all --
-strong evidence the dongle is dead, not a software/power problem on the
-Pi's side. Since the whole point of this feature is managing the Pi
-over WiFi, that blocks meaningful further testing until there's a
-known-good WiFi adapter to test against.
+What happened during the first hardware validation attempt (section
+8a): install and the staged network-testing protocol worked correctly
+through the watchdog dry-run and live-start stages (nothing about the
+design or code was at fault). Setting up the web UI for the first time
+then surfaced one real bug -- `usb_mount.py` used `mount -o
+remount,rw`, which `ntfs-3g` (the library USB's actual FUSE driver)
+refuses outright; fixed here to do a real umount+mount cycle instead
+(see git history). After that fix, though, the USB WiFi dongle
+(Realtek `rtl8192cu`) itself turned out to be failing: it
+intermittently mis-enumerated or didn't enumerate at all across
+several reboots and USB ports, and when tested directly on a separate
+computer it didn't appear as any USB device at all -- strong evidence
+the dongle is dead, not a software/power problem on the Pi's side.
+Since the whole point of this feature is managing the Pi over WiFi,
+that blocked meaningful further testing until there was a known-good
+WiFi adapter to test against.
 
-If picking this back up: the code here should still be a reasonable
-starting point (or reference) once a working WiFi adapter is available
-again, but section 8a's protocol should be re-run from the top on real
-hardware before trusting it again.
+**Unblocked (2026-10-01)**: a different dongle (Ralink/MediaTek
+`MT7601U` chipset) was connected and confirmed working at the OS
+level -- the kernel's own `mt7601u` driver attached cleanly, `wlan0`
+came up and associated with the home network automatically, and SSH
+worked over it with `eth0` fully disconnected (see root
+`CHANGELOG.md`'s Unreleased entry for the full write-up). **This is
+basic OS-level WiFi connectivity only** -- it unblocks resuming this
+expansion's own hardware validation, but the expansion itself (its
+systemd units, `nmcli` config read/write flows) still hasn't been
+installed or exercised on this dongle.
+
+If picking this back up: install this expansion against the Pi with
+the `MT7601U` dongle already connected and working, then re-run section
+8a's protocol from the top on real hardware -- don't assume the
+earlier `rtl8192cu`-blocked run's partial progress still applies
+without re-confirming each stage against the new adapter.
 
 **Update, 2026-10-01: a working adapter now exists.** A different
 chipset (Ralink/MediaTek `MT7601U`, not the dead Realtek `rtl8192cu`

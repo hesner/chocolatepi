@@ -170,6 +170,38 @@ respaldo).
 que el overlay está activo, para confirmar que el blindaje no rompió
 silenciosamente ninguno de ellos.
 
+## Fase 9 — Expansiones opcionales (pregunta antes de instalar
+cualquiera)
+
+El pedal de arriba ya es un aparato completo y funcional — nada más
+allá de este punto es obligatorio. Existen dos expansiones instalables
+de forma independiente para administrar el USB de biblioteca desde el
+navegador de un teléfono en vez de por SSH; ve la tabla "Expansiones
+opcionales" del `README.md` raíz para la descripción y estado actual
+de cada una.
+
+**No instales ninguna sin preguntar primero.** Dile al usuario que
+existen ambas, en términos simples (una funciona por cable USB al
+teléfono, sin hardware WiFi necesario; la otra funciona por WiFi pero
+necesita un adaptador WiFi funcionando en la Pi), y déjalo elegir:
+ambas, una, o ninguna. Son independientes entre sí y del pedal base —
+instalar o saltarte una no afecta a la otra ni a nada de las Fases 1-8
+de arriba.
+
+Si el usuario quiere instalar una (o ambas), sigue la sección
+"Installing" del propio `USAGE.md` de esa expansión al pie de la
+letra — cada una tiene sus propios prerequisitos, script de
+instalación y script de reversión, y cada una requiere desactivar
+temporalmente el overlay de la Fase 8 primero (el mismo procedimiento
+que cualquier otro cambio después del blindaje — ver en
+`TROUBLESHOOTING.md` "Code/config changes on the Pi disappear after a
+reboot").
+
+**Checkpoint, por cada expansión instalada**: la sección "First use"
+del propio `USAGE.md` de esa expansión, seguida de punta a punta — no
+la consideres terminada solo porque su script de instalación salió con
+código 0.
+
 ## Listo
 
 En este punto la reconstrucción coincide con el estado de referencia

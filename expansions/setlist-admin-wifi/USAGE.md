@@ -9,10 +9,12 @@ phone or computer's browser, instead of SSH + `nano` + copying files by
 hand. Design and rationale: [`SPECIFICATION.md`](SPECIFICATION.md).
 Not installed by default -- see "Installing" below.
 
-**Status**: shelved on a hardware blocker (a dead USB WiFi dongle, not
-a design/code problem -- see `SPECIFICATION.md`'s status note and the
-repo root's `CHANGELOG.md`). Install this once there's a known-good
-WiFi adapter to test against.
+**Status**: implemented and unit-tested; its original hardware blocker
+(a dead USB WiFi dongle) was found and resolved at the OS level
+(2026-10-01, a working replacement dongle -- see `SPECIFICATION.md`'s
+status note and the repo root's `CHANGELOG.md`), but this expansion
+itself still hasn't been installed or exercised on real hardware with
+it. Treat it as unvalidated until that happens.
 
 **Pre/post-Set only.** This isn't designed or tested for editing the
 library while a Set is in progress -- the app shows a warning if it

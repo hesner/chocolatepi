@@ -240,6 +240,21 @@ Unplugging mid-edit is safe -- every write to the USB completes fully
 or not at all (never partially), so a dropped cable can't corrupt the
 library. Just plug back in and pick up where you left off.
 
+**Reaching the app over WiFi instead, with no phone tethered**
+(developer/SSH use -- confirmed live, 2026-10-02): the watchdog
+actively enforces the tethering rule above, re-stopping the admin
+server within a few seconds of any manual `systemctl start
+setlist-admin.service`. To override it temporarily:
+
+```
+sudo systemctl stop usb-tether-watchdog.service
+sudo systemctl start setlist-admin.service
+```
+
+Remember to `sudo systemctl start usb-tether-watchdog.service` again
+once done, or the admin server stays reachable indefinitely instead of
+following the normal tether-only convention.
+
 ## Uninstalling / rolling back
 
 If this ever needs to come out -- a bug, or just deciding not to use
